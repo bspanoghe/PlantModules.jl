@@ -1,7 +1,13 @@
 name = "PlantModules.jl"
 authors = ["Michiel Stock", "Tom De Swaef", "Bram Spanoghe"]
-[compat]
-julia = "1.8.2"
-DrWatson = "2.13.0"
+
 [deps]
+DifferentialEquations = "0c46a032-eb83-5123-abaf-570d42b7fbaa"
 DrWatson = "634d3b9d-ee7a-5ddf-bec9-22491ea816e1"
+ModelingToolkit = "961ee093-0014-501f-94e3-6117800e7a78"
+Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"
+Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
+
+[compat]
+DrWatson = "2.13.0"
+julia = "1.8.2"
