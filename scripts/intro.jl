@@ -91,7 +91,7 @@ function plant_compartment(; name, volume::Volume)
     eqs = [
         Ψ ~ Π + P, # Water potential consists of a solute- and a pressure component
         Π ~ -R*T*M, # Solute component is determined by concentration of dissolved metabolites
-        (ΔP .~ ϵ_D .* (ΔD./D .- ϕ_D.*max(P .- Γ, P_0)))..., # Pressure changes with changes in compartment dimensions
+        [ΔP ~ ϵ_D[i] * (ΔD[i]/D[i] - ϕ_D[i]*max(P - Γ, P_0)) for i in eachindex(D)]..., # Pressure changes with changes in compartment dimensions
             #! im assuming the max is also required here
         V ~ volume.formula(D), # Compartment dimensions determine its volume
         W ~ ρ_w * V, # Volume determines water content (*ignoring dry matter)
@@ -99,7 +99,7 @@ function plant_compartment(; name, volume::Volume)
 
         d(P) ~ ΔP,
         d(M) ~ ΔM,
-        (d.(D) .~ ΔD)...,
+        [d(D[i]) ~ ΔD[i] for i in eachindex(D)]...,
         d(W) ~ ΔW,
         d(V) ~ ΔV
     ]
