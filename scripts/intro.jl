@@ -5,7 +5,7 @@ using ModelingToolkit, DifferentialEquations, Plots, Unitful
 @variables t, [description = "Time", unit = u"hr"];
 d = Differential(t);
 
-# define plant compartment volumes #
+# Define plant compartment volumes #
 
 abstract type Volume end
 
@@ -13,8 +13,8 @@ abstract type Volume end
 struct Sphere<:Volume
     ϵ_D::Vector
     ϕ_D::Vector
-    formula::Function
-    function Sphere(ϵ_D::Vector, ϕ_D::Vector)
+    formula::Function #! change to method
+    function Sphere(; ϵ_D::Vector, ϕ_D::Vector)
         length(ϵ_D) != 1 && error("An array of length $(length(ϵ_D)) was given for ϵ_D while length 1 was expected.")
         length(ϕ_D) != 1 && error("An array of length $(length(ϕ_D)) was given for ϕ_D while length 1 was expected.")
 
@@ -27,7 +27,7 @@ struct Cilinder<:Volume
     ϵ_D::Vector
     ϕ_D::Vector
     formula::Function
-    function Cilinder(ϵ_D::Vector, ϕ_D::Vector)
+    function Cilinder(; ϵ_D::Vector, ϕ_D::Vector)
         length(ϵ_D) != 2 && error("An array of length $(length(ϵ_D)) was given for ϵ_D while length 2 was expected.")
         length(ϕ_D) != 2 && error("An array of length $(length(ϕ_D)) was given for ϕ_D while length 2 was expected.")
 
@@ -40,7 +40,7 @@ struct Rectangle<:Volume
     ϵ_D::Vector
     ϕ_D::Vector
     formula::Function
-    function Rectangle(ϵ_D::Vector, ϕ_D::Vector)
+    function Rectangle(; ϵ_D::Vector, ϕ_D::Vector)
         length(ϵ_D) != 3 && error("An array of length $(length(ϵ_D)) was given for ϵ_D while length 3 was expected.")
         length(ϕ_D) != 3 && error("An array of length $(length(ϕ_D)) was given for ϕ_D while length 3 was expected.")
 
@@ -48,9 +48,33 @@ struct Rectangle<:Volume
     end
 end
 
-# define plant compartments #
+# Define helper functions #
+
+## Unitful is a dangerous beast
+val(x) = x
+val(x::Quantity) = x.val
+
+## Forbidden rites
+import Base.exp
+import Base.log
+exp(x::Quantity) = exp(val(x))*unit(x)
+log(x::Quantity) = log(val(x))*unit(x)
+
+## LogSumExp, a smooth approximation for the maximum function
+LSE(x::Real...) = log(sum(exp.(x)))
+
+#! LSE with an argument > 750 returns Inf
+#! LSE with small arguments gives wildly incorrect results
+
+boltzmann(x::Real...; alpha = 20) = sum( x.*exp.(alpha.*x) ) / sum( exp.(alpha.*x) )
+
+#! returns NaN with large arguments
+#! accuracy for small inputs depends on alpha
+
+# Define plant compartments #
 
 ## constants
+
 @constants (
     R = 8.314e-6, [description = "Ideal gas constant", unit = u"MJ / K / mol"],
     ρ_w = 1.0e6,  [description = "Density of water", unit = u"g / m^3"]
@@ -61,14 +85,10 @@ function plant_compartment(; name, volume::Volume)
     num_D = length(volume.ϵ_D)
     @parameters (
         T = 298.15, [description = "Temperature", unit = u"K"],
-        # ϵ_V = 1.0, [description = "Volumetric elastic modulus", unit = u"MPa"],
         ϵ_D[1:num_D] = volume.ϵ_D, [description = "Dimensional elastic modulus", unit = u"MPa"],
-        # ϕ_V = 0.15, [description = "Volumetric extensibility", unit = u"MPa^-1 * hr^-1"],
         ϕ_D[1:num_D] = volume.ϕ_D, [description = "Dimensional extensibility", unit = u"MPa^-1 * hr^-1"],
         Γ = 0.3, [description = "Critical turgor pressure", unit = u"MPa"],
         P_0 = 0.0, [description = "Minimum pressure", unit = u"MPa"], 
-            # you can't use magic numbers in the equations when working with units
-            # everything has to be either a variable or a parameter
     )
     @variables (
         Ψ(t), [description = "Total water potential", unit = u"MPa"],
@@ -78,38 +98,38 @@ function plant_compartment(; name, volume::Volume)
         W(t), [description = "Water content", unit = u"g"],
         D(t)[1:num_D], [description = "Dimensions of compartment", unit = u"m"],
         V(t), [description = "Volume of compartment", unit = u"m^3"],
+        F(t), [description = "Net incoming water flux", unit = u"g / hr"],
 
         ΔP(t), [description = "Change in hydrostatic potential", unit = u"MPa / hr"],
         ΔM(t), [description = "Change in osmotically active metabolite content", unit = u"mol / m^3 / hr"],
         ΔW(t), [description = "Change in water content", unit = u"g / hr"],
         ΔD(t)[1:num_D], [description = "Change in dimensions of compartment", unit = u"m / hr"],
-        ΔV(t), [description = "Change in volume of compartment", unit = u"m^3 / hr"],
-
-        F(t), [description = "Net incoming water flux", unit = u"g / hr"],
     )
 
     eqs = [
         Ψ ~ Π + P, # Water potential consists of a solute- and a pressure component
         Π ~ -R*T*M, # Solute component is determined by concentration of dissolved metabolites
-        [ΔP ~ ϵ_D[i] * (ΔD[i]/D[i] - ϕ_D[i]*max(P - Γ, P_0)) for i in eachindex(D)]..., # Pressure changes with changes in compartment dimensions
-            #! im assuming the max is also required here
-        V ~ volume.formula(D), # Compartment dimensions determine its volume
-        W ~ ρ_w * V, # Volume determines water content (*ignoring dry matter)
-        ΔW ~ F, # Water content changes due to water fluxes, determined by water potentials
+        ΔW ~ F, # Water content changes due to flux (depending on water potentials as defined in connections)
+        V ~ W / ρ_w, # Volume is directly related to water content        
+        V ~ volume.formula(D), # Volume is also directly related to compartment dimensions
+        [ΔD[i] ~ D[i] * (ΔP/ϵ_D[i] + ϕ_D[i] * max(P - Γ, P_0)) for i in eachindex(D)]..., # Compartment dimensions can only change due to a change in pressure
 
         d(P) ~ ΔP,
-        d(M) ~ ΔM,
-        [d(D[i]) ~ ΔD[i] for i in eachindex(D)]...,
+        d(M) ~ ΔM, # Change in dissolved metabolites is defined in the connections
         d(W) ~ ΔW,
-        d(V) ~ ΔV
+        [d(D[i]) ~ ΔD[i] for i in eachindex(D)]...,
     ]
     return ODESystem(eqs, t; name)
 end
 
 ## named compartments
-@named root = plant_compartment(volume = Sphere([3.0], [0.45]))
-@named stem = plant_compartment(volume = Cilinder([6.0, 0.15], [0.8, 0.03]))
-@named leaf = plant_compartment(volume = Rectangle([5.0, 0.3, 0.2], [0.7, 0.1, 0.05]))
+rootvol = Sphere(ϵ_D = [3.0], ϕ_D = [0.45])
+stemvol = Cilinder(ϵ_D = [6.0, 0.15], ϕ_D = [0.8, 0.03])
+leafvol = Rectangle(ϵ_D = [5.0, 0.3, 0.2], ϕ_D = [0.7, 0.1, 0.05])
+
+@named root = plant_compartment(volume = rootvol)
+@named stem = plant_compartment(volume = stemvol)
+@named leaf = plant_compartment(volume = leafvol)
 
 
 # define connections #
@@ -117,6 +137,9 @@ end
 
 ## connection parameters
 ### constant parameters
+#! make soil & air into environment compartments
+    # air: Spanner equation (PlantBiophysics.jl?)
+        # complexity ~ whatever the user wants
 @parameters ( #! these are mostly guesses
     Ψ_soil = -0.3, [description = "Total water potential of soil", unit = u"MPa"],
     Ψ_air = -100, [description = "Total water potential of air", unit = u"MPa"],
@@ -127,12 +150,10 @@ end
     A_max = 10, [description = "Maximum rate of photosynthesis", unit = u"mol / m^3 / hr"],
     A_0 = 0, [description = "Rate of photosynthesis if there is no photosynthesis", unit = u"mol / m^3 / hr"],
     R = 1.5, [description = "Rate of cellular respiration", unit = u"mol / m^3 / hr"],
-    K_M = 0.1, [description = "Rate of metabolite diffusion", unit = u"hr^-1"],
+    K_M = 0.3, [description = "Rate of metabolite diffusion", unit = u"hr^-1"],
 )
 
 ### variable parameters
-val(x) = x
-val(x::Quantity) = x.val
 
 A_n(t, A_max) = A_max/2 * (sin(val(t) * pi/12 - pi/2) + 1) # simulate day and night cycle of light
 # plot(t -> A_n(t, 5), xlims = (0, 48), xticks = [0, 12, 24, 36, 48])
@@ -160,24 +181,27 @@ plant_simp = structural_simplify(plant)
 # full_equations(plant_simp)
 
 ## initial values
+
+ρ_w_reprise = 1.0e6
+
 u0 = [
     root.M => 200.0,
     root.P => 0.1,
-    root.W => 3.0,
     root.D[1] => 0.1,
+    root.W => rootvol.formula(root.D) * ρ_w_reprise, #! figure out why using ρ_w here doesn't work
 
     stem.M => 200.0,
     stem.P => 0.1,
-    stem.W => 3.0,
     stem.D[1] => 0.4,
     stem.D[2] => 0.03,
+    stem.W => stemvol.formula(stem.D) * ρ_w_reprise,
 
     leaf.M => 200.0,
     leaf.P => 0.1,
-    leaf.W => 3.0,
     leaf.D[1] => 0.3,
     leaf.D[2] => 0.05,
-    leaf.D[3] => 0.03
+    leaf.D[3] => 0.03,
+    leaf.W => leafvol.formula(leaf.D) * ρ_w_reprise,
 ]
 
 ### Adding initial values for dummy derivatives generated by MTK (see https://docs.sciml.ai/ModelingToolkit/stable/basics/FAQ/#ERROR:-ArgumentError:-SymbolicUtils.BasicSymbolic{Real}[x%CB%8Dt(t)]-are-missing-from-the-variable-map.)
@@ -197,7 +221,7 @@ D_plots = [plot(sol, idxs = [organ.D...]) for organ in [root, stem, leaf]]
 plot(D_plots..., layout = (3, 1), size = (800, 500))
 
 #=
-# other approach to defining connections #
+# other approach to defining connections # #! implement 🥳
 
 function plant_connection(; name, c1, c2, K)
     @parameters (
