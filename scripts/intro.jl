@@ -5,48 +5,50 @@ using ModelingToolkit, DifferentialEquations, Plots, Unitful
 @variables t, [description = "Time", unit = u"hr"];
 d = Differential(t);
 
-# Define plant compartment volumes #
+# Define plant compartment shapes #
 
-abstract type Volume end
+abstract type Shape end
 
-# Write dimensions in the order: radius
-struct Sphere<:Volume
+struct Sphere<:Shape
     ϵ_D::Vector
     ϕ_D::Vector
-    formula::Function #! change to method
     function Sphere(; ϵ_D::Vector, ϕ_D::Vector)
         length(ϵ_D) != 1 && error("An array of length $(length(ϵ_D)) was given for ϵ_D while length 1 was expected.")
         length(ϕ_D) != 1 && error("An array of length $(length(ϕ_D)) was given for ϕ_D while length 1 was expected.")
 
-        return new(ϵ_D, ϕ_D, D -> 4/3 * pi * D[1]^3)
+        return new(ϵ_D, ϕ_D)
     end
 end
 
-# Write dimensions in the order: radius - length
-struct Cilinder<:Volume
+struct Cilinder<:Shape
     ϵ_D::Vector
     ϕ_D::Vector
-    formula::Function
     function Cilinder(; ϵ_D::Vector, ϕ_D::Vector)
         length(ϵ_D) != 2 && error("An array of length $(length(ϵ_D)) was given for ϵ_D while length 2 was expected.")
         length(ϕ_D) != 2 && error("An array of length $(length(ϕ_D)) was given for ϕ_D while length 2 was expected.")
 
-        return new(ϵ_D, ϕ_D, D -> D[1]^2 * pi * D[2])
+        return new(ϵ_D, ϕ_D)
     end
 end
 
-# Write dimensions in the order: length - width - height
-struct Rectangle<:Volume
+struct Cuboid<:Shape
     ϵ_D::Vector
     ϕ_D::Vector
-    formula::Function
-    function Rectangle(; ϵ_D::Vector, ϕ_D::Vector)
+    function Cuboid(; ϵ_D::Vector, ϕ_D::Vector)
         length(ϵ_D) != 3 && error("An array of length $(length(ϵ_D)) was given for ϵ_D while length 3 was expected.")
         length(ϕ_D) != 3 && error("An array of length $(length(ϕ_D)) was given for ϕ_D while length 3 was expected.")
 
-        return new(ϵ_D, ϕ_D, D -> D[1] * D[2] * D[3])
+        return new(ϵ_D, ϕ_D)
     end
 end
+
+eep = Sphere(ϵ_D = [1], ϕ_D = [2])
+sneep = Cilinder(ϵ_D = [1, 3], ϕ_D = [2, 4])
+
+volume(s::Shape, D::AbstractArray) = error("Function volume is not defined for shape $s")
+volume(s::Sphere, D::AbstractArray) = 4/3 * pi * D[1]^3 # Write dimensions in the order: radius
+volume(s::Cilinder, D::AbstractArray) = D[1]^2 * pi * D[2] # Write dimensions in the order: radius - length
+volume(s::Cuboid, D::AbstractArray) = D[1] * D[2] * D[3] # Write dimensions in the order: length - width - height
 
 # Define helper functions #
 
@@ -60,16 +62,16 @@ import Base.log
 exp(x::Quantity) = exp(val(x))*unit(x)
 log(x::Quantity) = log(val(x))*unit(x)
 
-## LogSumExp, a smooth approximation for the maximum function
-LSE(x::Real...) = log(sum(exp.(x)))
+"""
+LSE(x, y, ...; γ = 1)
 
-#! LSE with an argument > 750 returns Inf
-#! LSE with small arguments gives wildly incorrect results
-
-boltzmann(x::Real...; alpha = 20) = sum( x.*exp.(alpha.*x) ) / sum( exp.(alpha.*x) )
-
-#! returns NaN with large arguments
-#! accuracy for small inputs depends on alpha
+LogSumExp, a smooth approximation for the maximum function. 
+The temperature parameter γ determines how close the approximation is to the actual maximum.
+WARNING: large values for γ combined with large input arguments
+will result in numerical overflow and cause the function to return Inf.
+"""
+LSE(x::Real...; γ = 1) = log(sum(exp.(γ .* x)) ) / γ 
+@register_symbolic LSE(x)
 
 # Define plant compartments #
 
@@ -77,16 +79,16 @@ boltzmann(x::Real...; alpha = 20) = sum( x.*exp.(alpha.*x) ) / sum( exp.(alpha.*
 
 @constants (
     R = 8.314e-6, [description = "Ideal gas constant", unit = u"MJ / K / mol"],
-    ρ_w = 1.0e6,  [description = "Density of water", unit = u"g / m^3"]
 )
 
 ## general compartment definition
-function plant_compartment(; name, volume::Volume)
-    num_D = length(volume.ϵ_D)
+function plant_compartment(; name, shape::Shape)
+    num_D = length(shape.ϵ_D)
     @parameters (
         T = 298.15, [description = "Temperature", unit = u"K"],
-        ϵ_D[1:num_D] = volume.ϵ_D, [description = "Dimensional elastic modulus", unit = u"MPa"],
-        ϕ_D[1:num_D] = volume.ϕ_D, [description = "Dimensional extensibility", unit = u"MPa^-1 * hr^-1"],
+        ρ_w = 1.0e6, [description = "Density of water", unit = u"g / m^3"],
+        ϵ_D[1:num_D] = shape.ϵ_D, [description = "Dimensional elastic modulus", unit = u"MPa"],
+        ϕ_D[1:num_D] = shape.ϕ_D, [description = "Dimensional extensibility", unit = u"MPa^-1 * hr^-1"],
         Γ = 0.3, [description = "Critical turgor pressure", unit = u"MPa"],
         P_0 = 0.0, [description = "Minimum pressure", unit = u"MPa"], 
     )
@@ -97,7 +99,7 @@ function plant_compartment(; name, volume::Volume)
         M(t), [description = "Osmotically active metabolite content", unit = u"mol / m^3"], # m^3 so units match in second equation (Pa = J/m^3) #! extend validation function so L is ok?
         W(t), [description = "Water content", unit = u"g"],
         D(t)[1:num_D], [description = "Dimensions of compartment", unit = u"m"],
-        V(t), [description = "Volume of compartment", unit = u"m^3"],
+        V(t), [description = "Shape of compartment", unit = u"m^3"],
         F(t), [description = "Net incoming water flux", unit = u"g / hr"],
 
         ΔP(t), [description = "Change in hydrostatic potential", unit = u"MPa / hr"],
@@ -110,9 +112,9 @@ function plant_compartment(; name, volume::Volume)
         Ψ ~ Π + P, # Water potential consists of a solute- and a pressure component
         Π ~ -R*T*M, # Solute component is determined by concentration of dissolved metabolites
         ΔW ~ F, # Water content changes due to flux (depending on water potentials as defined in connections)
-        V ~ W / ρ_w, # Volume is directly related to water content        
-        V ~ volume.formula(D), # Volume is also directly related to compartment dimensions
-        [ΔD[i] ~ D[i] * (ΔP/ϵ_D[i] + ϕ_D[i] * max(P - Γ, P_0)) for i in eachindex(D)]..., # Compartment dimensions can only change due to a change in pressure
+        V ~ W / ρ_w, # Shape is directly related to water content        
+        V ~ volume(shape, D), # Shape is also directly related to compartment dimensions
+        [ΔD[i] ~ D[i] * (ΔP/ϵ_D[i] + ϕ_D[i] * LSE(P - Γ, P_0, γ = 100)) for i in eachindex(D)]..., # Compartment dimensions can only change due to a change in pressure
 
         d(P) ~ ΔP,
         d(M) ~ ΔM, # Change in dissolved metabolites is defined in the connections
@@ -125,11 +127,11 @@ end
 ## named compartments
 rootvol = Sphere(ϵ_D = [3.0], ϕ_D = [0.45])
 stemvol = Cilinder(ϵ_D = [6.0, 0.15], ϕ_D = [0.8, 0.03])
-leafvol = Rectangle(ϵ_D = [5.0, 0.3, 0.2], ϕ_D = [0.7, 0.1, 0.05])
+leafvol = Cuboid(ϵ_D = [5.0, 0.3, 0.2], ϕ_D = [0.7, 0.1, 0.05])
 
-@named root = plant_compartment(volume = rootvol)
-@named stem = plant_compartment(volume = stemvol)
-@named leaf = plant_compartment(volume = leafvol)
+@named root = plant_compartment(shape = rootvol)
+@named stem = plant_compartment(shape = stemvol)
+@named leaf = plant_compartment(shape = leafvol)
 
 
 # define connections #
@@ -168,7 +170,7 @@ connections = [
 
     root.ΔM ~ A_0 - R + K_M * (stem.M - root.M),
     stem.ΔM ~ A_0 - R + K_M * (root.M - stem.M) + K_M * (leaf.M - stem.M),
-    leaf.ΔM ~ A_n(t, A_max) - R + K_M * (stem.M - leaf.M)
+    leaf.ΔM ~ A_n(t, A_max) - R + K_M * (stem.M - leaf.M),
 ]
 
 
@@ -182,26 +184,24 @@ plant_simp = structural_simplify(plant)
 
 ## initial values
 
-ρ_w_reprise = 1.0e6
-
 u0 = [
     root.M => 200.0,
     root.P => 0.1,
     root.D[1] => 0.1,
-    root.W => rootvol.formula(root.D) * ρ_w_reprise, #! figure out why using ρ_w here doesn't work
+    root.W => volume(rootvol, root.D) * root.ρ_w,
 
     stem.M => 200.0,
     stem.P => 0.1,
     stem.D[1] => 0.4,
     stem.D[2] => 0.03,
-    stem.W => stemvol.formula(stem.D) * ρ_w_reprise,
+    stem.W => volume(stemvol, stem.D) * stem.ρ_w,
 
     leaf.M => 200.0,
     leaf.P => 0.1,
     leaf.D[1] => 0.3,
     leaf.D[2] => 0.05,
     leaf.D[3] => 0.03,
-    leaf.W => leafvol.formula(leaf.D) * ρ_w_reprise,
+    leaf.W => volume(leafvol, leaf.D) * leaf.ρ_w,
 ]
 
 ### Adding initial values for dummy derivatives generated by MTK (see https://docs.sciml.ai/ModelingToolkit/stable/basics/FAQ/#ERROR:-ArgumentError:-SymbolicUtils.BasicSymbolic{Real}[x%CB%8Dt(t)]-are-missing-from-the-variable-map.)
