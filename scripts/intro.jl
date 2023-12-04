@@ -42,9 +42,6 @@ struct Cuboid<:Shape
     end
 end
 
-eep = Sphere(ϵ_D = [1], ϕ_D = [2])
-sneep = Cilinder(ϵ_D = [1, 3], ϕ_D = [2, 4])
-
 volume(s::Shape, D::AbstractArray) = error("Function volume is not defined for shape $s")
 volume(s::Sphere, D::AbstractArray) = 4/3 * pi * D[1]^3 # Write dimensions in the order: radius
 volume(s::Cilinder, D::AbstractArray) = D[1]^2 * pi * D[2] # Write dimensions in the order: radius - length
@@ -73,15 +70,17 @@ will result in numerical overflow and cause the function to return Inf.
 LSE(x::Real...; γ = 1) = log(sum(exp.(γ .* x)) ) / γ 
 @register_symbolic LSE(x)
 
-# Define plant compartments #
+# Define compartments #
 
-## constants
+## Plants
+
+### constants
 
 @constants (
     R = 8.314e-6, [description = "Ideal gas constant", unit = u"MJ / K / mol"],
 )
 
-## general compartment definition
+### general compartment definition
 function plant_compartment(; name, shape::Shape)
     num_D = length(shape.ϵ_D)
     @parameters (
@@ -124,106 +123,40 @@ function plant_compartment(; name, shape::Shape)
     return ODESystem(eqs, t; name)
 end
 
-## named compartments
-rootvol = Sphere(ϵ_D = [3.0], ϕ_D = [0.45])
-stemvol = Cilinder(ϵ_D = [6.0, 0.15], ϕ_D = [0.8, 0.03])
-leafvol = Cuboid(ϵ_D = [5.0, 0.3, 0.2], ϕ_D = [0.7, 0.1, 0.05])
+## Environmental compartments
 
-@named root = plant_compartment(shape = rootvol)
-@named stem = plant_compartment(shape = stemvol)
-@named leaf = plant_compartment(shape = leafvol)
+function environmental_compartment(; name, W_max)
+    @parameters (
+        T = 298.15, [description = "Temperature", unit = u"K"],
+        ρ_w = 1.0e6, [description = "Density of water", unit = u"g / m^3"],
+        W_max = W_max, [description = "Water capacity of compartment", unit = u"g"],
+        )
+    @variables (
+        Ψ(t), [description = "Total water potential", unit = u"MPa"],
+        W(t), [description = "Water content", unit = u"g"],
+        W_r(t), [description = "Relative water content", unit = u"g / g"],
+        F(t), [description = "Net incoming water flux", unit = u"g / hr"],
 
+        ΔW(t), [description = "Change in water content", unit = u"g / hr"],
+    )
 
-# define connections #
+    eqs = [
+        W_r ~ W / W_max,
+        ΔW ~ F, # Water content changes due to flux (depending on water potentials as defined in connections)
+        d(W) ~ ΔW,
 
+        # prevent variables from being erased from existence
+        Ψ ~ Ψ,
+        T ~ T
+    ]
+    return ODESystem(eqs, t; name)
+end
 
-## connection parameters
-### constant parameters
-#! make soil & air into environment compartments
-    # air: Spanner equation (PlantBiophysics.jl?)
-        # complexity ~ whatever the user wants
-@parameters ( #! these are mostly guesses
-    Ψ_soil = -0.3, [description = "Total water potential of soil", unit = u"MPa"],
-    Ψ_air = -100, [description = "Total water potential of air", unit = u"MPa"],
-    K_soil_root = 50, [description = "Hydraulic conductivity between soil and root", unit = u"g / hr / MPa"],
-    K_root_stem = 800, [description = "Hydraulic conductivity between root and stem", unit = u"g / hr / MPa"],
-    K_stem_leaf = 600, [description = "Hydraulic conductivity between stem and leaf", unit = u"g / hr / MPa"],
-    K_leaf_air = 1e-3, [description = "Hydraulic conductivity between leaf and air", unit = u"g / hr / MPa"],
-    A_max = 10, [description = "Maximum rate of photosynthesis", unit = u"mol / m^3 / hr"],
-    A_0 = 0, [description = "Rate of photosynthesis if there is no photosynthesis", unit = u"mol / m^3 / hr"],
-    R = 1.5, [description = "Rate of cellular respiration", unit = u"mol / m^3 / hr"],
-    K_M = 0.3, [description = "Rate of metabolite diffusion", unit = u"hr^-1"],
-)
+## Compartment connections
 
-### variable parameters
+#= other approach to defining connections # #! implement 🥳
 
-A_n(t, A_max) = A_max/2 * (sin(val(t) * pi/12 - pi/2) + 1) # simulate day and night cycle of light
-# plot(t -> A_n(t, 5), xlims = (0, 48), xticks = [0, 12, 24, 36, 48])
-
-@register_symbolic A_n(t, A_max)
-
-## connections themselves
-connections = [
-    root.F ~ K_soil_root * (Ψ_soil - root.Ψ) + K_root_stem * (stem.Ψ - root.Ψ),
-    stem.F ~ K_root_stem * (root.Ψ - stem.Ψ) + K_stem_leaf * (leaf.Ψ - stem.Ψ),
-    leaf.F ~ K_stem_leaf * (stem.Ψ - leaf.Ψ) + K_leaf_air * (Ψ_air - leaf.Ψ),
-
-    root.ΔM ~ A_0 - R + K_M * (stem.M - root.M),
-    stem.ΔM ~ A_0 - R + K_M * (root.M - stem.M) + K_M * (leaf.M - stem.M),
-    leaf.ΔM ~ A_n(t, A_max) - R + K_M * (stem.M - leaf.M),
-]
-
-
-# build model #
-
-## model definition
-plant = compose(ODESystem(connections, name = :plant), root, stem, leaf)
-plant_simp = structural_simplify(plant)
-
-# full_equations(plant_simp)
-
-## initial values
-
-u0 = [
-    root.M => 200.0,
-    root.P => 0.1,
-    root.D[1] => 0.1,
-    root.W => volume(rootvol, root.D) * root.ρ_w,
-
-    stem.M => 200.0,
-    stem.P => 0.1,
-    stem.D[1] => 0.4,
-    stem.D[2] => 0.03,
-    stem.W => volume(stemvol, stem.D) * stem.ρ_w,
-
-    leaf.M => 200.0,
-    leaf.P => 0.1,
-    leaf.D[1] => 0.3,
-    leaf.D[2] => 0.05,
-    leaf.D[3] => 0.03,
-    leaf.W => volume(leafvol, leaf.D) * leaf.ρ_w,
-]
-
-### Adding initial values for dummy derivatives generated by MTK (see https://docs.sciml.ai/ModelingToolkit/stable/basics/FAQ/#ERROR:-ArgumentError:-SymbolicUtils.BasicSymbolic{Real}[x%CB%8Dt(t)]-are-missing-from-the-variable-map.)
-u0_req = ModelingToolkit.missing_variable_defaults(plant_simp) # generates zero initial value for ALL initial states
-u0_ext = union(u0, u0_req) # add actual values of non-dummy initial states 
-u0_full = unique(x -> x[1], u0_ext) # remove duplicates
-
-## define and solve problem
-prob = ODEProblem(plant_simp, u0_full, (0.0, 24.0*31))
-sol = solve(prob)
-
-## plot solution
-plots = [plot(sol, idxs = [getproperty(organ, var)]) for organ in [root, stem, leaf] for var in [:W, :P, :M, :Ψ]]
-plot(plots..., layout = (3, 4), size = (800, 500))
-
-D_plots = [plot(sol, idxs = [organ.D...]) for organ in [root, stem, leaf]]
-plot(D_plots..., layout = (3, 1), size = (800, 500))
-
-#=
-# other approach to defining connections # #! implement 🥳
-
-function plant_connection(; name, c1, c2, K)
+function compartment_connection(; name, c1, c2, K)
     @parameters (
         K = K, [description = "Hydraulic conductivity of connection", unit = u"g / hr / MPa"],
     )
@@ -257,3 +190,124 @@ connections = [
     leaf.ΔM ~ 1
 ]
 =#
+
+# Create comparment instances #
+
+rootvol = Sphere(ϵ_D = [3.0], ϕ_D = [0.45])
+stemvol = Cilinder(ϵ_D = [6.0, 0.15], ϕ_D = [0.8, 0.03])
+leafvol = Cuboid(ϵ_D = [5.0, 0.3, 0.2], ϕ_D = [0.7, 0.1, 0.05])
+
+@named root = plant_compartment(shape = rootvol)
+@named stem = plant_compartment(shape = stemvol)
+@named leaf = plant_compartment(shape = leafvol)
+
+@named soil = environmental_compartment(W_max = 500) # 500 g of water max - we're growing this plant in a pot!
+@named air = environmental_compartment(W_max = 1e4) # how much water can a (hopefully ventilated) house full of air hold?...
+
+# define connections #
+
+
+## connection parameters
+### constant parameters
+#! make soil & air into environment compartments
+    # air: Spanner equation (PlantBiophysics.jl?)
+        # complexity ~ whatever the user wants
+@parameters ( #! these are mostly guesses
+    cheatingparam = 1.0, [description = "horses", unit = u"MPa"], #! horses arent real
+    V_w = 18e-6, [description = "Molar volume of water", unit = u"m^3 / mol"],
+    Ψ_soil = -0.3, [description = "Total water potential of soil", unit = u"MPa"],
+    K_soil_root = 50, [description = "Hydraulic conductivity between soil and root", unit = u"g / hr / MPa"],
+    K_root_stem = 800, [description = "Hydraulic conductivity between root and stem", unit = u"g / hr / MPa"],
+    K_stem_leaf = 600, [description = "Hydraulic conductivity between stem and leaf", unit = u"g / hr / MPa"],
+    K_leaf_air = 1e-3, [description = "Hydraulic conductivity between leaf and air", unit = u"g / hr / MPa"],
+    A_max = 10, [description = "Maximum rate of photosynthesis", unit = u"mol / m^3 / hr"],
+    A_0 = 0, [description = "Rate of photosynthesis if there is no photosynthesis", unit = u"mol / m^3 / hr"],
+    Rsp = 1.5, [description = "Rate of cellular respiration", unit = u"mol / m^3 / hr"],
+    K_M = 0.3, [description = "Rate of metabolite diffusion", unit = u"hr^-1"],
+)
+
+### variable parameters
+
+A_n(t, A_max) = A_max/2 * (sin(val(t) * pi/12 - pi/2) + 1) # simulate day and night cycle of light
+# plot(t -> A_n(t, 5), xlims = (0, 48), xticks = [0, 12, 24, 36, 48])
+
+@register_symbolic A_n(t, A_max)
+
+Ψ_soil_func(W_r) = -(1/(100*W_r) + 1) * exp((39.8 - 100*W_r) / 19) # based on https://www.researchgate.net/figure/Relationship-between-soil-water-potential-and-soil-water-content-of-field-capacity_fig1_8888669
+    # adapted with 1/x to make Ψ → -Inf as W_r → 0
+plot(Ψ_soil_func, xlims = (0, 1), ylims = (-10, 0))
+
+@register_symbolic Ψ_soil_func(W_r)
+
+## connections themselves
+
+
+connections = [
+    soil.F ~ K_soil_root * (root.Ψ - soil.Ψ),
+    root.F ~ K_soil_root * (soil.Ψ - root.Ψ) + K_root_stem * (stem.Ψ - root.Ψ),
+    stem.F ~ K_root_stem * (root.Ψ - stem.Ψ) + K_stem_leaf * (leaf.Ψ - stem.Ψ),
+    leaf.F ~ K_stem_leaf * (stem.Ψ - leaf.Ψ) + K_leaf_air * (air.Ψ - leaf.Ψ),
+    air.F ~ K_leaf_air * (leaf.Ψ - air.Ψ),
+
+    root.ΔM ~ A_0 - Rsp + K_M * (stem.M - root.M),
+    stem.ΔM ~ A_0 - Rsp + K_M * (root.M - stem.M) + K_M * (leaf.M - stem.M),
+    leaf.ΔM ~ A_n(t, A_max) - Rsp + K_M * (stem.M - leaf.M),
+
+    soil.Ψ ~ Ψ_soil_func(soil.W_r) * cheatingparam,
+    air.Ψ ~ R * air.T / V_w * log(air.W_r)
+]
+
+
+# build model #
+
+## model definition
+plant = compose(ODESystem(connections, name = :plant), soil, root, stem, leaf, air)
+plant_simp = structural_simplify(plant)
+
+# full_equations(plant_simp)
+
+## initial values
+
+u0 = [
+    soil.W => soil.W_max/2,
+
+    root.M => 200.0,
+    root.P => 0.1,
+    root.D[1] => 0.1,
+    root.W => volume(rootvol, root.D) * root.ρ_w,
+
+    stem.M => 200.0,
+    stem.P => 0.1,
+    stem.D[1] => 0.4,
+    stem.D[2] => 0.03,
+    stem.W => volume(stemvol, stem.D) * stem.ρ_w,
+
+    leaf.M => 200.0,
+    leaf.P => 0.1,
+    leaf.D[1] => 0.3,
+    leaf.D[2] => 0.05,
+    leaf.D[3] => 0.03,
+    leaf.W => volume(leafvol, leaf.D) * leaf.ρ_w,
+
+    air.W => air.W_max/2,
+]
+
+### Adding initial values for dummy derivatives generated by MTK (see https://docs.sciml.ai/ModelingToolkit/stable/basics/FAQ/#ERROR:-ArgumentError:-SymbolicUtils.BasicSymbolic{Real}[x%CB%8Dt(t)]-are-missing-from-the-variable-map.)
+u0_req = ModelingToolkit.missing_variable_defaults(plant_simp) # generates zero initial value for ALL initial states
+u0_ext = union(u0, u0_req) # add actual values of non-dummy initial states 
+u0_full = unique(x -> x[1], u0_ext) # remove duplicates
+
+## define and solve problem
+prob = ODEProblem(plant_simp, u0_full, (0.0, 24.0*31))
+sol = solve(prob)
+
+## plot solution
+plots = [plot(sol, idxs = [getproperty(organ, var)]) for organ in [root, stem, leaf] for var in [:W, :P, :M, :Ψ]]
+plot(plots..., layout = (3, 4), size = (800, 500))
+
+env_plots = [plot(sol, idxs = [getproperty(organ, var)]) for organ in [soil, root, stem, leaf, air] for var in [:W, :Ψ]]
+plot(env_plots..., layout = (5, 2), size = (800, 500))
+
+
+D_plots = [plot(sol, idxs = [organ.D...]) for organ in [root, stem, leaf]]
+plot(D_plots..., layout = (3, 1), size = (800, 500))
