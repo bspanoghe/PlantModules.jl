@@ -154,42 +154,21 @@ end
 
 ## Compartment connections
 
-#= other approach to defining connections # #! implement 🥳
-
-function compartment_connection(; name, c1, c2, K)
+function compartment_connection(; name, K)
     @parameters (
         K = K, [description = "Hydraulic conductivity of connection", unit = u"g / hr / MPa"],
     )
     @variables (
         F(t), [description = "Water flux from compartment 1 to compartment 2", unit = u"g / hr"],
+        Ψ_1(t), [description = "Total water potential of compartment 1", unit = u"MPa"],
+        Ψ_2(t), [description = "Total water potential of compartment 2", unit = u"MPa"],
     )
 
     eqs = [
-        F ~ K * (c1.Ψ - c2.Ψ)
+        F ~ K * (Ψ_1 - Ψ_2)
     ]
     return ODESystem(eqs, t; name)
 end
-
-@named soil_root = plant_connection(c1 = root, c2 = stem, K = 1000)
-@named root_stem = plant_connection(K = 800)
-@named stem_leaf = plant_connection(K = 600)
-@named leaf_air = plant_connection(K = 1e-5)
-
-connections = [
-    soil_root.F ~ K_soil_root * (Ψ_soil - root.Ψ),
-    F_root2stem ~ K_root_stem * (root.Ψ - stem.Ψ),
-    F_stem2leaf ~ K_stem_leaf * (stem.Ψ - leaf.Ψ),
-    F_leaf2air ~ K_leaf_air * (leaf.Ψ - Ψ_air),
-    
-    root.ΔW ~ F_soil2root - F_root2stem,
-    stem.ΔW ~ F_root2stem - F_stem2leaf,
-    leaf.ΔW ~ F_stem2leaf - F_leaf2air,
-
-    root.ΔM ~ 1,
-    stem.ΔM ~ 1,
-    leaf.ΔM ~ 1
-]
-=#
 
 # Create comparment instances #
 
@@ -204,26 +183,25 @@ leafvol = Cuboid(ϵ_D = [5.0, 0.3, 0.2], ϕ_D = [0.7, 0.1, 0.05])
 @named soil = environmental_compartment(W_max = 500) # 500 g of water max - we're growing this plant in a pot!
 @named air = environmental_compartment(W_max = 1e4) # how much water can a (hopefully ventilated) house full of air hold?...
 
+@named soil_root = compartment_connection(K = 50)
+@named root_stem = compartment_connection(K = 800)
+@named stem_leaf = compartment_connection(K = 600)
+@named leaf_air = compartment_connection(K = 1e-3)
+
 # define connections #
 
 
 ## connection parameters
 ### constant parameters
-#! make soil & air into environment compartments
-    # air: Spanner equation (PlantBiophysics.jl?)
-        # complexity ~ whatever the user wants
+
 @parameters ( #! these are mostly guesses
-    cheatingparam = 1.0, [description = "horses", unit = u"MPa"], #! horses arent real
     V_w = 18e-6, [description = "Molar volume of water", unit = u"m^3 / mol"],
-    Ψ_soil = -0.3, [description = "Total water potential of soil", unit = u"MPa"],
-    K_soil_root = 50, [description = "Hydraulic conductivity between soil and root", unit = u"g / hr / MPa"],
-    K_root_stem = 800, [description = "Hydraulic conductivity between root and stem", unit = u"g / hr / MPa"],
-    K_stem_leaf = 600, [description = "Hydraulic conductivity between stem and leaf", unit = u"g / hr / MPa"],
-    K_leaf_air = 1e-3, [description = "Hydraulic conductivity between leaf and air", unit = u"g / hr / MPa"],
     A_max = 10, [description = "Maximum rate of photosynthesis", unit = u"mol / m^3 / hr"],
     A_0 = 0, [description = "Rate of photosynthesis if there is no photosynthesis", unit = u"mol / m^3 / hr"],
     Rsp = 1.5, [description = "Rate of cellular respiration", unit = u"mol / m^3 / hr"],
     K_M = 0.3, [description = "Rate of metabolite diffusion", unit = u"hr^-1"],
+
+    unit_MPa = 1.0, [description = "A dummy parameter to correct units in an equation", unit = u"MPa"],
 )
 
 ### variable parameters
@@ -235,33 +213,40 @@ A_n(t, A_max) = A_max/2 * (sin(val(t) * pi/12 - pi/2) + 1) # simulate day and ni
 
 Ψ_soil_func(W_r) = -(1/(100*W_r) + 1) * exp((39.8 - 100*W_r) / 19) # based on https://www.researchgate.net/figure/Relationship-between-soil-water-potential-and-soil-water-content-of-field-capacity_fig1_8888669
     # adapted with 1/x to make Ψ → -Inf as W_r → 0
-plot(Ψ_soil_func, xlims = (0, 1), ylims = (-10, 0))
+# plot(Ψ_soil_func, xlims = (0, 1), ylims = (-10, 0))
 
 @register_symbolic Ψ_soil_func(W_r)
 
 ## connections themselves
 
-
 connections = [
-    soil.F ~ K_soil_root * (root.Ψ - soil.Ψ),
-    root.F ~ K_soil_root * (soil.Ψ - root.Ψ) + K_root_stem * (stem.Ψ - root.Ψ),
-    stem.F ~ K_root_stem * (root.Ψ - stem.Ψ) + K_stem_leaf * (leaf.Ψ - stem.Ψ),
-    leaf.F ~ K_stem_leaf * (stem.Ψ - leaf.Ψ) + K_leaf_air * (air.Ψ - leaf.Ψ),
-    air.F ~ K_leaf_air * (leaf.Ψ - air.Ψ),
+    soil.F ~ 0 - soil_root.F,
+    root.F ~ soil_root.F - root_stem.F,
+    stem.F ~ root_stem.F - stem_leaf.F,
+    leaf.F ~ stem_leaf.F - leaf_air.F,
+    air.F ~ leaf_air.F - 0,
+
+    soil_root.Ψ_1 ~ soil.Ψ,
+    soil_root.Ψ_2 ~ root.Ψ,
+    root_stem.Ψ_1 ~ root.Ψ,
+    root_stem.Ψ_2 ~ stem.Ψ,
+    stem_leaf.Ψ_1 ~ stem.Ψ,
+    stem_leaf.Ψ_2 ~ leaf.Ψ,
+    leaf_air.Ψ_1 ~ leaf.Ψ,
+    leaf_air.Ψ_2 ~ air.Ψ,
 
     root.ΔM ~ A_0 - Rsp + K_M * (stem.M - root.M),
     stem.ΔM ~ A_0 - Rsp + K_M * (root.M - stem.M) + K_M * (leaf.M - stem.M),
     leaf.ΔM ~ A_n(t, A_max) - Rsp + K_M * (stem.M - leaf.M),
 
-    soil.Ψ ~ Ψ_soil_func(soil.W_r) * cheatingparam,
+    soil.Ψ ~ Ψ_soil_func(soil.W_r) * unit_MPa,
     air.Ψ ~ R * air.T / V_w * log(air.W_r)
 ]
-
 
 # build model #
 
 ## model definition
-plant = compose(ODESystem(connections, name = :plant), soil, root, stem, leaf, air)
+plant = compose(ODESystem(connections, name = :plant), soil, root, stem, leaf, air, soil_root, root_stem, stem_leaf, leaf_air)
 plant_simp = structural_simplify(plant)
 
 # full_equations(plant_simp)
@@ -302,12 +287,22 @@ prob = ODEProblem(plant_simp, u0_full, (0.0, 24.0*31))
 sol = solve(prob)
 
 ## plot solution
-plots = [plot(sol, idxs = [getproperty(organ, var)]) for organ in [root, stem, leaf] for var in [:W, :P, :M, :Ψ]]
-plot(plots..., layout = (3, 4), size = (800, 500))
+org_plots = [plot(sol, idxs = [getproperty(organ, var)]) for organ in [root, stem, leaf] for var in [:W, :P, :M, :Ψ]]
+plot(org_plots..., layout = (3, 4), size = (800, 500))
 
 env_plots = [plot(sol, idxs = [getproperty(organ, var)]) for organ in [soil, root, stem, leaf, air] for var in [:W, :Ψ]]
 plot(env_plots..., layout = (5, 2), size = (800, 500))
 
-
 D_plots = [plot(sol, idxs = [organ.D...]) for organ in [root, stem, leaf]]
 plot(D_plots..., layout = (3, 1), size = (800, 500))
+
+flux_plots = [plot(sol, idxs = [getproperty(connection, :F)]) for connection in [soil_root, root_stem, stem_leaf, leaf_air]]
+plot(flux_plots..., layout = (4, 1), size = (800, 500))
+
+### repeat for larger timescale
+
+prob = ODEProblem(plant_simp, u0_full, (0.0, 24.0*365*20)) # i put my plant in a pot and leave it there for 20 years
+sol = solve(prob)
+
+env_plots = [plot(sol, idxs = [getproperty(organ, var)]) for organ in [soil, root, stem, leaf, air] for var in [:W, :Ψ]]
+plot(env_plots..., layout = (5, 2), size = (800, 500))
