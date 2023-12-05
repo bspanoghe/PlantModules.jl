@@ -2,6 +2,7 @@ name = "PlantModules.jl"
 authors = ["Michiel Stock", "Tom De Swaef", "Bram Spanoghe"]
 
 [deps]
+BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
 DifferentialEquations = "0c46a032-eb83-5123-abaf-570d42b7fbaa"
 DrWatson = "634d3b9d-ee7a-5ddf-bec9-22491ea816e1"
 ModelingToolkit = "961ee093-0014-501f-94e3-6117800e7a78"
