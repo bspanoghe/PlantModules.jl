@@ -43,9 +43,9 @@ struct Cuboid<:Shape
 end
 
 volume(s::Shape, D::AbstractArray) = error("Function volume is not defined for shape $s")
-volume(s::Sphere, D::AbstractArray) = 4/3 * pi * D[1]^3 # Write dimensions in the order: radius
-volume(s::Cilinder, D::AbstractArray) = D[1]^2 * pi * D[2] # Write dimensions in the order: radius - length
-volume(s::Cuboid, D::AbstractArray) = D[1] * D[2] * D[3] # Write dimensions in the order: length - width - height
+volume(::Sphere, D::AbstractArray) = 4/3 * pi * D[1]^3 # Write dimensions in the order: radius
+volume(::Cilinder, D::AbstractArray) = D[1]^2 * pi * D[2] # Write dimensions in the order: radius - length
+volume(::Cuboid, D::AbstractArray) = D[1] * D[2] * D[3] # Write dimensions in the order: length - width - height
 
 # Define helper functions #
 
@@ -68,6 +68,7 @@ WARNING: large values for γ combined with large input arguments
 will result in numerical overflow and cause the function to return Inf.
 """
 LSE(x::Real...; γ = 1) = log(sum(exp.(γ .* x)) ) / γ 
+    #! add warning for users in case pressures are incorrect unit?
 @register_symbolic LSE(x)
 
 # Define compartments #
@@ -170,7 +171,7 @@ function compartment_connection(; name, K)
     return ODESystem(eqs, t; name)
 end
 
-# Create comparment instances #
+# Create compartment instances #
 
 rootvol = Sphere(ϵ_D = [3.0], ϕ_D = [0.45])
 stemvol = Cilinder(ϵ_D = [6.0, 0.15], ϕ_D = [0.8, 0.03])
@@ -239,8 +240,9 @@ connections = [
     stem.ΔM ~ A_0 - Rsp + K_M * (root.M - stem.M) + K_M * (leaf.M - stem.M),
     leaf.ΔM ~ A_n(t, A_max) - Rsp + K_M * (stem.M - leaf.M),
 
-    soil.Ψ ~ Ψ_soil_func(soil.W_r) * unit_MPa,
-    air.Ψ ~ R * air.T / V_w * log(air.W_r)
+    soil.Ψ ~ Ψ_soil_func(soil.W_r) * unit_MPa, #! add (a) universal soil function as default? e.g. van genuchten vergelijking
+        #! is there some way to have unitful ignore an equation?
+    air.Ψ ~ R * air.T / V_w * log(air.W_r) #! add multiple blocks for soil and air with infinite W_max as default
 ]
 
 # build model #
