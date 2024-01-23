@@ -1,5 +1,4 @@
 using Pkg; Pkg.activate(".")
-
 using ModelingToolkit, DifferentialEquations, Plots, Unitful
 
 @variables t, [description = "Time", unit = u"hr"];
@@ -100,8 +99,8 @@ function plant_compartment(; name, shape::Shape)
         W(t), [description = "Water content", unit = u"g"],
         D(t)[1:num_D], [description = "Dimensions of compartment", unit = u"m"],
         V(t), [description = "Shape of compartment", unit = u"m^3"],
-        F(t), [description = "Net incoming water flux", unit = u"g / hr"],
-
+        ΣF(t), [description = "Net incoming water flux", unit = u"g / hr"],
+        
         ΔP(t), [description = "Change in hydrostatic potential", unit = u"MPa / hr"],
         ΔM(t), [description = "Change in osmotically active metabolite content", unit = u"mol / m^3 / hr"],
         ΔW(t), [description = "Change in water content", unit = u"g / hr"],
@@ -111,7 +110,7 @@ function plant_compartment(; name, shape::Shape)
     eqs = [
         Ψ ~ Π + P, # Water potential consists of a solute- and a pressure component
         Π ~ -R*T*M, # Solute component is determined by concentration of dissolved metabolites
-        ΔW ~ F, # Water content changes due to flux (depending on water potentials as defined in connections)
+        ΔW ~ ΣF, # Water content changes due to flux (depending on water potentials as defined in connections)
         V ~ W / ρ_w, # Shape is directly related to water content        
         V ~ volume(shape, D), # Shape is also directly related to compartment dimensions
         [ΔD[i] ~ D[i] * (ΔP/ϵ_D[i] + ϕ_D[i] * LSE(P - Γ, P_0, γ = 100)) for i in eachindex(D)]..., # Compartment dimensions can only change due to a change in pressure
@@ -136,14 +135,14 @@ function environmental_compartment(; name, W_max)
         Ψ(t), [description = "Total water potential", unit = u"MPa"],
         W(t), [description = "Water content", unit = u"g"],
         W_r(t), [description = "Relative water content", unit = u"g / g"],
-        F(t), [description = "Net incoming water flux", unit = u"g / hr"],
+        ΣF(t), [description = "Net incoming water flux", unit = u"g / hr"],
 
         ΔW(t), [description = "Change in water content", unit = u"g / hr"],
     )
 
     eqs = [
         W_r ~ W / W_max,
-        ΔW ~ F, # Water content changes due to flux (depending on water potentials as defined in connections)
+        ΔW ~ ΣF, # Water content changes due to flux (depending on water potentials as defined in connections)
         d(W) ~ ΔW,
 
         # prevent variables from being erased from existence
@@ -221,11 +220,11 @@ A_n(t, A_max) = A_max/2 * (sin(val(t) * pi/12 - pi/2) + 1) # simulate day and ni
 ## connections themselves
 
 connections = [
-    soil.F ~ 0 - soil_root.F,
-    root.F ~ soil_root.F - root_stem.F,
-    stem.F ~ root_stem.F - stem_leaf.F,
-    leaf.F ~ stem_leaf.F - leaf_air.F,
-    air.F ~ leaf_air.F - 0,
+    soil.ΣF ~ 0 - soil_root.F,
+    root.ΣF ~ soil_root.F - root_stem.F,
+    stem.ΣF ~ root_stem.F - stem_leaf.F,
+    leaf.ΣF ~ stem_leaf.F - leaf_air.F,
+    air.ΣF ~ leaf_air.F - 0,
 
     soil_root.Ψ_1 ~ soil.Ψ,
     soil_root.Ψ_2 ~ root.Ψ,
