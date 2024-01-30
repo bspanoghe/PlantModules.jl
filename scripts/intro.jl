@@ -307,3 +307,71 @@ sol = solve(prob)
 
 env_plots = [plot(sol, idxs = [getproperty(organ, var)]) for organ in [soil, root, stem, leaf, air] for var in [:W, :Ψ]]
 plot(env_plots..., layout = (5, 2), size = (800, 500))
+
+
+
+###
+
+
+function photosynthesis_module(; name)
+    @constants(
+        timekiller = 1, [unit = u"hr^-1"]
+    )
+    @parameters (
+        A_max = 100, [unit = u"mol / m^3 / hr"],
+        R_rate = 10, [unit = u"mol / m^3 / hr"],
+    )
+    @variables (
+        ΔM(t), [unit = u"mol / m^3 / hr"],
+        A(t), [unit = u"mol / m^3 / hr"],
+        R(t), [unit = u"mol / m^3 / hr"],
+        S(t), [unit = u"mol / m^3 / hr"],
+        ΣF_S(t), [unit = u"mol / m^3 / hr"]
+    )
+    eqs = [
+        ΔM ~ A - R + S,
+        A ~ A_max/2 * (sin(t * timekiller * pi/12 - pi/2) + 1),
+        R ~ R_rate,
+        S ~ ΣF_S,
+        S ~ ΣF_S # can MTK deal with duplicate equations? (yes)
+    ]
+    return ODESystem(eqs, t; name)
+end
+
+photoleaf = photosynthesis_module(name = :photoleaf)
+@parameters unit_molflux = 1 [unit = u"mol / m^3 / hr"]
+
+photo_connections = [
+    leaf.ΣF ~ - leaf_air.F,
+    air.ΣF ~ leaf_air.F - 0,
+
+    leaf_air.Ψ_1 ~ leaf.Ψ,
+    leaf_air.Ψ_2 ~ air.Ψ,
+
+    leaf.ΔM ~ photoleaf.ΔM,
+
+    air.Ψ ~ R * air.T / V_w * log(air.W_r), #! add multiple blocks for soil and air with infinite W_max as default
+
+    photoleaf.ΣF_S ~ 10 * unit_molflux,
+]
+
+photoplant = compose(ODESystem(photo_connections, name = :photoplant), photoleaf, leaf, air, leaf_air)
+
+photoplant_simple = structural_simplify(photoplant)
+
+photo_u0 = [
+    leaf.M => 200.0,
+    leaf.P => 0.1,
+    leaf.D[1] => 0.3,
+    leaf.D[2] => 0.05,
+    leaf.D[3] => 0.03,
+    leaf.W => volume(leafvol, leaf.D) * leaf.ρ_w,
+    leaf.ΔP => 0.1,
+
+    air.W => air.W_max/2,
+]
+
+prob = ODEProblem(photoplant_simple, photo_u0, (0.0, 24.0*7))
+sol = solve(prob)
+
+plot(sol)

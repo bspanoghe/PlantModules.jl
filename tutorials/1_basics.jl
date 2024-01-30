@@ -320,6 +320,9 @@ soil_graph = Soil()
 # ╔═╡ db8fe96d-c8c2-47c0-9377-281ce577a920
 air_graph = Air()
 
+# ╔═╡ f267ca25-5b7f-48e4-9865-1c7952215a78
+
+
 # ╔═╡ 61bf737a-2226-42dc-b93a-a8f578048268
 intergraph_connections = [(:Air, :Leaf), (:Soil, :Root)]
 
@@ -483,6 +486,7 @@ md"""
 # ╟─c36668fa-3046-4967-a616-841a048ea7f9
 # ╠═3bf42137-1551-44d6-b7af-eab13a97b6ef
 # ╠═db8fe96d-c8c2-47c0-9377-281ce577a920
+# ╠═f267ca25-5b7f-48e4-9865-1c7952215a78
 # ╠═61bf737a-2226-42dc-b93a-a8f578048268
 # ╟─668e02ee-ac78-4b3d-983d-402ec04584ef
 # ╠═caab574a-05c5-4c0d-9ae4-19fd514a6c6c
