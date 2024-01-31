@@ -141,7 +141,7 @@ end
 
 # ╔═╡ a740d4ab-5ad8-4db4-9a80-aef2625a7d7b
 md"""
-Individual graph nodes can contain parameter values and initial values to allow differences between nodes of the same type. Here, we'll give the leafs a size field so we can start off one of them larger than the other. We'll see more on parameter values later.
+Individual graph nodes can contain parameter values and initial values to allow differences between nodes of the same type. Here, we'll give the leaves a size field `D` so we can start off one of them larger than the other. We'll see more on parameter - and initial values later.
 """
 
 # ╔═╡ 98eac4c4-b39a-4e11-917a-90b03d7385d1
@@ -180,8 +180,8 @@ The user is free to extend these or implement new ones themselves, though for no
 # ╔═╡ 2ca2f739-2b61-4519-bdc4-d3081c793446
 md"""
 While these pre-implemented modules already define most of the functional process, they both lack an equation for one of the variables that they still expect to be defined by the user.
-The former module, which we will use to simulate the three structural plant modules, requires a specification for the carbon content.
-The latter module, which we will use to simulate the soil and air, still expects a specification of the water potential.
+The former module, which we will use to simulate the three structural plant modules, requires a specification for the carbon content (in mol / m^3).
+The latter module, which we will use to simulate the soil and air, still expects a specification of the water potential (in MPa).
 
 We can provide this missing information as either a constant value or a function of the variables and parameters defined in that functional module. We'll define them here and connect them to their function modules right after.
 """
