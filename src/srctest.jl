@@ -1,6 +1,6 @@
 using Pkg; Pkg.activate(".")
 include("PlantModules.jl")
-using PlantGraphs, GLMakie, ModelingToolkit, DifferentialEquations #! MTK imports etc. should not be necessary when package is done
+using PlantGraphs, ModelingToolkit, GLMakie, DifferentialEquations #! MTK imports etc. should not be necessary when package is done
 
 mutable struct Root <: Node end
 mutable struct Stem <: Node end
@@ -44,7 +44,7 @@ air_graph = Air()
 
 intergraph_connections = [(:Air, :Leaf), (:Soil, :Root)]
 
-struct_connections = [plant_graph, soil_graph, air_graph, intergraph_connections]
+struct_connections = [[plant_graph, soil_graph, air_graph], intergraph_connections]
 
 func_connections = [
 	:default => PlantModules.hydraulic_connection,
@@ -66,3 +66,21 @@ prob = ODEProblem(plantsys, time_span)
 sol = solve(prob)
 
 plot(sol, struct_modules = [:Soil], func_vars = [:W]) #! imagine that this works
+
+
+
+#######
+
+graphs = struct_connections[1]
+for graph in graphs
+	rootnode = root(graph)
+	
+	iterategraph(rootnode)
+end
+
+function iterategraph(node)
+	for chnode in children(node)
+		# (process node)
+		iterategraph(chnode)
+	end
+end

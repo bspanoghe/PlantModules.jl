@@ -102,17 +102,13 @@ function hydraulic_connection(; name, K)
     return ODESystem(eqs, t; name)
 end
 
-# Default parameters #
-
-default_vals = [:Γ => 0.3, :P => 0.1, :M => 200.0, :T => 298.15, ρ_w => 1.0e6]
-
 # Helper functions #
 
 ## Unitful is a dangerous beast
 val(x) = x
 val(x::Quantity) = x.val
 
-## Forbidden rites
+## Forbidden rites #! try fixing this... creative solution?
 import Base.exp
 import Base.log
 exp(x::Quantity) = exp(val(x))*unit(x)
@@ -127,3 +123,7 @@ This implementation makes use of the log-sum-exp trick (https://en.wikipedia.org
 """
 LSE(x::Real...; γ = 1) = log(sum(exp.(γ .* x .- maximum(x))) ) / γ + maximum(x)
 @register_symbolic LSE(x)
+
+# Default parameters #
+
+default_vals = [:Γ => 0.3, :P => 0.1, :M => 200.0, :T => 298.15, :ρ_w => 1.0e6]

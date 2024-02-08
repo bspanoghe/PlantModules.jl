@@ -27,7 +27,7 @@ struct PlantSystem
     @doc """
         PlantSystem(; model_defaults, module_defaults, module_coupling, struct_connections, func_connections)
 
-    Inner constructor. I don't know what else to say here.
+    The inner constructor. I don't know what else to say here.
     """
     function PlantSystem(; model_defaults, module_defaults, module_coupling, struct_connections, func_connections)
         MTK_systems = missing
