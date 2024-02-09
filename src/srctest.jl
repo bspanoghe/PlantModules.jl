@@ -37,7 +37,7 @@ module_coupling = [
 ]
 
 plant_graph = Root() + Stem() + (Leaf([0.25]), Leaf([0.15]))
-draw(plant_graph, resolution = (500, 400))
+# draw(plant_graph, resolution = (500, 400))
 
 soil_graph = Soil()
 air_graph = Air()
@@ -73,14 +73,54 @@ plot(sol, struct_modules = [:Soil], func_vars = [:W]) #! imagine that this works
 
 graphs = struct_connections[1]
 for graph in graphs
-	rootnode = root(graph)
-	
-	iterategraph(rootnode)
+	MTK_systems = []
+    MTK_connections = []
+    MTK_u0 = []
+	iteratedescendants(graph, 
+		add_MTK_info!(node, 
+			model_defaults = model_defaults, module_defaults = module_defaults,
+			module_coupling = module_coupling, struct_connections = struct_connections,
+			func_connections = func_connections, MTK_systems = MTK_systems,
+			MTK_connections = MTK_connections, MTK_u0 = MTK_u0))
 end
 
-function iterategraph(node)
-	for chnode in children(node)
-		# (process node)
-		iterategraph(chnode)
+# Apply a function to a node and all its descendants
+function iteratedescendants(node, graph, func::Function; kwargs...)
+	func(node; kwargs...)
+	for chnode in PlantModules.children(node, graph)
+		iteratedescendants(chnode, graph, func; kwargs...)
 	end
 end
+
+# Default behaviour: start from graph root
+iteratedescendants(graph, func::Function; kwargs...) = iteratedescendants(PlantModules.root(graph), graph, func; kwargs...)
+
+function add_MTK_info!(node; model_defaults, module_defaults, module_coupling, struct_connections,
+	func_connections, MTK_systems, MTK_connections, MTK_u0)
+
+	getMTKsystem(node)
+
+end
+
+function getMTKsystem(node, module_coupling)
+
+	structmodule = PlantModules.nodetype(node)
+	func_module = [coupling.first for coupling in module_coupling if structmodule in coupling.second][1]
+	MTKsystem = func_module(; name = string(structmodule))
+
+end
+
+phew(x; a = 3, b = 4) = x+a+b
+dump(:(phew(x, a = 5, b = 100)))
+
+
+# tests #
+
+## iteratedescendants 
+mutable struct Foo <: Node
+	bar::Int
+end
+testgraph = Foo(1) + (Foo(2), Foo(3) + (Foo(7), Foo(9)))
+bars = Int[]
+iteratedescendants(testgraph, (x; extra) -> push!(bars, x.data.bar + extra), extra = 3)
+bars == [1, 2, 3, 7, 9] .+ 3

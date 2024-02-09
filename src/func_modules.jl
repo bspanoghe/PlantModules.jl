@@ -1,13 +1,19 @@
 # Functional modules #
 
+@variables t, [description = "Time", unit = u"hr"]; #! add documentation
+d = Differential(t);
+
 """
     hydraulic_module(; name, T, ρ_w, shape, Γ)
 
 Returns a ModelingToolkit ODESystem describing the turgor-driven growth of a plant compartment.
 """
-function hydraulic_module(; name, T, ρ_w, shape::Shape, Γ)
+function hydraulic_module(T, ρ_w, shape, Γ; name) #! changed some kwargs to args
     num_D = length(shape.ϵ_D)
-    @constants P_0 = 0.0 [description = "Minimum pressure", unit = u"MPa"]
+    @constants (
+        P_0 = 0.0, [description = "Minimum pressure", unit = u"MPa"],
+        R = 8.314e-6, [description = "Ideal gas constant", unit = u"MJ / K / mol"]
+    )
     @parameters (
         T = T, [description = "Temperature", unit = u"K"],
         ρ_w = ρ_w, [description = "Density of water", unit = u"g / m^3"],
@@ -124,6 +130,13 @@ This implementation makes use of the log-sum-exp trick (https://en.wikipedia.org
 LSE(x::Real...; γ = 1) = log(sum(exp.(γ .* x .- maximum(x))) ) / γ + maximum(x)
 @register_symbolic LSE(x)
 
-# Default parameters #
+# Default values #
 
-default_vals = [:Γ => 0.3, :P => 0.1, :M => 200.0, :T => 298.15, :ρ_w => 1.0e6]
+default_params = [:T => 298.15, :ρ_w => 1.0e6, :shape => Sphere(ϵ_D = [1.0], ϕ_D = [1.0]),
+    :Γ => 0.3, :W_max => 1e9, :K => 600]
+default_u0 = [:P => 0.1, :M => 200.0, :(D[1]) => 0.1, :W => volume(Sphere(ϵ_D = [1.0], ϕ_D = [1.0]), [0.1]) * 1.0e6,
+    :W_r => 1]
+default_vals = vcat(default_params, default_u0) |> Dict
+
+hydraulic_module(; name) = hydraulic_module(default_vals[:T], default_vals[:ρ_w],
+default_vals[:shape], default_vals[:Γ]; name = name)
