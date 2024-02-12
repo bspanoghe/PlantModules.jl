@@ -8,7 +8,7 @@ d = Differential(t);
 
 Returns a ModelingToolkit ODESystem describing the turgor-driven growth of a plant compartment.
 """
-function hydraulic_module(T, ρ_w, shape, Γ; name) #! changed some kwargs to args
+function hydraulic_module(; name, T, ρ_w, shape::Shape, Γ)
     num_D = length(shape.ϵ_D)
     @constants (
         P_0 = 0.0, [description = "Minimum pressure", unit = u"MPa"],
@@ -132,11 +132,26 @@ LSE(x::Real...; γ = 1) = log(sum(exp.(γ .* x .- maximum(x))) ) / γ + maximum(
 
 # Default values #
 
-default_params = [:T => 298.15, :ρ_w => 1.0e6, :shape => Sphere(ϵ_D = [1.0], ϕ_D = [1.0]),
-    :Γ => 0.3, :W_max => 1e9, :K => 600]
-default_u0 = [:P => 0.1, :M => 200.0, :(D[1]) => 0.1, :W => volume(Sphere(ϵ_D = [1.0], ϕ_D = [1.0]), [0.1]) * 1.0e6,
-    :W_r => 1]
-default_vals = vcat(default_params, default_u0) |> Dict
+default_params = (
+    hydraulic_module = (
+        T = 298.15, ρ_w = 1.0e6, shape = Sphere(ϵ_D = [1.0], ϕ_D = [1.0]), Γ = 0.3
+    ),
+    environmental_module = (
+        T = 298.15, ρ_w = 1.0e6, W_max = 1e9
+    ), 
+    hydraulic_connection = (
+        K = 600
+    )
+)
 
-hydraulic_module(; name) = hydraulic_module(default_vals[:T], default_vals[:ρ_w],
-default_vals[:shape], default_vals[:Γ]; name = name)
+default_u0 = (
+    hydraulic_module = (
+        P = 0.1, M = 200.0, D = [0.1], W = volume(Sphere(ϵ_D = [1.0], ϕ_D = [1.0]), [0.1]) * 1.0e6,
+    ),
+    environmental_module = (
+        W_r = 1,
+    ), 
+    hydraulic_connection = (
+        K = 600,
+    )
+)

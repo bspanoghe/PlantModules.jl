@@ -27,6 +27,13 @@ Returns the type of the node, corresponding with the name of a structural module
 """
 nodetype(node) = error("Function not yet defined for given input type.")
 
+"""
+	id(node)
+
+Returns the id of the node.
+"""
+id(node) = error("Function not yet defined for given input type.")
+
 # Implementation for PlantGraphs #
 
 root(graph::PlantGraphs.StaticGraph) = graph[graph.root]
@@ -36,8 +43,15 @@ children(node::PlantGraphs.GraphNode, graph::PlantGraphs.StaticGraph) = [graph[c
 
 function attributes(node::PlantGraphs.GraphNode)
 	fields = fieldnames(typeof(node.data))
+	
+	if isempty(fields)
+		return Dict([])
+	end
+
 	fieldvalues = getfield.([node.data], fields...)
-	return [field => fieldvalue for (field, fieldvalue) in zip(fields, fieldvalues)]
+	return Dict([field => fieldvalue for (field, fieldvalue) in zip(fields, fieldvalues)])
 end
 
 nodetype(node::PlantGraphs.GraphNode) = string(node.data) |> x -> split(x, '(')[1] |> Symbol
+
+id(node::PlantGraphs.GraphNode) = node.self_id

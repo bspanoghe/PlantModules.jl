@@ -20,16 +20,18 @@ C_leaf = 3 # And here!
 
 @constants R = 8.314 V_w = 18e-6
 
-PlantModules.default_vals
+PlantModules.default_params
+PlantModules.default_u0
 
-model_defaults = [:Γ => 0.4, :P => 0.2, :M => 15.0, :T => 293.15]
-module_defaults = [
-	:Root => [:D => [0.3, 0.05, 0.03], :ϵ_D => [5.0, 0.3, 0.2], :ϕ_D => [0.7, 0.1, 0.05], :C => C_root],
-	:Stem => [:D => [0.4, 0.03], :ϵ_D => [6.0, 0.15], :ϕ_D => [0.8, 0.03], :C => C_stem],
-	:Leaf => [:ϵ_D => [3.0], :ϕ_D => [0.45], :C => C_leaf],
-	:Soil => [:W_max => 500.0, :T => 288.15, :Ψ => Ψ_soil_func],
-	:Air => [:Ψ => Ψ_air_func]
-]
+model_defaults = (Γ = 0.4, P = 0.2, M = 15.0, T = 293.15) #! currently assumed variables with same name are the same for all functional modules
+
+module_defaults = (
+	Root = (D = [0.3, 0.05, 0.03], ϵ_D = [5.0, 0.3, 0.2], ϕ_D = [0.7, 0.1, 0.05], C = C_root),
+	Stem = (D = [0.4, 0.03], ϵ_D = [6.0, 0.15], ϕ_D = [0.8, 0.03], C = C_stem),
+	Leaf = (ϵ_D = [3.0], ϕ_D = [0.45], C = C_leaf),
+	Soil = (W_max = 500.0, T = 288.15, Ψ = Ψ_soil_func),
+	Air = (Ψ = Ψ_air_func,)
+)
 
 module_coupling = [
 	PlantModules.hydraulic_module => [:Root, :Stem, :Leaf],
@@ -61,17 +63,22 @@ plantsys = PlantModules.PlantSystem(
 	func_connections = func_connections
 )
 
+#=
 time_span = (0, 7*24.0) # We'll simulate our problem for a timespan of 7 days
 prob = ODEProblem(plantsys, time_span)
 sol = solve(prob)
 
 plot(sol, struct_modules = [:Soil], func_vars = [:W]) #! imagine that this works
-
-
+=#
 
 #######
 
 graphs = struct_connections[1]
+graph = graphs[1]
+node = graph[1]
+default_params = PlantModules.default_params
+
+
 for graph in graphs
 	MTK_systems = []
     MTK_connections = []
@@ -95,32 +102,88 @@ end
 # Default behaviour: start from graph root
 iteratedescendants(graph, func::Function; kwargs...) = iteratedescendants(PlantModules.root(graph), graph, func; kwargs...)
 
+# Fill in MTK_systems, MTK_connections, MTK_u0 for the given node
 function add_MTK_info!(node; model_defaults, module_defaults, module_coupling, struct_connections,
 	func_connections, MTK_systems, MTK_connections, MTK_u0)
 
-	getMTKsystem(node)
-
+	getMTKsystem(node, module_coupling, module_defaults, model_defaults, default_params)
 end
 
-function getMTKsystem(node, module_coupling)
-
+# Get MTK system corresponding with node
+function getMTKsystem(node, module_coupling, module_defaults, model_defaults, default_params)
 	structmodule = PlantModules.nodetype(node)
 	func_module = [coupling.first for coupling in module_coupling if structmodule in coupling.second][1]
-	MTKsystem = func_module(; name = string(structmodule))
 
+	nodeparams = getnodeparams(node, structmodule, func_module, module_defaults, model_defaults, default_params)
+
+	MTKsystem = func_module(; :name => Symbol(string(structmodule) * "_" * string(PlantModules.id(node))), Pair.(keys(nodeparams), values(nodeparams))...)
+	return MTKsystem
 end
 
-phew(x; a = 3, b = 4) = x+a+b
-dump(:(phew(x, a = 5, b = 100)))
+# get correct parameter values for node between those defined in the model defaults, module defaults and node values
+function getnodeparams(node, structmodule, func_module, module_defaults, model_defaults, default_params)
+	params = default_params[Symbol(func_module)] |> x -> Dict(Pair.(keys(x), values(x))) # PlantModules defaults
+	paramnames = keys(params)
 
+	node_attributes = PlantModules.attributes(node)
+	nodemoduledefaults = module_defaults[structmodule]
+
+	for paramname in paramnames
+		if paramname in keys(node_attributes) # Change to node-specific value
+			params[paramname] = node_attributes[paramname]
+		elseif paramname in keys(nodemoduledefaults) # Change to module-wide defaults
+			params[paramname] = nodemoduledefaults[paramname]
+		elseif paramname in keys(model_defaults) # Change to model-wide defaults
+			params[paramname] = model_defaults[paramname]
+		end
+	end
+
+	return params
+end
 
 # tests #
 
-## iteratedescendants 
 mutable struct Foo <: Node
 	bar::Int
 end
+
+function qux(; name, bar, baz, quux, corge)
+	@parameters bar = bar baz = baz quux = quux corge = corge
+	@variables t
+	eqs = [
+		bar + baz ~ quux + corge
+	]
+	return ODESystem(eqs, t; name)
+end
+
+PlantModules.attributes(node::Foo) = Dict([:bar => node.bar])
+PlantModules.nodetype(::Foo) = :Foo
+PlantModules.id(::Foo) = 1
+
+func_module = qux
+structmodule = :Foo
+module_coupling = [qux => [:Foo]]
+default_params = (qux = (bar = 100, baz = 100, quux = 100, corge = 100),)
+model_defaults = (baz = 42, quux = 42)
+module_defaults = (Foo = (baz = 10,),)
+
+## iteratedescendants 
 testgraph = Foo(1) + (Foo(2), Foo(3) + (Foo(7), Foo(9)))
 bars = Int[]
 iteratedescendants(testgraph, (x; extra) -> push!(bars, x.data.bar + extra), extra = 3)
 bars == [1, 2, 3, 7, 9] .+ 3
+
+## getnodeparams
+
+node = Foo(1)
+
+getnodeparams(node, structmodule, func_module, module_defaults, model_defaults, default_params) ==
+	Dict([:bar => 1, :baz => 10, :quux => 42, :corge => 100])
+
+## getMTKsystem
+
+node = Foo(1)
+testsystem = getMTKsystem(node, module_coupling, module_defaults, model_defaults, default_params)
+testsystem.name == :(Foo_1)
+sort(Symbol.(keys(testsystem.defaults))) == sort(collect(keys(Dict([:bar => 1, :baz => 10, :quux => 42, :corge => 100]))))
+sort(collect(values(testsystem.defaults))) == sort(collect(values(Dict([:bar => 1, :baz => 10, :quux => 42, :corge => 100]))))
