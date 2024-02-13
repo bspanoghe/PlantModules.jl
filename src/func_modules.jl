@@ -8,7 +8,7 @@ d = Differential(t);
 
 Returns a ModelingToolkit ODESystem describing the turgor-driven growth of a plant compartment.
 """
-function hydraulic_module(; name, T, ρ_w, shape::Shape, Γ)
+function hydraulic_module(; name, T, ρ_w, shape::Shape, Γ, P, M, W, D)
     num_D = length(shape.ϵ_D)
     @constants (
         P_0 = 0.0, [description = "Minimum pressure", unit = u"MPa"],
@@ -24,10 +24,10 @@ function hydraulic_module(; name, T, ρ_w, shape::Shape, Γ)
     @variables (
         Ψ(t), [description = "Total water potential", unit = u"MPa"],
         Π(t), [description = "Osmotic water potential", unit = u"MPa"],
-        P(t), [description = "Hydrostatic potential", unit = u"MPa"],
-        M(t), [description = "Osmotically active metabolite content", unit = u"mol / m^3"], # m^3 so units match in second equation (Pa = J/m^3) #! extend validation function so L is ok?
-        W(t), [description = "Water content", unit = u"g"],
-        D(t)[1:num_D], [description = "Dimensions of compartment", unit = u"m"],
+        P(t) = P, [description = "Hydrostatic potential", unit = u"MPa"],
+        M(t) = M, [description = "Osmotically active metabolite content", unit = u"mol / m^3"], # m^3 so units match in second equation (Pa = J/m^3) #! extend validation function so L is ok?
+        W(t) = W, [description = "Water content", unit = u"g"],
+        D(t)[1:num_D] = D, [description = "Dimensions of compartment", unit = u"m"],
         V(t), [description = "Shape of compartment", unit = u"m^3"],
         ΣF(t), [description = "Net incoming water flux", unit = u"g / hr"],
         
@@ -144,7 +144,7 @@ default_params = (
     )
 )
 
-default_u0 = (
+default_u0s = (
     hydraulic_module = (
         P = 0.1, M = 200.0, D = [0.1], W = volume(Sphere(ϵ_D = [1.0], ϕ_D = [1.0]), [0.1]) * 1.0e6,
     ),

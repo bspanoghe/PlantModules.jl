@@ -21,7 +21,7 @@ C_leaf = 3 # And here!
 @constants R = 8.314 V_w = 18e-6
 
 PlantModules.default_params
-PlantModules.default_u0
+PlantModules.default_u0s
 
 model_defaults = (Γ = 0.4, P = 0.2, M = 15.0, T = 293.15) #! currently assumed variables with same name are the same for all functional modules
 
@@ -77,6 +77,7 @@ graphs = struct_connections[1]
 graph = graphs[1]
 node = graph[1]
 default_params = PlantModules.default_params
+default_u0s = PlantModules.default_u0s
 
 
 for graph in graphs
@@ -106,17 +107,20 @@ iteratedescendants(graph, func::Function; kwargs...) = iteratedescendants(PlantM
 function add_MTK_info!(node; model_defaults, module_defaults, module_coupling, struct_connections,
 	func_connections, MTK_systems, MTK_connections, MTK_u0)
 
-	getMTKsystem(node, module_coupling, module_defaults, model_defaults, default_params)
+	MTKsystem = getMTKsystem(node, module_coupling, module_defaults, model_defaults, default_params)
+	# MTKconnections = getMTKconnections(node) # needs all connected nodes to be defined as MTKsystems already
 end
 
 # Get MTK system corresponding with node
-function getMTKsystem(node, module_coupling, module_defaults, model_defaults, default_params)
+function getMTKsystem(node, module_coupling, module_defaults, model_defaults, default_params, default_u0s)
 	structmodule = PlantModules.nodetype(node)
 	func_module = [coupling.first for coupling in module_coupling if structmodule in coupling.second][1]
 
 	nodeparams = getnodeparams(node, structmodule, func_module, module_defaults, model_defaults, default_params)
+	nodeu0s = getnodeu0s(node, structmodule, func_module, module_defaults, model_defaults, default_u0s)
 
-	MTKsystem = func_module(; :name => Symbol(string(structmodule) * "_" * string(PlantModules.id(node))), Pair.(keys(nodeparams), values(nodeparams))...)
+	MTKsystem = func_module(; :name => Symbol(string(structmodule) * "_" * string(PlantModules.id(node))),
+		Pair.(keys(nodeparams), values(nodeparams))..., Pair.(keys(nodeu0s), values(nodeu0s))...)
 	return MTKsystem
 end
 
@@ -141,17 +145,42 @@ function getnodeparams(node, structmodule, func_module, module_defaults, model_d
 	return params
 end
 
+# get correct inital variable values for node between those defined in the model defaults, module defaults and node values
+function getnodeu0s(node, structmodule, func_module, module_defaults, model_defaults, default_u0s)
+	u0s = default_u0s[Symbol(func_module)] |> x -> Dict(Pair.(keys(x), values(x))) # PlantModules defaults
+	u0names = keys(u0s)
+
+	node_attributes = PlantModules.attributes(node)
+	nodemoduledefaults = module_defaults[structmodule]
+
+	for u0name in u0names
+		if u0name in keys(node_attributes) # Change to node-specific value
+			u0s[u0name] = node_attributes[u0name]
+		elseif u0name in keys(nodemoduledefaults) # Change to module-wide defaults
+			u0s[u0name] = nodemoduledefaults[u0name]
+		elseif u0name in keys(model_defaults) # Change to model-wide defaults
+			u0s[u0name] = model_defaults[u0name]
+		end
+	end
+
+	return u0s
+end
+
+function getMTKconnections(node)
+
+end
+
 # tests #
 
 mutable struct Foo <: Node
 	bar::Int
 end
 
-function qux(; name, bar, baz, quux, corge)
+function qux(; name, bar, baz, quux, corge, xyzzy)
 	@parameters bar = bar baz = baz quux = quux corge = corge
-	@variables t
+	@variables t xyzzy(t) = xyzzy
 	eqs = [
-		bar + baz ~ quux + corge
+		bar + baz ~ quux * xyzzy + corge
 	]
 	return ODESystem(eqs, t; name)
 end
@@ -164,8 +193,9 @@ func_module = qux
 structmodule = :Foo
 module_coupling = [qux => [:Foo]]
 default_params = (qux = (bar = 100, baz = 100, quux = 100, corge = 100),)
+default_u0s = (qux = (xyzzy = 100,),)
 model_defaults = (baz = 42, quux = 42)
-module_defaults = (Foo = (baz = 10,),)
+module_defaults = (Foo = (baz = 10, xyzzy = 10),)
 
 ## iteratedescendants 
 testgraph = Foo(1) + (Foo(2), Foo(3) + (Foo(7), Foo(9)))
@@ -180,10 +210,15 @@ node = Foo(1)
 getnodeparams(node, structmodule, func_module, module_defaults, model_defaults, default_params) ==
 	Dict([:bar => 1, :baz => 10, :quux => 42, :corge => 100])
 
+## getnodeu0s
+
+getnodeu0s(node, structmodule, func_module, module_defaults, model_defaults, default_u0s) ==
+	Dict([:xyzzy => 10])
+
 ## getMTKsystem
 
 node = Foo(1)
-testsystem = getMTKsystem(node, module_coupling, module_defaults, model_defaults, default_params)
+testsystem = getMTKsystem(node, module_coupling, module_defaults, model_defaults, default_params, default_u0s)
 testsystem.name == :(Foo_1)
-sort(Symbol.(keys(testsystem.defaults))) == sort(collect(keys(Dict([:bar => 1, :baz => 10, :quux => 42, :corge => 100]))))
-sort(collect(values(testsystem.defaults))) == sort(collect(values(Dict([:bar => 1, :baz => 10, :quux => 42, :corge => 100]))))
+sort(Symbol.(keys(testsystem.defaults))) == sort(collect(keys(Dict([:bar => 1, :baz => 10, :quux => 42, :corge => 100, Symbol("xyzzy(t)") => 10]))))
+sort(collect(values(testsystem.defaults))) == sort(collect(values(Dict([:bar => 1, :baz => 10, :quux => 42, :corge => 100, Symbol("xyzzy(t)") => 10]))))
