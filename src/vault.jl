@@ -38,3 +38,9 @@ root(graph::PlantGraphs.StaticGraph) = graph[graph.root]
 root(graph::PlantGraphs.GraphNode) = graph
 
 children(node::PlantGraphs.GraphNode, graph::PlantGraphs.StaticGraph) = [graph[child_id] for child_id in node.children_id]
+
+## iteratedescendants 
+testgraph = Foo(1) + (Foo(2), Foo(3) + (Foo(7), Foo(9)))
+bars = Int[]
+iteratedescendants(testgraph, (x; extra) -> push!(bars, x.data.bar + extra), extra = 3)
+bars == [1, 2, 3, 7, 9] .+ 3

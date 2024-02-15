@@ -1,6 +1,7 @@
 using Pkg; Pkg.activate(".")
 include("PlantModules.jl")
 using PlantGraphs, ModelingToolkit, GLMakie, DifferentialEquations #! MTK imports etc. should not be necessary when package is done
+using BenchmarkTools
 
 mutable struct Root <: Node end
 mutable struct Stem <: Node end
@@ -78,7 +79,6 @@ graph = graphs[1]
 node = graph[1]
 default_params = PlantModules.default_params
 default_u0s = PlantModules.default_u0s
-
 
 for graph in graphs
 	MTK_systems = [getMTKsystem(node, module_coupling, module_defaults, model_defaults, default_params, default_u0s)
@@ -175,12 +175,6 @@ default_params = (qux = (bar = 100, baz = 100, quux = 100, corge = 100),)
 default_u0s = (qux = (xyzzy = 100,),)
 model_defaults = (baz = 42, quux = 42)
 module_defaults = (Foo = (baz = 10, xyzzy = 10),)
-
-## iteratedescendants 
-testgraph = Foo(1) + (Foo(2), Foo(3) + (Foo(7), Foo(9)))
-bars = Int[]
-iteratedescendants(testgraph, (x; extra) -> push!(bars, x.data.bar + extra), extra = 3)
-bars == [1, 2, 3, 7, 9] .+ 3
 
 ## getnodeparams
 
