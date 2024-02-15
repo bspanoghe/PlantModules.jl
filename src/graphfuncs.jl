@@ -1,17 +1,16 @@
 """
-	root(graph)
+	nodes(graph)
 
-Returns the root node of the given graph.
+Returns all nodes of the given graph.
 """
-root(graph) = error("Function not yet defined for given input type.")
-
+nodes(graph) = error("Function not yet defined for given input type.")
 
 """
-	children(node)
+	neighbours(node)
 
-Returns the children nodes of the given node.
+Returns the neighbours of the given node.
 """
-children(node) = error("Function not yet defined for given input type.")
+neighbours(node) = error("Function not yet defined for given input type.")
 
 """
 	attributes(node)
@@ -35,11 +34,6 @@ Returns the id of the node.
 id(node) = error("Function not yet defined for given input type.")
 
 # Implementation for PlantGraphs #
-
-root(graph::PlantGraphs.StaticGraph) = graph[graph.root]
-root(graph::PlantGraphs.GraphNode) = graph
-
-children(node::PlantGraphs.GraphNode, graph::PlantGraphs.StaticGraph) = [graph[child_id] for child_id in node.children_id]
 
 function attributes(node::PlantGraphs.GraphNode)
 	fields = fieldnames(typeof(node.data))

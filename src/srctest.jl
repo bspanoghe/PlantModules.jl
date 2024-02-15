@@ -81,35 +81,14 @@ default_u0s = PlantModules.default_u0s
 
 
 for graph in graphs
-	MTK_systems = []
-    MTK_connections = []
-    MTK_u0 = []
-	iteratedescendants(graph, 
-		add_MTK_info!(node, 
-			model_defaults = model_defaults, module_defaults = module_defaults,
-			module_coupling = module_coupling, struct_connections = struct_connections,
-			func_connections = func_connections, MTK_systems = MTK_systems,
-			MTK_connections = MTK_connections, MTK_u0 = MTK_u0))
+	MTK_systems = [getMTKsystem(node, module_coupling, module_defaults, model_defaults, default_params, default_u0s)
+		for node in PlantModules.nodes(graph)]
+
+	MTK_connections = []
+
 end
 
-# Apply a function to a node and all its descendants
-function iteratedescendants(node, graph, func::Function; kwargs...)
-	func(node; kwargs...)
-	for chnode in PlantModules.children(node, graph)
-		iteratedescendants(chnode, graph, func; kwargs...)
-	end
-end
 
-# Default behaviour: start from graph root
-iteratedescendants(graph, func::Function; kwargs...) = iteratedescendants(PlantModules.root(graph), graph, func; kwargs...)
-
-# Fill in MTK_systems, MTK_connections, MTK_u0 for the given node
-function add_MTK_info!(node; model_defaults, module_defaults, module_coupling, struct_connections,
-	func_connections, MTK_systems, MTK_connections, MTK_u0)
-
-	MTKsystem = getMTKsystem(node, module_coupling, module_defaults, model_defaults, default_params)
-	# MTKconnections = getMTKconnections(node) # needs all connected nodes to be defined as MTKsystems already
-end
 
 # Get MTK system corresponding with node
 function getMTKsystem(node, module_coupling, module_defaults, model_defaults, default_params, default_u0s)
