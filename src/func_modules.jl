@@ -58,7 +58,7 @@ end
 
 Returns a ModelingToolkit ODESystem describing a non-growing water reservoir.
 """
-function environmental_module(; name, T, ρ_w, W_max)
+function environmental_module(; name, T, ρ_w, W_max, W_r)
     @parameters (
         T = T, [description = "Temperature", unit = u"K"],
         ρ_w = ρ_w, [description = "Density of water", unit = u"g / m^3"],
@@ -67,7 +67,7 @@ function environmental_module(; name, T, ρ_w, W_max)
     @variables (
         Ψ(t), [description = "Total water potential", unit = u"MPa"],
         W(t), [description = "Water content", unit = u"g"],
-        W_r(t), [description = "Relative water content", unit = u"g / g"],
+        W_r(t) = W_r, [description = "Relative water content", unit = u"g / g"],
         ΣF(t), [description = "Net incoming water flux", unit = u"g / hr"],
 
         ΔW(t), [description = "Change in water content", unit = u"g / hr"],
@@ -140,7 +140,7 @@ default_params = (
         T = 298.15, ρ_w = 1.0e6, W_max = 1e9
     ), 
     hydraulic_connection = (
-        K = 600
+        K = 600,
     )
 )
 
@@ -152,6 +152,5 @@ default_u0s = (
         W_r = 1,
     ), 
     hydraulic_connection = (
-        K = 600,
     )
 )

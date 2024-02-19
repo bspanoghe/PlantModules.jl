@@ -51,9 +51,9 @@ struct_connections = [[plant_graph, soil_graph, air_graph], intergraph_connectio
 
 func_connections = [
 	:default => PlantModules.hydraulic_connection,
-	(:Soil, :Root) => [:K => 50],
-	(:Root, :Stem) => [:K => 800],
-	(:Leaf, :Air) => [:K => 1e-3]
+	(:Soil, :Root) => (PlantModules.hydraulic_connection, [:K => 50]),
+	(:Root, :Stem) => (PlantModules.hydraulic_connection, [:K => 800]),
+	(:Leaf, :Air) => (PlantModules.hydraulic_connection, [:K => 1e-3]) 
 ]
 
 plantsys = PlantModules.PlantSystem(
@@ -74,22 +74,6 @@ plot(sol, struct_modules = [:Soil], func_vars = [:W]) #! imagine that this works
 
 #######
 
-graphs = struct_connections[1]
-graph = graphs[1]
-node = graph[1]
-default_params = PlantModules.default_params
-default_u0s = PlantModules.default_u0s
-
-for graph in graphs
-	MTK_systems = [getMTKsystem(node, module_coupling, module_defaults, model_defaults, default_params, default_u0s)
-		for node in PlantModules.nodes(graph)]
-
-	MTK_connections = []
-
-end
-
-
-
 # Get MTK system corresponding with node
 function getMTKsystem(node, module_coupling, module_defaults, model_defaults, default_params, default_u0s)
 	structmodule = PlantModules.nodetype(node)
@@ -98,7 +82,7 @@ function getMTKsystem(node, module_coupling, module_defaults, model_defaults, de
 	nodeparams = getnodeparams(node, structmodule, func_module, module_defaults, model_defaults, default_params)
 	nodeu0s = getnodeu0s(node, structmodule, func_module, module_defaults, model_defaults, default_u0s)
 
-	MTKsystem = func_module(; :name => Symbol(string(structmodule) * "_" * string(PlantModules.id(node))),
+	MTKsystem = func_module(; :name => Symbol(string(structmodule) * string(PlantModules.id(node))),
 		Pair.(keys(nodeparams), values(nodeparams))..., Pair.(keys(nodeu0s), values(nodeu0s))...)
 	return MTKsystem
 end
@@ -145,9 +129,53 @@ function getnodeu0s(node, structmodule, func_module, module_defaults, model_defa
 	return u0s
 end
 
-function getMTKconnections(node)
+# get MTK systems and the vector of equations defining connections between MTK systems of a node and its neighbours
+function getMTKconnections(node, graph, func_connections, default_params, default_u0s)
+	structmodule = PlantModules.nodetype(node)
+	nb_nodes = PlantModules.neighbours(node, graph)
 
+	for nb_node in nb_nodes
+		nb_structmodule = PlantModules.nodetype(nb_node)
+		func_connection = get_func_connection(structmodule, nb_structmodule, func_connections, default_params, default_u0s)
+	end
 end
+
+# given two nodes' structural modules, get the MTK system of the functional connection between them
+function get_func_connection(structmodule, nb_structmodule, func_connections, default_params, default_u0s)
+	func_connection_keys = first.(func_connections)
+	connection_id = findfirst([(structmodule, nb_structmodule)] .== func_connection_keys .|| [(nb_structmodule, structmodule)] .== func_connection_keys) # assuming symmetry in functional connections
+	
+	if isnothing(connection_id)
+		connector_func, connection_specific_values = func_connections[1][2], []
+	else
+		connector_func, connection_specific_values = func_connections[connection_id].second
+	end
+
+	default_conn_info = merge(default_params[Symbol(connector_func)], default_u0s[Symbol(connector_func)])
+	conn_info = merge(default_conn_info, connection_specific_values)
+
+	func_connection = connector_func(;
+		name = Symbol(string(structmodule) * string(PlantModules.id(node)) * "_" *
+			string(nb_structmodule) * string(PlantModules.id(nb_node))),
+		Pair.(keys(conn_info), values(conn_info))...
+	)
+
+	return func_connection
+end
+
+graphs = struct_connections[1]
+graph = graphs[1]
+node = PlantModules.nodes(graph)[1]
+default_params = PlantModules.default_params
+default_u0s = PlantModules.default_u0s
+
+for graph in graphs
+	MTK_systems = [getMTKsystem(node, module_coupling, module_defaults, model_defaults, default_params, default_u0s)
+		for node in PlantModules.nodes(graph)]
+
+	MTK_connections = [node for node in PlantModules.nodes(graph)]
+end
+
 
 # tests #
 
