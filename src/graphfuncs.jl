@@ -39,6 +39,7 @@ nodes(graph::PlantGraphs.StaticGraph) = graph.nodes.vals
 nodes(node::PlantGraphs.Node) = [node] # Sometimes a graph is just a single node
 
 neighbours(node::PlantGraphs.GraphNode, graph::PlantGraphs.StaticGraph) = [graph[nb_id] for nb_id in (ismissing(node.parent_id) ? node.children_id : vcat(node.children_id.dict.keys, node.parent_id))]
+neighbours(::PlantGraphs.Node, ::PlantGraphs.Node) = [] # node in a graph consisting of one node has no neighbours
 
 function attributes(node::PlantGraphs.GraphNode)
 	fields = fieldnames(typeof(node.data))
@@ -50,7 +51,6 @@ function attributes(node::PlantGraphs.GraphNode)
 	fieldvalues = getfield.([node.data], fields...)
 	return Dict([field => fieldvalue for (field, fieldvalue) in zip(fields, fieldvalues)])
 end
-
 function attributes(node::PlantGraphs.Node)
 	fields = fieldnames(typeof(node))
 	

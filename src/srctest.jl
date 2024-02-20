@@ -45,9 +45,11 @@ plant_graph = Root() + Stem() + (Leaf([0.25]), Leaf([0.15]))
 soil_graph = Soil()
 air_graph = Air()
 
-intergraph_connections = [(:Air, :Leaf), (:Soil, :Root)]
+graphs = [plant_graph, soil_graph, air_graph]
 
-struct_connections = [[plant_graph, soil_graph, air_graph], intergraph_connections]
+intergraph_connections = [[1, 2] => (:Soil, :Root), [1, 3] => (:Air, :Leaf)]
+
+struct_connections = [graphs, intergraph_connections]
 
 func_connections = [
 	:default => PlantModules.hydraulic_connection,
@@ -130,28 +132,76 @@ function getnodeu0s(node, structmodule, func_module, module_defaults, model_defa
 end
 
 # get MTK systems and the vector of equations defining connections between MTK systems of a node and its neighbours
-function getMTKconnections(node, graph, func_connections, default_params, default_u0s)
-	structmodule = PlantModules.nodetype(node)
+function get_connection_info(node, graph, func_connections, get_connection_eqs, default_params, default_u0s, MTK_system_dict)
 	nb_nodes = PlantModules.neighbours(node, graph)
-
-	for nb_node in nb_nodes
-		nb_structmodule = PlantModules.nodetype(nb_node)
-		func_connection = get_func_connection(structmodule, nb_structmodule, func_connections, default_params, default_u0s)
+	if isempty(nb_nodes) # no neighbours no connection info
+		return ODESystem[], Equation[]
 	end
+
+	node_MTK = MTK_system_dict[PlantModules.id(node)]
+
+	nb_node_MTKs = Vector{ODESystem}(undef, length(nb_nodes))
+	connection_MTKs = Vector{ODESystem}(undef, length(nb_nodes))
+
+	for (nb_nr, nb_node) in enumerate(nb_nodes)
+		nb_node_MTKs[nb_nr] = MTK_system_dict[PlantModules.id(nb_node)]
+		connection_MTKs[nb_nr] = get_func_connection(node, nb_node, func_connections, default_params, default_u0s)
+	end
+
+	connection_equations = get_connection_eqs(node_MTK, nb_node_MTKs, connection_MTKs)
+	return connection_MTKs, connection_equations
+end
+
+# get MTK systems and the vector of equations defining connections between MTK systems of all nodes between two graphs as specified in the intergraph connections
+function get_intergraph_connection_info(graphs, intergraph_connection, func_connections,
+	get_connection_eqs, default_params, default_u0s, MTK_system_dicts)
+
+	graph1, graph2 = graphs[intergraph_connection[1]]
+	MTK_system_dict, nb_MTK_system_dict = MTK_system_dicts[intergraph_connection[1]]
+
+	nodes = [node for node in PlantModules.nodes(graph1) if PlantModules.nodetype(node) in intergraph_connection[2]]
+	nb_nodes = [node for node in PlantModules.nodes(graph2) if PlantModules.nodetype(node) in intergraph_connection[2]]
+	
+	if isempty(nodes) || isempty(nb_nodes) # no neighbours no connection info
+		return ODESystem[], Equation[]
+	end
+
+	nb_node_MTKs = Vector{ODESystem}(undef, length(nodes) * length(nb_nodes))
+	connection_MTKs = Vector{ODESystem}(undef, length(nodes) * length(nb_nodes))
+
+
+	for node in nodes
+		node_MTK = MTK_system_dict[PlantModules.id(node)]
+
+		nb_node_MTKs = Vector{ODESystem}(undef, length(nb_nodes))
+		connection_MTKs = Vector{ODESystem}(undef, length(nb_nodes))
+	
+		for (nb_nr, nb_node) in enumerate(nb_nodes)
+			nb_node_MTKs[nb_nr] = nb_MTK_system_dict[PlantModules.id(nb_node)]
+			connection_MTKs[nb_nr] = get_func_connection(node, nb_node, func_connections, default_params, default_u0s)
+		end
+	
+		connection_equations = get_connection_eqs(node_MTK, nb_node_MTKs, connection_MTKs)
+	end
+
+	return connection_MTKs, connection_equations
 end
 
 # given two nodes' structural modules, get the MTK system of the functional connection between them
-function get_func_connection(structmodule, nb_structmodule, func_connections, default_params, default_u0s)
+function get_func_connection(node, nb_node, func_connections, default_params, default_u0s)
+	structmodule = PlantModules.nodetype(node)
+	nb_structmodule = PlantModules.nodetype(nb_node)
+
 	func_connection_keys = first.(func_connections)
-	connection_id = findfirst([(structmodule, nb_structmodule)] .== func_connection_keys .|| [(nb_structmodule, structmodule)] .== func_connection_keys) # assuming symmetry in functional connections
+	connection_idx = findfirst([(structmodule, nb_structmodule)] .== func_connection_keys .|| [(nb_structmodule, structmodule)] .== func_connection_keys) # assuming symmetry in functional connections
 	
-	if isnothing(connection_id)
+	if isnothing(connection_idx)
 		connector_func, connection_specific_values = func_connections[1][2], []
 	else
-		connector_func, connection_specific_values = func_connections[connection_id].second
+		connector_func, connection_specific_values = func_connections[connection_idx].second
 	end
 
-	default_conn_info = merge(default_params[Symbol(connector_func)], default_u0s[Symbol(connector_func)])
+	default_conn_info = merge(get(default_params, Symbol(connector_func), []), get(default_u0s, Symbol(connector_func), []))
 	conn_info = merge(default_conn_info, connection_specific_values)
 
 	func_connection = connector_func(;
@@ -164,16 +214,39 @@ function get_func_connection(structmodule, nb_structmodule, func_connections, de
 end
 
 graphs = struct_connections[1]
-graph = graphs[1]
-node = PlantModules.nodes(graph)[1]
+# graph = graphs[2]
+# node = PlantModules.nodes(graph)[1]
 default_params = PlantModules.default_params
 default_u0s = PlantModules.default_u0s
 
-for graph in graphs
-	MTK_systems = [getMTKsystem(node, module_coupling, module_defaults, model_defaults, default_params, default_u0s)
-		for node in PlantModules.nodes(graph)]
+get_connection_eqs(node_MTK, nb_node_MTKs, connection_MTKs) = [
+	[connection_MTK.Ψ_1 ~ node_MTK.Ψ for connection_MTK in connection_MTKs]...,
+	[connection_MTK.Ψ_2 ~ nb_node_MTK.Ψ for (connection_MTK, nb_node_MTK) in zip(connection_MTKs, nb_node_MTKs)]...,
+	node_MTK.ΣF ~ sum([connection_MTK.F for connection_MTK in connection_MTKs])
+] #! put this in func_modules and explain to user they gotta provide this stuff mr white yo
 
-	MTK_connections = [node for node in PlantModules.nodes(graph)]
+MTK_systems = ODESystem[]
+connection_MTKs = ODESystem[]
+connection_equations = Equation[]
+
+MTK_system_dicts = [[PlantModules.id(node) => getMTKsystem(node, module_coupling, module_defaults, model_defaults, default_params, default_u0s)
+	for node in PlantModules.nodes(graph)] |> Dict for graph in graphs] # node idx to corresponding MTK system
+
+for (graphnr, graph) in enumerate(graphs)
+	MTK_system_dict = MTK_system_dicts[graphnr]
+	push!(MTK_systems, values(MTK_system_dict)...)
+
+	for node in PlantModules.nodes(graph)
+		node_connection_MTKs, node_connection_equations = get_connection_info(node, graph, func_connections, get_connection_eqs, default_params, default_u0s, MTK_system_dict)
+		push!(connection_MTKs, node_connection_MTKs...)
+		push!(connection_equations, node_connection_equations...)
+	end
+end
+
+intergraph_connections = struct_connections[2]
+for intergraph_connection in intergraph_connections
+	get_intergraph_connection_info(graphs, intergraph_connection, func_connections,
+	get_connection_eqs, default_params, default_u0s, MTK_system_dicts)
 end
 
 
@@ -192,14 +265,24 @@ function qux(; name, bar, baz, quux, corge, xyzzy)
 	return ODESystem(eqs, t; name)
 end
 
+function snoo(; name, snee)
+	@parameters snee = snee
+	@variables t xyzzy1(t) xyzzy2(t) snaw(t)
+	eqs = [
+		snaw ~ xyzzy1 * xyzzy2 + snee
+	]
+	return ODESystem(eqs, t; name)
+end
+
 PlantModules.attributes(node::Foo) = Dict([:bar => node.bar])
 PlantModules.nodetype(::Foo) = :Foo
 PlantModules.id(::Foo) = 1
 
 func_module = qux
 structmodule = :Foo
+func_connections = [:default => snoo]
 module_coupling = [qux => [:Foo]]
-default_params = (qux = (bar = 100, baz = 100, quux = 100, corge = 100),)
+default_params = (qux = (bar = 100, baz = 100, quux = 100, corge = 100), snoo = (snee = 100,))
 default_u0s = (qux = (xyzzy = 100,),)
 model_defaults = (baz = 42, quux = 42)
 module_defaults = (Foo = (baz = 10, xyzzy = 10),)
@@ -220,6 +303,28 @@ getnodeu0s(node, structmodule, func_module, module_defaults, model_defaults, def
 
 node = Foo(1)
 testsystem = getMTKsystem(node, module_coupling, module_defaults, model_defaults, default_params, default_u0s)
-testsystem.name == :(Foo_1)
+testsystem.name == :(Foo1)
 sort(Symbol.(keys(testsystem.defaults))) == sort(collect(keys(Dict([:bar => 1, :baz => 10, :quux => 42, :corge => 100, Symbol("xyzzy(t)") => 10]))))
 sort(collect(values(testsystem.defaults))) == sort(collect(values(Dict([:bar => 1, :baz => 10, :quux => 42, :corge => 100, Symbol("xyzzy(t)") => 10]))))
+
+## get_func_connection
+node = Foo(1)
+nb_node = Foo(2)
+testsystem = get_func_connection(node, nb_node, func_connections, default_params, default_u0s)
+testsystem.name == :Foo1_Foo1
+sort(Symbol.(keys(testsystem.defaults))) == sort(collect(keys(Dict([:snee => 100]))))
+sort(collect(values(testsystem.defaults))) == sort(collect(values(Dict([:snee => 100]))))
+
+## get_connection_info
+graph = Foo(1) + (Foo(2), Foo(3))
+node = PlantModules.nodes(graph)[1]
+MTK_system_dict = Dict([PlantModules.nodes(graph)[nodenr].self_id =>
+	qux(name = Symbol("Foo$nodenr"), bar = nodenr, baz = nodenr, quux = nodenr, corge = nodenr, xyzzy = nodenr)
+	for nodenr in 1:3]
+)
+get_connection_eqs(node_MTK, nb_node_MTKs, connection_MTKs) = [
+	[connection_MTK.xyzzy1 ~ node_MTK.xyzzy for connection_MTK in connection_MTKs]..., 
+	[connection_MTK.xyzzy2 ~ nb_node_MTKs.xyzzy for (connection_MTK, nb_node_MTKs) in zip(connection_MTKs, nb_node_MTKs)]..., 
+]
+
+connection_MTKs, connection_equations = get_connection_info(node, graph, func_connections, get_connection_eqs, default_params, default_u0s, MTK_system_dict)

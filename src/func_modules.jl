@@ -97,13 +97,13 @@ function hydraulic_connection(; name, K)
         K = K, [description = "Hydraulic conductivity of connection", unit = u"g / hr / MPa"],
     )
     @variables (
-        F(t), [description = "Water flux from compartment 1 to compartment 2", unit = u"g / hr"],
+        F(t), [description = "Water flux from compartment 2 to compartment 1", unit = u"g / hr"],
         Ψ_1(t), [description = "Total water potential of compartment 1", unit = u"MPa"],
         Ψ_2(t), [description = "Total water potential of compartment 2", unit = u"MPa"],
     )
 
     eqs = [
-        F ~ K * (Ψ_1 - Ψ_2)
+        F ~ K * (Ψ_2 - Ψ_1)
     ]
     return ODESystem(eqs, t; name)
 end
