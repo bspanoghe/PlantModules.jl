@@ -3,6 +3,12 @@ include("PlantModules.jl")
 using PlantGraphs, ModelingToolkit, GLMakie, DifferentialEquations #! MTK imports etc. should not be necessary when package is done
 using BenchmarkTools
 
+#! for testing
+function showme(x)
+	[println(xi) for xi in sort(collect(string.(x)))]
+	return nothing
+end
+
 mutable struct Root <: Node end
 mutable struct Stem <: Node end
 mutable struct Leaf <: Node
@@ -131,60 +137,23 @@ function getnodeu0s(node, structmodule, func_module, module_defaults, model_defa
 	return u0s
 end
 
-# get MTK systems and the vector of equations defining connections between MTK systems of a node and its neighbours
-function get_connection_info(node, graph, func_connections, get_connection_eqs, default_params, default_u0s, MTK_system_dict)
-	nb_nodes = PlantModules.neighbours(node, graph)
-	if isempty(nb_nodes) # no neighbours no connection info
-		return ODESystem[], Equation[]
-	end
-
-	node_MTK = MTK_system_dict[PlantModules.id(node)]
+# get MTK systems and the vector of equations defining connections between MTK systems of a node and its neighbour nodes
+function get_connection_info(node, graphnr, nb_nodes, nb_node_graphnrs, func_connections, get_connection_eqs, default_params, default_u0s, MTK_system_dicts)
+	node_MTK = MTK_system_dicts[graphnr][PlantModules.id(node)]
 
 	nb_node_MTKs = Vector{ODESystem}(undef, length(nb_nodes))
 	connection_MTKs = Vector{ODESystem}(undef, length(nb_nodes))
+	connection_keys = Vector{Tuple{Tuple, Tuple}}(undef, length(nb_nodes))
 
-	for (nb_nr, nb_node) in enumerate(nb_nodes)
-		nb_node_MTKs[nb_nr] = MTK_system_dict[PlantModules.id(nb_node)]
+	for (nb_nr, (nb_node, nb_node_graphnr)) in enumerate(zip(nb_nodes, nb_node_graphnrs))
+		nb_node_MTKs[nb_nr] = MTK_system_dicts[nb_node_graphnr][PlantModules.id(nb_node)]
 		connection_MTKs[nb_nr] = get_func_connection(node, nb_node, func_connections, default_params, default_u0s)
+		connection_keys[nb_nr] = ((graphnr, PlantModules.id(node)), (nb_node_graphnr, PlantModules.id(nb_node)))
 	end
 
 	connection_equations = get_connection_eqs(node_MTK, nb_node_MTKs, connection_MTKs)
-	return connection_MTKs, connection_equations
-end
-
-# get MTK systems and the vector of equations defining connections between MTK systems of all nodes between two graphs as specified in the intergraph connections
-function get_intergraph_connection_info(graphs, intergraph_connection, func_connections,
-	get_connection_eqs, default_params, default_u0s, MTK_system_dicts)
-
-	graph1, graph2 = graphs[intergraph_connection[1]]
-	MTK_system_dict, nb_MTK_system_dict = MTK_system_dicts[intergraph_connection[1]]
-
-	nodes = [node for node in PlantModules.nodes(graph1) if PlantModules.nodetype(node) in intergraph_connection[2]]
-	nb_nodes = [node for node in PlantModules.nodes(graph2) if PlantModules.nodetype(node) in intergraph_connection[2]]
-	
-	if isempty(nodes) || isempty(nb_nodes) # no neighbours no connection info
-		return ODESystem[], Equation[]
-	end
-
-	nb_node_MTKs = Vector{ODESystem}(undef, length(nodes) * length(nb_nodes))
-	connection_MTKs = Vector{ODESystem}(undef, length(nodes) * length(nb_nodes))
-
-
-	for node in nodes
-		node_MTK = MTK_system_dict[PlantModules.id(node)]
-
-		nb_node_MTKs = Vector{ODESystem}(undef, length(nb_nodes))
-		connection_MTKs = Vector{ODESystem}(undef, length(nb_nodes))
-	
-		for (nb_nr, nb_node) in enumerate(nb_nodes)
-			nb_node_MTKs[nb_nr] = nb_MTK_system_dict[PlantModules.id(nb_node)]
-			connection_MTKs[nb_nr] = get_func_connection(node, nb_node, func_connections, default_params, default_u0s)
-		end
-	
-		connection_equations = get_connection_eqs(node_MTK, nb_node_MTKs, connection_MTKs)
-	end
-
-	return connection_MTKs, connection_equations
+	connection_dict = Dict(Pair.(connection_keys, connection_MTKs))
+	return connection_dict, connection_equations
 end
 
 # given two nodes' structural modules, get the MTK system of the functional connection between them
@@ -213,8 +182,53 @@ function get_func_connection(node, nb_node, func_connections, default_params, de
 	return func_connection
 end
 
+function get_intergraph_neighbours(node, node_graphnr, graphs, intergraph_connections)
+	nb_nodes = []
+	nb_node_graphnrs = []
+	
+	node_intergraph_connections = [intergraph_connection for intergraph_connection in intergraph_connections if node_graphnr in intergraph_connection[1]]
+	for node_intergraph_connection in node_intergraph_connections
+		if PlantModules.nodetype(node) in node_intergraph_connection[2]
+			nb_graphnr = node_intergraph_connection[1][node_intergraph_connection[1] .!= node_graphnr][1]
+			nb_graph = graphs[nb_graphnr]
+			connection_nb_nodes = [nb_node for nb_node in PlantModules.nodes(nb_graph) if PlantModules.nodetype(nb_node) in node_intergraph_connection[2]]
+			append!(nb_nodes, connection_nb_nodes)
+			append!(nb_node_graphnrs, repeat([nb_graphnr], length(connection_nb_nodes)))
+		end
+	end
+
+	return nb_nodes, nb_node_graphnrs # also return graph nrs for looking up MTK things?
+end
+
+# get neighbouring nodes of a node both from the same graph and all connected graphs
+function get_nb_nodes(node, graphs, graphnr, intergraph_connections)
+	graph = graphs[graphnr]
+	
+	intra_nb_nodes = PlantModules.neighbours(node, graph)
+	intra_nb_node_graphnrs = repeat([graphnr], length(intra_nb_nodes))
+
+	inter_nb_nodes, inter_nb_node_graphnrs = get_intergraph_neighbours(node, graphnr, graphs, intergraph_connections)
+
+	nb_nodes = vcat(intra_nb_nodes, inter_nb_nodes)
+	nb_node_graphnrs = vcat(intra_nb_node_graphnrs, inter_nb_node_graphnrs)
+
+	return nb_nodes, nb_node_graphnrs
+end
+
+function get_symmetry_info(connection_dict, get_symmetry_eqs)
+	symmetry_eqs = Equation[]
+	for connection_key in keys(connection_dict)
+		rev_key = reverse(connection_key) # key of reverse connection (by construction of keys)
+		append!(symmetry_eqs, get_symmetry_eqs(connection_dict[connection_key], connection_dict[rev_key]))
+	end
+
+	return symmetry_eqs
+end
+###################### source code end ######################
+
 graphs = struct_connections[1]
-# graph = graphs[2]
+# graphnr = 1
+# graph = graphs[graphnr]
 # node = PlantModules.nodes(graph)[1]
 default_params = PlantModules.default_params
 default_u0s = PlantModules.default_u0s
@@ -225,29 +239,45 @@ get_connection_eqs(node_MTK, nb_node_MTKs, connection_MTKs) = [
 	node_MTK.ΣF ~ sum([connection_MTK.F for connection_MTK in connection_MTKs])
 ] #! put this in func_modules and explain to user they gotta provide this stuff mr white yo
 
-MTK_systems = ODESystem[]
-connection_MTKs = ODESystem[]
+get_symmetry_eqs(connection_MTK, reverse_connection_MTK) = [
+	connection_MTK.F ~ -reverse_connection_MTK.F
+] #! put this in func_modules and explain to user they gotta provide this stuff mr white yo
+
+
+
+
+###################### main function begin ######################
+connection_dict = Dict{Tuple{Tuple, Tuple}, ODESystem}()
 connection_equations = Equation[]
 
 MTK_system_dicts = [[PlantModules.id(node) => getMTKsystem(node, module_coupling, module_defaults, model_defaults, default_params, default_u0s)
 	for node in PlantModules.nodes(graph)] |> Dict for graph in graphs] # node idx to corresponding MTK system
 
-for (graphnr, graph) in enumerate(graphs)
-	MTK_system_dict = MTK_system_dicts[graphnr]
-	push!(MTK_systems, values(MTK_system_dict)...)
+MTK_systems = vcat(collect.(values.(MTK_system_dicts))...)
 
+for (graphnr, graph) in enumerate(graphs)
 	for node in PlantModules.nodes(graph)
-		node_connection_MTKs, node_connection_equations = get_connection_info(node, graph, func_connections, get_connection_eqs, default_params, default_u0s, MTK_system_dict)
-		push!(connection_MTKs, node_connection_MTKs...)
-		push!(connection_equations, node_connection_equations...)
+
+		nb_nodes, nb_node_graphnrs = get_nb_nodes(node, graphs, graphnr, intergraph_connections)
+
+		if !isempty(nb_nodes) # no neighbours no connection info
+			node_connection_dict, node_connection_equations = get_connection_info(node, graphnr, nb_nodes, nb_node_graphnrs, func_connections, get_connection_eqs, default_params, default_u0s, MTK_system_dicts)
+			merge!(connection_dict, node_connection_dict)
+			append!(connection_equations, node_connection_equations)
+		end
+
 	end
 end
 
-intergraph_connections = struct_connections[2]
-for intergraph_connection in intergraph_connections
-	get_intergraph_connection_info(graphs, intergraph_connection, func_connections,
-	get_connection_eqs, default_params, default_u0s, MTK_system_dicts)
-end
+append!(connection_equations, get_symmetry_info(connection_dict, get_symmetry_eqs))
+connection_MTKs = collect(values(connection_dict))
+###################### main function end ######################
+
+
+system = ODESystem(connection_equations, name = :system, systems = vcat(MTK_systems, connection_MTKs)) |> structural_simplify
+prob = ODEProblem(system, [], (0.0, 10))
+sol = solve(prob) # i dont think its valid
+
 
 
 # tests #
