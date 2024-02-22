@@ -81,7 +81,7 @@ LSE(x::Real...; γ = 1) = log(sum(exp.(γ .* x)) ) / γ
 )
 
 ### general compartment definition
-function plant_compartment(; name, shape::Shape)
+function hydraulic_module(; name, shape::Shape)
     num_D = length(shape.ϵ_D)
     @parameters (
         T = 298.15, [description = "Temperature", unit = u"K"],
@@ -125,7 +125,7 @@ end
 
 ## Environmental compartments
 
-function environmental_compartment(; name, W_max)
+function environmental_module(; name, W_max)
     @parameters (
         T = 298.15, [description = "Temperature", unit = u"K"],
         ρ_w = 1.0e6, [description = "Density of water", unit = u"g / m^3"],
@@ -176,12 +176,12 @@ rootvol = Sphere(ϵ_D = [3.0], ϕ_D = [0.45])
 stemvol = Cilinder(ϵ_D = [6.0, 0.15], ϕ_D = [0.8, 0.03])
 leafvol = Cuboid(ϵ_D = [5.0, 0.3, 0.2], ϕ_D = [0.7, 0.1, 0.05])
 
-@named root = plant_compartment(shape = rootvol)
-@named stem = plant_compartment(shape = stemvol)
-@named leaf = plant_compartment(shape = leafvol)
+@named root = hydraulic_module(shape = rootvol)
+@named stem = hydraulic_module(shape = stemvol)
+@named leaf = hydraulic_module(shape = leafvol)
 
-@named soil = environmental_compartment(W_max = 500) # 500 g of water max - we're growing this plant in a pot!
-@named air = environmental_compartment(W_max = 1e4) # how much water can a (hopefully ventilated) house full of air hold?...
+@named soil = environmental_module(W_max = 500) # 500 g of water max - we're growing this plant in a pot!
+@named air = environmental_module(W_max = 1e4) # how much water can a (hopefully ventilated) house full of air hold?...
 
 @named soil_root = compartment_connection(K = 50)
 @named root_stem = compartment_connection(K = 800)
