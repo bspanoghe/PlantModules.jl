@@ -310,8 +310,7 @@ plot(env_plots..., layout = (5, 2), size = (800, 500))
 
 ##################################################### Smaller example #####################################################
 
-
-function hydraulic_module2(; name, shape::Shape, D, M)
+function hydraulic_module2(; name, shape::Shape, D)
     num_D = length(shape.ϵ_D)
     @parameters (
         T = 298.15, [description = "Temperature", unit = u"K"],
@@ -332,7 +331,6 @@ function hydraulic_module2(; name, shape::Shape, D, M)
         ΣF(t), [description = "Net incoming water flux", unit = u"g / hr"],
         
         ΔP(t), [description = "Change in hydrostatic potential", unit = u"MPa / hr"],
-        ΔM(t), [description = "Change in osmotically active metabolite content", unit = u"mol / m^3 / hr"],
         ΔW(t), [description = "Change in water content", unit = u"g / hr"],
         ΔD(t)[1:num_D], [description = "Change in dimensions of compartment", unit = u"m / hr"],
     )
@@ -346,9 +344,22 @@ function hydraulic_module2(; name, shape::Shape, D, M)
         [ΔD[i] ~ D[i] * (ΔP/ϵ_D[i] + ϕ_D[i] * LSE(P - Γ, P_0, γ = 100)) for i in eachindex(D)]..., # Compartment dimensions can only change due to a change in pressure
 
         d(P) ~ ΔP,
-        d(M) ~ ΔM, # Change in dissolved metabolites is defined in the connections
         d(W) ~ ΔW,
         [d(D[i]) ~ ΔD[i] for i in eachindex(D)]...,
+    ]
+    return ODESystem(eqs, t; name)
+end
+
+function constant_carbon_module(; name)
+    @parameters (
+        C_amount = 10.0, [description = "Amount of carbon", unit = u"mol / m^3"],
+    )
+    @variables (
+        M(t), [description = "Osmotically active metabolite content", unit = u"mol / m^3"], # m^3 so units match in second equation (Pa = J/m^3) #! extend validation function so L is ok?
+    )
+
+    eqs = [
+        M ~ C_amount,
     ]
     return ODESystem(eqs, t; name)
 end
@@ -358,13 +369,17 @@ end
 @parameters ( #! these are mostly guesses
     A_n2 = 10, [description = "Rate of photosynthesis", unit = u"mol / m^3"],
 )
-wah(t) = A_n2
 
 stemvol = Cilinder(ϵ_D = [6.0, 0.15], ϕ_D = [0.8, 0.03])
 leafvol = Cuboid(ϵ_D = [5.0, 0.3, 0.2], ϕ_D = [0.7, 0.1, 0.05])
 
-@named stem = hydraulic_module2(shape = stemvol, D = [0.3, 0.2], M = wah)
-@named leaf = hydraulic_module2(shape = leafvol, D = [0.4, 0.2, 0.05], M = wah)
+@named stemC = constant_carbon_module()
+@named stemH = hydraulic_module2(shape = stemvol, D = [0.3, 0.2])
+@named stem = collapse([stemC, stemH])
+
+@named leafC = constant_carbon_module()
+@named leafH = hydraulic_module2(shape = leafvol, D = [0.4, 0.2, 0.05])
+@named leaf = collapse([leafC, leafH])
 
 @named stem_leaf = compartment_connection(K = 600)
 

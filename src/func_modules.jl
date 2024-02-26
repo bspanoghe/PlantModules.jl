@@ -32,7 +32,6 @@ function hydraulic_module(; name, T, ρ_w, shape::Shape, Γ, P, M, W, D)
         ΣF(t), [description = "Net incoming water flux", unit = u"g / hr"],
         
         ΔP(t), [description = "Change in hydrostatic potential", unit = u"MPa / hr"],
-        ΔM(t), [description = "Change in osmotically active metabolite content", unit = u"mol / m^3 / hr"],
         ΔW(t), [description = "Change in water content", unit = u"g / hr"],
         ΔD(t)[1:num_D], [description = "Change in dimensions of compartment", unit = u"m / hr"],
     )
@@ -46,9 +45,23 @@ function hydraulic_module(; name, T, ρ_w, shape::Shape, Γ, P, M, W, D)
         [ΔD[i] ~ D[i] * (ΔP/ϵ_D[i] + ϕ_D[i] * LSE(P - Γ, P_0, γ = 100)) for i in eachindex(D)]..., # Compartment dimensions can only change due to a change in pressure
 
         d(P) ~ ΔP,
-        d(M) ~ ΔM, # Change in dissolved metabolites is defined in the connections #! remove this equation?
         d(W) ~ ΔW,
         [d(D[i]) ~ ΔD[i] for i in eachindex(D)]...,
+    ]
+    return ODESystem(eqs, t; name)
+end
+
+"""
+    constant_carbon_module(; name, C)
+
+Returns a ModelingToolkit ODESystem describing constant osmotically active metabolite content.
+"""
+function constant_carbon_module(; name, M_const)
+    @parameters M_const = M_const [description = "Value of constant M concentration", unit = u"mol / m^3"]
+    @variables M(t) [description = "Osmotically active metabolite content", unit = u"mol / m^3"]
+
+    eqs = [
+        M ~ M_const,
     ]
     return ODESystem(eqs, t; name)
 end
@@ -136,9 +149,12 @@ default_params = (
     hydraulic_module = (
         T = 298.15, ρ_w = 1.0e6, shape = Sphere(ϵ_D = [1.0], ϕ_D = [1.0]), Γ = 0.3
     ),
+    constant_carbon_module = (
+        M_const = 0.2,
+    ),
     environmental_module = (
         T = 298.15, ρ_w = 1.0e6, W_max = 1e9
-    ), 
+    ),
     hydraulic_connection = (
         K = 600,
     )
@@ -147,6 +163,8 @@ default_params = (
 default_u0s = (
     hydraulic_module = (
         P = 0.1, M = 200.0, D = [0.1], W = volume(Sphere(ϵ_D = [1.0], ϕ_D = [1.0]), [0.1]) * 1.0e6,
+    ),
+    constant_carbon_module = (
     ),
     environmental_module = (
         W_r = 1,

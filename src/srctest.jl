@@ -33,15 +33,16 @@ PlantModules.default_u0s
 model_defaults = (Γ = 0.4, P = 0.2, M = 15.0, T = 293.15) #! currently assumed variables with same name are the same for all functional modules
 
 module_defaults = (
-	Root = (D = [0.3, 0.05, 0.03], shape = PlantModules.Cuboid(ϵ_D = [5.0, 0.3, 0.2], ϕ_D = [0.7, 0.1, 0.05]), M = C_root), #! changed C to M #! include check whether module_defaults variabkle names correspond with default_params / default_u0s ?
-	Stem = (D = [0.4, 0.03], shape = PlantModules.Cilinder(ϵ_D = [6.0, 0.15], ϕ_D = [0.8, 0.03]), M = C_stem),
-	Leaf = (shape = PlantModules.Sphere(ϵ_D = [3.0], ϕ_D = [0.45]), M = C_leaf),
+	Root = (D = [0.3, 0.05, 0.03], shape = PlantModules.Cuboid(ϵ_D = [5.0, 0.3, 0.2], ϕ_D = [0.7, 0.1, 0.05]), M_const = C_root), #! changed C to M_const #! include check whether module_defaults variabkle names correspond with default_params / default_u0s ?
+	Stem = (D = [0.4, 0.03], shape = PlantModules.Cilinder(ϵ_D = [6.0, 0.15], ϕ_D = [0.8, 0.03]), M_const = C_stem),
+	Leaf = (shape = PlantModules.Sphere(ϵ_D = [3.0], ϕ_D = [0.45]), M_const = C_leaf),
 	Soil = (W_max = 500.0, T = 288.15, Ψ = Ψ_soil_func),
 	Air = (Ψ = Ψ_air_func,)
 )
 
-module_coupling = [
+module_coupling = [ #! switch around?
 	PlantModules.hydraulic_module => [:Root, :Stem, :Leaf],
+	PlantModules.constant_carbon_module => [:Root, :Stem, :Leaf],
 	PlantModules.environmental_module => [:Soil, :Air]
 ]
 
@@ -90,13 +91,20 @@ plot(sol, struct_modules = [:Soil], func_vars = [:W]) #! imagine that this works
 # Get MTK system corresponding with node
 function getMTKsystem(node, module_coupling, module_defaults, model_defaults, default_params, default_u0s)
 	structmodule = PlantModules.nodetype(node)
-	func_module = [coupling.first for coupling in module_coupling if structmodule in coupling.second][1]
+	func_modules = [coupling.first for coupling in module_coupling if structmodule in coupling.second]
 
-	nodeparams = getnodeparams(node, structmodule, func_module, module_defaults, model_defaults, default_params)
-	nodeu0s = getnodeu0s(node, structmodule, func_module, module_defaults, model_defaults, default_u0s)
+	component_systems = Vector{ODESystem}(undef, length(func_modules))
 
-	MTKsystem = func_module(; :name => Symbol(string(structmodule) * string(PlantModules.id(node))),
-		Pair.(keys(nodeparams), values(nodeparams))..., Pair.(keys(nodeu0s), values(nodeu0s))...)
+	for (modulenum, func_module) in enumerate(func_modules)
+		nodeparams = getnodeparams(node, structmodule, func_module, module_defaults, model_defaults, default_params)
+		nodeu0s = getnodeu0s(node, structmodule, func_module, module_defaults, model_defaults, default_u0s)
+
+		component_systems[modulenum] = func_module(; :name => :foo, # real name given later
+			Pair.(keys(nodeparams), values(nodeparams))..., Pair.(keys(nodeu0s), values(nodeu0s))...)
+	end
+
+	MTKsystem = collapse(component_systems, name = Symbol(string(structmodule) * string(PlantModules.id(node))))
+
 	return MTKsystem
 end
 
@@ -140,6 +148,12 @@ function getnodeu0s(node, structmodule, func_module, module_defaults, model_defa
 	end
 
 	return u0s
+end
+
+# collapse multiple ODESystems into one. like ModelingToolkit.compose, but keeps a single namespace
+function collapse(systems::Vector{ODESystem}; name::Symbol)
+    return ODESystem(vcat([system.eqs for system in systems]...), systems[1].iv, vcat([states(system) for system in systems]...),
+        vcat([parameters(system) for system in systems]...), name = name)
 end
 
 # get MTK systems and the vector of equations defining connections between MTK systems of a node and its neighbour nodes
