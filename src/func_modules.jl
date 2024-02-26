@@ -46,7 +46,7 @@ function hydraulic_module(; name, T, ρ_w, shape::Shape, Γ, P, M, W, D)
         [ΔD[i] ~ D[i] * (ΔP/ϵ_D[i] + ϕ_D[i] * LSE(P - Γ, P_0, γ = 100)) for i in eachindex(D)]..., # Compartment dimensions can only change due to a change in pressure
 
         d(P) ~ ΔP,
-        d(M) ~ ΔM, # Change in dissolved metabolites is defined in the connections
+        d(M) ~ ΔM, # Change in dissolved metabolites is defined in the connections #! remove this equation?
         d(W) ~ ΔW,
         [d(D[i]) ~ ΔD[i] for i in eachindex(D)]...,
     ]
@@ -66,7 +66,7 @@ function environmental_module(; name, T, ρ_w, W_max, W_r)
         )
     @variables (
         Ψ(t), [description = "Total water potential", unit = u"MPa"],
-        W(t), [description = "Water content", unit = u"g"],
+        W(t) =  W_r * W_max, [description = "Water content", unit = u"g"],
         W_r(t) = W_r, [description = "Relative water content", unit = u"g / g"],
         ΣF(t), [description = "Net incoming water flux", unit = u"g / hr"],
 

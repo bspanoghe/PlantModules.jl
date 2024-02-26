@@ -33,9 +33,9 @@ PlantModules.default_u0s
 model_defaults = (Γ = 0.4, P = 0.2, M = 15.0, T = 293.15) #! currently assumed variables with same name are the same for all functional modules
 
 module_defaults = (
-	Root = (D = [0.3, 0.05, 0.03], ϵ_D = [5.0, 0.3, 0.2], ϕ_D = [0.7, 0.1, 0.05], C = C_root),
-	Stem = (D = [0.4, 0.03], ϵ_D = [6.0, 0.15], ϕ_D = [0.8, 0.03], C = C_stem),
-	Leaf = (ϵ_D = [3.0], ϕ_D = [0.45], C = C_leaf),
+	Root = (D = [0.3, 0.05, 0.03], shape = PlantModules.Cuboid(ϵ_D = [5.0, 0.3, 0.2], ϕ_D = [0.7, 0.1, 0.05]), M = C_root), #! changed C to M #! include check whether module_defaults variabkle names correspond with default_params / default_u0s ?
+	Stem = (D = [0.4, 0.03], shape = PlantModules.Cilinder(ϵ_D = [6.0, 0.15], ϕ_D = [0.8, 0.03]), M = C_stem),
+	Leaf = (shape = PlantModules.Sphere(ϵ_D = [3.0], ϕ_D = [0.45]), M = C_leaf),
 	Soil = (W_max = 500.0, T = 288.15, Ψ = Ψ_soil_func),
 	Air = (Ψ = Ψ_air_func,)
 )
@@ -46,6 +46,7 @@ module_coupling = [
 ]
 
 plant_graph = Root() + Stem() + (Leaf([0.25]), Leaf([0.15]))
+
 # draw(plant_graph, resolution = (500, 400))
 
 soil_graph = Soil()
@@ -53,7 +54,11 @@ air_graph = Air()
 
 graphs = [plant_graph, soil_graph, air_graph]
 
+
 intergraph_connections = [[1, 2] => (:Soil, :Root), [1, 3] => (:Air, :Leaf)]
+
+graphs = [Stem() + Leaf([0.3])] #! remove
+intergraph_connections = [] #! remove
 
 struct_connections = [graphs, intergraph_connections]
 
@@ -224,12 +229,13 @@ function get_symmetry_info(connection_dict, get_symmetry_eqs)
 
 	return symmetry_eqs
 end
+
 ###################### source code end ######################
 
 graphs = struct_connections[1]
-# graphnr = 1
-# graph = graphs[graphnr]
-# node = PlantModules.nodes(graph)[1]
+graphnr = 1
+graph = graphs[graphnr]
+node = PlantModules.nodes(graph)[1]
 default_params = PlantModules.default_params
 default_u0s = PlantModules.default_u0s
 
@@ -273,12 +279,15 @@ append!(connection_equations, get_symmetry_info(connection_dict, get_symmetry_eq
 connection_MTKs = collect(values(connection_dict))
 ###################### main function end ######################
 
-
 system = ODESystem(connection_equations, name = :system, systems = vcat(MTK_systems, connection_MTKs)) |> structural_simplify
-prob = ODEProblem(system, [], (0.0, 10))
+prob = ODEProblem(system, ModelingToolkit.missing_variable_defaults(system), (0.0, 10))
 sol = solve(prob) # i dont think its valid
 
-
+"""
+ArgumentError: SymbolicUtils.BasicSymbolic{Real}[var"Root5₊D(t)[1]ˍt", var"Stem6₊D(t)[1]ˍt", var"Leaf7₊D(t)[1]ˍt",
+var"Leaf8₊D(t)[1]ˍt", Soil1_Root5₊Ψ_2(t), Air1_Leaf8₊Ψ_2(t), Leaf7_Stem6₊Fˍt(t), Soil1_Root5₊Ψ_2ˍt(t), Air1_Leaf8₊Fˍt(t),
+Air1_Leaf7₊Fˍt(t), Leaf8_Stem6₊Ψ_1ˍt(t), Leaf8_Stem6₊Fˍt(t)] are missing from the variable map.
+"""
 
 # tests #
 
