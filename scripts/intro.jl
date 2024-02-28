@@ -308,7 +308,7 @@ sol = solve(prob)
 env_plots = [plot(sol, idxs = [getproperty(organ, var)]) for organ in [soil, root, stem, leaf, air] for var in [:W, :Ψ]]
 plot(env_plots..., layout = (5, 2), size = (800, 500))
 
-##################################################### Smaller example #####################################################
+############################ Smaller example ############################
 
 function hydraulic_module2(; name, shape::Shape, D)
     num_D = length(shape.ϵ_D)
@@ -364,11 +364,12 @@ function constant_carbon_module(; name)
     return ODESystem(eqs, t; name)
 end
 
-# Create compartment instances #
+function collapse(systems::Vector{ODESystem}; name::Symbol)
+    return ODESystem(vcat([system.eqs for system in systems]...), systems[1].iv, vcat([states(system) for system in systems]...),
+        vcat([parameters(system) for system in systems]...), name = name)
+end
 
-@parameters ( #! these are mostly guesses
-    A_n2 = 10, [description = "Rate of photosynthesis", unit = u"mol / m^3"],
-)
+# Create compartment instances #
 
 stemvol = Cilinder(ϵ_D = [6.0, 0.15], ϕ_D = [0.8, 0.03])
 leafvol = Cuboid(ϵ_D = [5.0, 0.3, 0.2], ϕ_D = [0.7, 0.1, 0.05])
@@ -382,11 +383,13 @@ leafvol = Cuboid(ϵ_D = [5.0, 0.3, 0.2], ϕ_D = [0.7, 0.1, 0.05])
 @named leaf = collapse([leafC, leafH])
 
 @named stem_leaf = compartment_connection(K = 600)
+@named leaf_stem = compartment_connection(K = 600)
 
 # define connections #
 
 ## connections themselves
 
+#=
 connections = [
     stem.ΣF ~ - stem_leaf.F,
     leaf.ΣF ~ stem_leaf.F,
@@ -397,11 +400,25 @@ connections = [
     # stem.M ~ A_n2, #! thou are the missing link
     # leaf.M ~ A_n2,
 ]
+=#
+
+connections = [
+    stem_leaf.Ψ_1 ~ stem.Ψ,
+    stem_leaf.Ψ_2 ~ leaf.Ψ,
+    stem.ΣF ~ - stem_leaf.F,
+
+    leaf_stem.Ψ_1 ~ leaf.Ψ,
+    leaf_stem.Ψ_2 ~ stem.Ψ,
+    leaf.ΣF ~ - leaf_stem.F,
+
+    # stem_leaf.F ~ - leaf_stem.F,
+    # leaf_stem.F ~ - stem_leaf.F
+]
 
 # build model #
 
 ## model definition
-plant = compose(ODESystem(connections, name = :plant), stem, leaf, stem_leaf)
+plant = compose(ODESystem(connections, name = :plant), stem, leaf, stem_leaf, leaf_stem)
 plant_simp = structural_simplify(plant)
 
 # full_equations(plant_simp)
@@ -427,9 +444,9 @@ u0_full = unique(x -> x[1], u0_ext) # remove duplicates
 prob = ODEProblem(plant_simp, u0_full, (0.0, 24.0*31))
 sol = solve(prob)
 
-plot(sol)
-####################################################################################################################################
-# More stuff #
+plot(sol, idxs = [leaf_stem.F, stem_leaf.F])
+
+############################ More stuff ############################
 
 function photosynthesis_module(; name)
     @constants(
