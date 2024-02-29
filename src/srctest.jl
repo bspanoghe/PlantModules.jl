@@ -32,7 +32,7 @@ function Ψ_soil_module(; name)
 	return ODESystem(eqs; name)
 end
 
-function Ψ_air_module(; name)
+function Ψ_air_module(; name) #! replace by constant Ψ?
 	@variables t Ψ(t) W_r(t)
 	@parameters T
 	@constants R = 8.314e-6 #= MJ/K/mol =# V_w = 18e-6 #= m^3/mol =#
@@ -49,9 +49,9 @@ PlantModules.default_u0s
 model_defaults = (Γ = 0.4, P = 0.2, T = 293.15) #! currently assumed variables with same name are the same for all functional modules
 
 module_defaults = (
-	Root = (D = [0.3, 0.05, 0.03], shape = PlantModules.Cuboid(ϵ_D = [5.0, 0.3, 0.2], ϕ_D = [0.7, 0.1, 0.05]), M_const = C_root), #! changed C to M_const #! include check whether module_defaults variabkle names correspond with default_params / default_u0s ?
-	Stem = (D = [0.4, 0.03], shape = PlantModules.Cilinder(ϵ_D = [6.0, 0.15], ϕ_D = [0.8, 0.03]), M_const = C_stem),
-	Leaf = (shape = PlantModules.Sphere(ϵ_D = [3.0], ϕ_D = [0.45]), M_const = C_leaf),
+	Root = (shape = PlantModules.Cuboid(ϵ_D = [5.0, 0.3, 0.2], ϕ_D = [0.7, 0.1, 0.05]), D = [0.3, 0.05, 0.03], M = C_root), #! changed C to M_const #! include check whether module_defaults variabkle names correspond with default_params / default_u0s ?
+	Stem = (shape = PlantModules.Cilinder(ϵ_D = [6.0, 0.15], ϕ_D = [0.8, 0.03]), D = [0.4, 0.03],  M = C_stem),
+	Leaf = (shape = PlantModules.Sphere(ϵ_D = [3.0], ϕ_D = [0.45]), M = C_leaf),
 	Soil = (W_max = 500.0, T = 288.15),
 	Air = ()
 )
@@ -78,12 +78,14 @@ intergraph_connections = [[1, 2] => (:Root, :Soil), [1, 3] => (:Leaf, :Air), [2,
 struct_connections = [graphs, intergraph_connections]
 
 func_connections = [
-	:default => PlantModules.hydraulic_connection,
+	:default => PlantModules.hydraulic_connection, #! make sure default works
 	(:Soil, :Root) => (PlantModules.hydraulic_connection, [:K => 50]),
 	(:Root, :Stem) => (PlantModules.hydraulic_connection, [:K => 800]),
 	(:Leaf, :Air) => (PlantModules.hydraulic_connection, [:K => 1e-3]),
 	(:Soil, :Air) => (PlantModules.hydraulic_connection, [:K => 1e-2]) #! check value
 ]
+
+get_connection_eqs = PlantModules.hydraulic_connection_eqs #!
 
 plantsys = PlantModules.PlantSystem(
 	model_defaults = model_defaults,
@@ -271,11 +273,7 @@ get_MTK_system_dicts(graphs, module_coupling, module_defaults, model_defaults, d
 
 ###################### source code end ######################
 
-get_connection_eqs(node_MTK, nb_node_MTKs, connection_MTKs) = [
-	[connection_MTK.Ψ_1 ~ node_MTK.Ψ for connection_MTK in connection_MTKs]...,
-	[connection_MTK.Ψ_2 ~ nb_node_MTK.Ψ for (connection_MTK, nb_node_MTK) in zip(connection_MTKs, nb_node_MTKs)]...,
-	node_MTK.ΣF ~ sum([connection_MTK.F for connection_MTK in connection_MTKs])
-] #! put this in func_modules and explain to user they gotta provide this stuff mr white yo
+
 
 ###################### main function begin ######################
 
@@ -321,6 +319,9 @@ sol = solve(prob)
 plot(sol, idxs = [Symbol("Soil1₊Ψ"), Symbol("Root1₊Ψ"), Symbol("Stem2₊Ψ"), Symbol("Leaf3₊Ψ"), Symbol("Air1₊Ψ")])
 plot(sol, idxs = [Symbol("Root1₊Π"), Symbol("Stem2₊Π"), Symbol("Leaf3₊Π")])
 plot(sol, idxs = [Symbol("Root1₊P"), Symbol("Stem2₊P"), Symbol("Leaf3₊P")])
+
+plot(sol, idxs = [Symbol("Root1₊M_amount")])
+
 
 plot(sol, idxs = [Symbol("Soil1₊W")])
 plot(sol, idxs = [Symbol("Root1₊W")])

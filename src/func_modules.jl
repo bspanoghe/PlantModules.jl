@@ -65,7 +65,7 @@ function constant_carbon_module(; name, M)
 
     eqs = [
         M_amount ~ M*V,
-        d(M) ~ 0
+        d(M_amount) ~ 0 #! need to rewrite as d(M) ~ ... so initial value of M gets used
     ]
     return ODESystem(eqs, t; name)
 end
@@ -125,6 +125,12 @@ function hydraulic_connection(; name, K)
     ]
     return ODESystem(eqs, t; name)
 end
+
+hydraulic_connection_eqs(node_MTK, nb_node_MTKs, connection_MTKs) = [
+	[connection_MTK.Ψ_1 ~ node_MTK.Ψ for connection_MTK in connection_MTKs]...,
+	[connection_MTK.Ψ_2 ~ nb_node_MTK.Ψ for (connection_MTK, nb_node_MTK) in zip(connection_MTKs, nb_node_MTKs)]...,
+	node_MTK.ΣF ~ sum([connection_MTK.F for connection_MTK in connection_MTKs])
+] #! put this in func_modules and explain to user they gotta provide this stuff mr white yo
 
 # Helper functions #
 
