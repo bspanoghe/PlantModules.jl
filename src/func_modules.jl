@@ -7,7 +7,7 @@ d = Differential(t);
 Returns a ModelingToolkit ODESystem describing the turgor-driven growth of a plant compartment.
 WARNING: this module still requires an equation to be given for the osmotically active metabolite content M.
 """
-function hydraulic_module(; name, T, ρ_w, shape::Shape, Γ, P, W, D)
+function hydraulic_module(; name, T, ρ_w, shape::Shape, Γ, P, D)
     num_D = length(shape.ϵ_D)
     @constants (
         P_0 = 0.0, [description = "Minimum pressure", unit = u"MPa"],
@@ -25,7 +25,7 @@ function hydraulic_module(; name, T, ρ_w, shape::Shape, Γ, P, W, D)
         Π(t), [description = "Osmotic water potential", unit = u"MPa"],
         P(t) = P, [description = "Hydrostatic potential", unit = u"MPa"],
         M(t), [description = "Osmotically active metabolite content", unit = u"mol / m^3"], # m^3 so units match in second equation (Pa = J/m^3) #! extend validation function so L is ok?
-        W(t) = W, [description = "Water content", unit = u"g"],
+        W(t) = PlantModules.volume(shape, D) * ρ_w, [description = "Water content", unit = u"g"],
         D(t)[1:num_D] = D, [description = "Dimensions of compartment", unit = u"m"],
         V(t), [description = "Volume of compartment", unit = u"m^3"],
         ΣF(t), [description = "Net incoming water flux", unit = u"g / hr"],
@@ -55,17 +55,18 @@ end
 
 Returns a ModelingToolkit ODESystem describing a constant amount of osmotically active metabolite content.
 """
-function constant_carbon_module(; name, M)
-    # @parameters M = M [description = "Value of the constant amount of osmotically active metabolite content", unit = u"mol"]
-    @variables ( #! change naming
-        M(t) = M, [description = "Osmotically active metabolite content", unit = u"mol / m^3"],
-        M_amount(t), [description = "Amount of osmotically active metabolite content", unit = u"mol"],
+function constant_carbon_module(; name, M, shape::Shape, D)
+    @parameters ( #! change input to M and calculate corresponding M_amount?
+        M_amount = M * PlantModules.volume(shape, D), [description = "Amount of osmotically active metabolite content", unit = u"mol"],
+    )
+
+    @variables (
+        M(t), [description = "Osmotically active metabolite content", unit = u"mol / m^3"], # m^3 so units match in second equation (Pa = J/m^3) #! extend validation function so L is ok?
         V(t), [description = "Volume of compartment", unit = u"m^3"],
     )
 
     eqs = [
-        M_amount ~ M*V,
-        d(M_amount) ~ 0 #! need to rewrite as d(M) ~ ... so initial value of M gets used
+        M ~ M_amount/V
     ]
     return ODESystem(eqs, t; name)
 end
@@ -121,7 +122,7 @@ function hydraulic_connection(; name, K)
     )
 
     eqs = [
-        F ~ K * (Ψ_2 - Ψ_1)
+        F ~ K * (Ψ_2 - Ψ_1) #! make K per m^2 ?
     ]
     return ODESystem(eqs, t; name)
 end
@@ -161,24 +162,25 @@ default_params = (
         T = 298.15, ρ_w = 1.0e6, shape = Sphere(ϵ_D = [1.0], ϕ_D = [1.0]), Γ = 0.3
     ),
     constant_carbon_module = (
+        shape = Sphere(ϵ_D = [1.0], ϕ_D = [1.0]),
     ),
     environmental_module = (
         T = 298.15, ρ_w = 1.0e6, W_max = 1e6
     ),
     hydraulic_connection = (
-        K = 600,
+        K = 3,
     )
 )
 
 default_u0s = (
     hydraulic_module = (
-        P = 0.1, D = [0.1], W = volume(Sphere(ϵ_D = [1.0], ϕ_D = [1.0]), [0.1]) * 1.0e6,
+        P = 0.1, D = [0.15],
     ),
     constant_carbon_module = (
-        M = 1000,
+        M = 25, D = [0.15]
     ),
     environmental_module = (
-        W_r = 0.6,
+        W_r = 0.8,
     ), 
     hydraulic_connection = (
     )

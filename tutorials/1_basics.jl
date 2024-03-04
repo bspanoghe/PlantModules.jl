@@ -9,49 +9,15 @@ using InteractiveUtils
 using Pkg; Pkg.activate("..")
 
 # ╔═╡ 65f88593-1180-447a-900f-49aef4647cd1
-using PlantGraphs, GLMakie, ModelingToolkit, DifferentialEquations #! MTK imports etc. should not be necessary when package is done
+using PlantGraphs, ModelingToolkit, DifferentialEquations, Plots, Unitful #! MTK imports etc. should not be necessary when package is done
+
+# ╔═╡ 662c0476-70aa-4a60-a81c-d7db2248b728
+include("../src/PlantModules.jl")
 
 # ╔═╡ 56c3527f-d8df-4f5c-9075-77c34d5c7204
 md"""
 # Tutorial 1: Package basics
 """
-
-# ╔═╡ d16a6d55-1f29-4b98-b1af-2dee1d38f386
-module PlantModules
-#! To be actually written out so this thing works
-
-export PlantSystem
-import ModelingToolkit.ODEProblem, Plots.plot, DifferentialEquations.solve
-
-function hydraulic_module(; name) end
-
-function environmental_module(; name) end
-
-function hydraulic_connection(; name) end
-
-struct PlantSystem
-	model_defaults
-	module_defaults
-	module_coupling
-	struct_connections
-	func_connections
-	MTK
-
-	function PlantSystem(; model_defaults, module_defaults, module_coupling, struct_connections, func_connections)
-		MTK = missing #! calculate MTK things here and add to struct
-		return new(model_defaults, module_defaults, module_coupling, struct_connections, func_connections, MTK)
-	end
-end
-
-default_vals = [:T => 298.15, :P => 0.1, :Γ => 0.3]
-
-function ODEProblem(ps::PlantSystem, timespan::Tuple) end
-
-function solve(prob) end #! this one doesn't actually have to be extended
-
-function plot(sol, struct_modules::Vector, func_vars::Vector)  end
-
-end # module
 
 # ╔═╡ 6ab177fd-ed5b-4ae4-a2b5-f7f4eb8e4d0d
 md"""
@@ -123,6 +89,9 @@ md"""
 As any good package tutorial, we start by loading in the required packages.
 """
 
+# ╔═╡ 018463a2-c562-44d7-892e-b90dad29081e
+import GLMakie.draw
+
 # ╔═╡ 0cc02e82-4fe8-4f27-a2d2-eb4bfba6b291
 md"""
 Then we can define the functional modules of our plant. For our example, there are only three.
@@ -169,12 +138,11 @@ Now that we have an idea of the plant's structural modules, we need to define so
 # ╔═╡ c04564c4-4fb5-47bf-bc14-77aaebdece15
 md"""
 PlantModules defines functional modules as as sets of differential equations implemented in [ModelingToolkit](https://docs.sciml.ai/ModelingToolkit/stable/).
-There are two functional modules already provided by PlantModules:
+There are three functional modules already provided by PlantModules:
 
 - `PlantModules.hydraulic_module`, which describes the hydraulics-driven growth of a compartment.
 - `PlantModules.environmental_module`, which describes a compartment that is subject to hydraulic laws but does therefor not change in size.
-
-The user is free to extend these or implement new ones themselves, though for now we will stick to using these two.
+- `PlantModules.constant_carbon_module`, which describes a compartment with a constant amount of carbon.
 """
 
 # ╔═╡ 2ca2f739-2b61-4519-bdc4-d3081c793446
@@ -188,27 +156,34 @@ We can provide this missing information as either a constant value or a function
 #! Replace with default behaviour and skip here?
 
 # ╔═╡ 96064ce5-d555-46a7-a647-8f94de01cd31
-C_root = 0.5 # We'll assume the soluble carbon content remains constant over the simulated time
+C_root = 250 # We'll assume the soluble carbon content remains constant over the simulated time
 
 # ╔═╡ 805e3bf4-0b17-4a7e-a9e6-b18d64ea52bb
-C_stem = 1 # Idem here
+C_stem = 300 # Idem here
 
 # ╔═╡ af203a2b-2299-4b2b-b034-c3cb39648bb7
-C_leaf = 3 # And here!
+C_leaf = 330 # And here!
 
 # ╔═╡ 68fbfd88-b1a6-4d52-aee4-37e76b191fe4
-Ψ_soil_func(W_r) = -(1/(100*W_r) + 1) * exp((39.8 - 100*W_r) / 19) # An empirical relationship between the soil water potential and relative water content
+function Ψ_soil_module(; name)
+	@variables t Ψ(t) W_r(t)
+	eqs = [Ψ ~ -(1/(100*W_r) + 1) * exp((39.8 - 100*W_r) / 19)] #! check for realistic value of W_r
+		# An empirical relationship between the soil water potential and relative water content
 
-# ╔═╡ 10ac5d18-8527-4bb8-aa5d-0da752c9a808
-md"""
-The function for the air water potential uses two constants not yet described in the system: the ideal gas constant *R* and the molar volume of water *V_w*. We will define these in the global scope using the standard ModelingToolkit.jl syntax. 
-"""
-
-# ╔═╡ 137a367e-7b0e-4ef2-8068-628158f3a45d
-@constants R = 8.314 V_w = 18e-6
+	return ODESystem(eqs; name)
+end
 
 # ╔═╡ b69ee1cb-6506-4152-9ef0-b02a43a90990
-Ψ_air_func(T, W_r) = R * T / V_w * log(W_r) #! What's this equation called again? (Ask Jeroen)
+function Ψ_air_module(; name) #! replace by constant Ψ?
+	@variables t Ψ(t) W_r(t)
+	@parameters T
+	@constants R = 8.314e-6 #= MJ/K/mol =# V_w = 18e-6 #= m^3/mol =#
+
+	eqs = [Ψ ~ R * T / V_w * log(W_r)]
+		#! What's this equation called again? (Ask Jeroen)
+
+	return ODESystem(eqs; name)
+end
 
 # ╔═╡ 4d17b269-06b8-4293-b2cb-b6bd9fa0ccc8
 md"""
@@ -232,7 +207,10 @@ Before we change any of the default parameter - and initial values, we can take 
 """
 
 # ╔═╡ 1394e5ed-39f3-4a9f-8737-be7183219314
-PlantModules.default_vals
+PlantModules.default_params
+
+# ╔═╡ ae8b0cb6-6f0f-4c18-b05f-01aec542037c
+PlantModules.default_u0s
 
 # ╔═╡ fbe00b62-6ca7-4c90-9050-081312911c74
 md"""
@@ -240,7 +218,7 @@ Now imagine we have some data on our plant in question and it calls for differen
 """
 
 # ╔═╡ 271d48a7-7022-4766-83d9-a70fab92515e
-model_defaults = [:Γ => 0.4, :P => 0.2, :M => 15.0, :T => 293.15]
+model_defaults = (Γ = 0.4, P = 0.2, T = 293.15)
 
 # ╔═╡ 3c13c600-5135-44ea-8fc2-a1e11f72d0c5
 md"""
@@ -248,13 +226,13 @@ Some of the information we have requires different default values specifically f
 """
 
 # ╔═╡ 5f21a4b0-f663-4777-94f3-d00acba109b3
-module_defaults = [
-	:Root => [:D => [0.3, 0.05, 0.03], :ϵ_D => [5.0, 0.3, 0.2], :ϕ_D => [0.7, 0.1, 0.05], :C => C_root],
-	:Stem => [:D => [0.4, 0.03], :ϵ_D => [6.0, 0.15], :ϕ_D => [0.8, 0.03], :C => C_stem],
-	:Leaf => [:ϵ_D => [3.0], :ϕ_D => [0.45], :C => C_leaf],
-	:Soil => [:W_max => 500.0, :T => 288.15, :Ψ => Ψ_soil_func],
-	:Air => [:Ψ => Ψ_air_func]
-]
+module_defaults = (
+	Root = (shape = PlantModules.Cuboid(ϵ_D = [5.0, 0.3, 0.2], ϕ_D = [0.7, 0.1, 0.05]), D = [0.3, 0.03, 0.01], M = C_root),
+	Stem = (shape = PlantModules.Cilinder(ϵ_D = [6.0, 0.15], ϕ_D = [0.8, 0.03]), D = [0.015, 0.1], M = C_stem),
+	Leaf = (shape = PlantModules.Sphere(ϵ_D = [3.0], ϕ_D = [0.45]), M = C_leaf),
+	Soil = (W_max = 500.0, T = 288.15),
+	Air = ()
+)
 
 # ╔═╡ d574346b-e8d8-49cd-a3bc-bf53617119f1
 md"""
@@ -272,9 +250,12 @@ Our model needs to know which structural modules make use of which functional mo
 """
 
 # ╔═╡ d54705b3-d8f4-4cc2-a780-369343749113
-module_coupling = [
+module_coupling = [ #! switch around?
 	PlantModules.hydraulic_module => [:Root, :Stem, :Leaf],
-	PlantModules.environmental_module => [:Soil, :Air]
+	PlantModules.constant_carbon_module => [:Root, :Stem, :Leaf],
+	PlantModules.environmental_module => [:Soil, :Air],
+	Ψ_soil_module => [:Soil],
+	Ψ_air_module => [:Air]
 ]
 
 # ╔═╡ 5885b970-cfb6-4e3b-8039-23a5f7ab4bae
@@ -297,7 +278,7 @@ Since we're using the PlantGraphs Julia package for this tutorial, we can easily
 """
 
 # ╔═╡ 9af27c17-8f21-4f22-a5bb-e9c95cfdf2f9
-plant_graph = Root() + Stem() + (Leaf([0.25]), Leaf([0.15]))
+plant_graph = Root() + Stem() + (Leaf([0.02]), Leaf([0.025]))
 
 # ╔═╡ ecb23f1e-ee39-4c5a-911f-eaa252c23968
 md"""
@@ -320,11 +301,11 @@ soil_graph = Soil()
 # ╔═╡ db8fe96d-c8c2-47c0-9377-281ce577a920
 air_graph = Air()
 
-# ╔═╡ f267ca25-5b7f-48e4-9865-1c7952215a78
-
+# ╔═╡ 8980f1eb-e461-4624-9cce-83a7cf822349
+graphs = [plant_graph, soil_graph, air_graph]
 
 # ╔═╡ 61bf737a-2226-42dc-b93a-a8f578048268
-intergraph_connections = [(:Air, :Leaf), (:Soil, :Root)]
+intergraph_connections = [[1, 2] => (:Root, :Soil), [1, 3] => (:Leaf, :Air), [2, 3] => (:Soil, :Air)]
 
 # ╔═╡ 668e02ee-ac78-4b3d-983d-402ec04584ef
 md"""
@@ -332,7 +313,7 @@ The full structural connection information can then be acquired by putting them 
 """
 
 # ╔═╡ caab574a-05c5-4c0d-9ae4-19fd514a6c6c
-struct_connections = [plant_graph, soil_graph, air_graph, intergraph_connections]
+struct_connections = [graphs, intergraph_connections]
 
 # ╔═╡ f03a61ce-a0ff-43ff-abdd-2342f76e8c93
 md"""
@@ -349,12 +330,19 @@ Defining a new functional connection module is discussed in the following tutori
 """
 
 # ╔═╡ 611289e9-e22c-4e6e-beec-ccea90eb48c9
-func_connections = [
-	:default => PlantModules.hydraulic_connection,
-	(:Soil, :Root) => [:K => 50],
-	(:Root, :Stem) => [:K => 800],
-	(:Leaf, :Air) => [:K => 1e-3]
+connecting_modules = [
+	:default => PlantModules.hydraulic_connection, #! make sure default works
+	(:Soil, :Root) => (PlantModules.hydraulic_connection, [:K => 8]),
+	(:Root, :Stem) => (PlantModules.hydraulic_connection, [:K => 4]), # 6*10^-7 kg/s/MPa * 1000 g/kg * 3600 s/h = 2.2 g/h/MPa
+	(:Leaf, :Air) => (PlantModules.hydraulic_connection, [:K => 1e-2]),
+	(:Soil, :Air) => (PlantModules.hydraulic_connection, [:K => 5e-2]) #! check value
 ]
+
+# ╔═╡ 5ca7ded4-d333-4edb-96db-3fdb7bc827ce
+get_connection_eqs = PlantModules.hydraulic_connection_eqs
+
+# ╔═╡ ebf46963-bb9d-4604-924c-2b051189debc
+func_connections = [connecting_modules, get_connection_eqs]
 
 # ╔═╡ fb72735b-3d45-438d-ad83-3e36f42f5bb8
 md"""
@@ -372,13 +360,7 @@ Now that we have all parts of our model defined, all that's left to do is puttin
 """
 
 # ╔═╡ a3c5dba8-8acc-424a-87bc-d1c6a263578c
-plantsys = PlantModules.PlantSystem(
-	model_defaults = model_defaults,
-	module_defaults = module_defaults,
-	module_coupling = module_coupling,
-	struct_connections = struct_connections,
-	func_connections = func_connections
-)
+system = PlantModules.get_system_definition(model_defaults, module_defaults, module_coupling, struct_connections, func_connections, checkunits = false)
 
 # ╔═╡ d51795b2-32d3-455c-b785-5e501cfbdd08
 md"""
@@ -436,7 +418,6 @@ md"""
 
 # ╔═╡ Cell order:
 # ╟─56c3527f-d8df-4f5c-9075-77c34d5c7204
-# ╟─d16a6d55-1f29-4b98-b1af-2dee1d38f386
 # ╟─6ab177fd-ed5b-4ae4-a2b5-f7f4eb8e4d0d
 # ╟─1144887a-a4c7-46f6-9cf8-cba50cf873d0
 # ╟─aa3b75e4-1868-4c84-8dc8-f9b54d560b3a
@@ -446,7 +427,9 @@ md"""
 # ╟─659e911c-8af2-4a66-855a-e333c41120c1
 # ╟─e232199f-ee2f-4294-8762-f41b37883d26
 # ╟─34fd1713-4d0a-4bc9-81e1-bacf418747a2
+# ╠═662c0476-70aa-4a60-a81c-d7db2248b728
 # ╠═65f88593-1180-447a-900f-49aef4647cd1
+# ╠═018463a2-c562-44d7-892e-b90dad29081e
 # ╟─0cc02e82-4fe8-4f27-a2d2-eb4bfba6b291
 # ╠═e920f6aa-4c7b-4fd1-9dca-d9e3d4155ec2
 # ╠═6b7ebc68-f4a1-4ed6-b12b-e4ac5ee9b00a
@@ -463,12 +446,11 @@ md"""
 # ╠═af203a2b-2299-4b2b-b034-c3cb39648bb7
 # ╠═68fbfd88-b1a6-4d52-aee4-37e76b191fe4
 # ╠═b69ee1cb-6506-4152-9ef0-b02a43a90990
-# ╟─10ac5d18-8527-4bb8-aa5d-0da752c9a808
-# ╠═137a367e-7b0e-4ef2-8068-628158f3a45d
 # ╟─4d17b269-06b8-4293-b2cb-b6bd9fa0ccc8
 # ╟─3035b6d0-bca0-4803-b32a-da1459bdd880
 # ╟─df4cd3de-d2b2-4f11-b755-a36e640fd2d5
 # ╠═1394e5ed-39f3-4a9f-8737-be7183219314
+# ╠═ae8b0cb6-6f0f-4c18-b05f-01aec542037c
 # ╟─fbe00b62-6ca7-4c90-9050-081312911c74
 # ╠═271d48a7-7022-4766-83d9-a70fab92515e
 # ╟─3c13c600-5135-44ea-8fc2-a1e11f72d0c5
@@ -486,13 +468,15 @@ md"""
 # ╟─c36668fa-3046-4967-a616-841a048ea7f9
 # ╠═3bf42137-1551-44d6-b7af-eab13a97b6ef
 # ╠═db8fe96d-c8c2-47c0-9377-281ce577a920
-# ╠═f267ca25-5b7f-48e4-9865-1c7952215a78
+# ╠═8980f1eb-e461-4624-9cce-83a7cf822349
 # ╠═61bf737a-2226-42dc-b93a-a8f578048268
 # ╟─668e02ee-ac78-4b3d-983d-402ec04584ef
 # ╠═caab574a-05c5-4c0d-9ae4-19fd514a6c6c
 # ╟─f03a61ce-a0ff-43ff-abdd-2342f76e8c93
 # ╟─ac6e098d-98ff-4940-8386-dc76c75eb2c3
 # ╠═611289e9-e22c-4e6e-beec-ccea90eb48c9
+# ╠═5ca7ded4-d333-4edb-96db-3fdb7bc827ce
+# ╠═ebf46963-bb9d-4604-924c-2b051189debc
 # ╟─fb72735b-3d45-438d-ad83-3e36f42f5bb8
 # ╟─210d81ef-153e-4744-8266-80af4099770c
 # ╟─bc7573e7-bcd6-4347-9b0c-9111a824c9b5
