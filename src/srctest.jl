@@ -1,8 +1,8 @@
 using Pkg; Pkg.activate(".")
 include("PlantModules.jl")
-using PlantGraphs, ModelingToolkit, Plots, DifferentialEquations, Unitful #! MTK imports etc. should not be necessary when package is done
-import GLMakie.draw
-using BenchmarkTools
+using PlantGraphs, ModelingToolkit, DifferentialEquations, Unitful #! MTK imports etc. should not be necessary when package is done
+# import GLMakie.draw
+# using BenchmarkTools
 
 #! for testing
 function showme(x)
@@ -24,24 +24,24 @@ C_stem = 300 # Idem here
 C_leaf = 330 # And here!
 # loosely based on https://www.researchgate.net/figure/Total-soluble-sugar-content-in-the-leaf-a-and-root-tissues-b-of-Homjan-HJ_fig3_226164026
 
-function Ψ_soil_module(; name)
-	@variables t Ψ(t) W_r(t)
-	eqs = [Ψ ~ -(1/(100*W_r) + 1) * exp((39.8 - 100*W_r) / 19)] #! check for realistic value of W_r
-		# An empirical relationship between the soil water potential and relative water content
+# function Ψ_soil_module(; name)
+# 	@variables t Ψ(t) W_r(t)
+# 	eqs = [Ψ ~ -(1/(100*W_r) + 1) * exp((39.8 - 100*W_r) / 19)] #! check for realistic value of W_r
+# 		# An empirical relationship between the soil water potential and relative water content
 
-	return ODESystem(eqs; name)
-end
+# 	return ODESystem(eqs, t; name)
+# end
 
-function Ψ_air_module(; name) #! replace by constant Ψ?
-	@variables t Ψ(t) W_r(t)
-	@parameters T
-	@constants R = 8.314e-6 #= MJ/K/mol =# V_w = 18e-6 #= m^3/mol =#
+# function Ψ_air_module(; name) #! replace by constant Ψ?
+# 	@variables t Ψ(t) W_r(t)
+# 	@parameters T
+# 	@constants R = 8.314e-6 #= MJ/K/mol =# V_w = 18e-6 #= m^3/mol =#
 
-	eqs = [Ψ ~ R * T / V_w * log(W_r)]
-		#! What's this equation called again? (Ask Jeroen)
+# 	eqs = [Ψ ~ R * T / V_w * log(W_r)]
+# 		#! What's this equation called again? (Ask Jeroen)
 
-	return ODESystem(eqs; name)
-end
+# 	return ODESystem(eqs, t; name)
+# end
 
 PlantModules.default_params
 PlantModules.default_u0s
@@ -60,8 +60,8 @@ module_coupling = [ #! switch around?
 	PlantModules.hydraulic_module => [:Root, :Stem, :Leaf],
 	PlantModules.constant_carbon_module => [:Root, :Stem, :Leaf],
 	PlantModules.environmental_module => [:Soil, :Air],
-	Ψ_soil_module => [:Soil],
-	Ψ_air_module => [:Air]
+	PlantModules.Ψ_soil_module => [:Soil],
+	PlantModules.Ψ_air_module => [:Air]
 ]
 
 if !isdefined(Main, :plant_graph) # for debugging mostly
@@ -92,7 +92,8 @@ get_connection_eqs = PlantModules.hydraulic_connection_eqs #!
 func_connections = [connecting_modules, get_connection_eqs]
 
 system = PlantModules.get_system_definition(model_defaults, module_defaults, module_coupling,
-	struct_connections, func_connections, checkunits = false)
+	struct_connections, func_connections, checkunits = false
+)
 
 sys_simpl = structural_simplify(system);
 prob = ODEProblem(sys_simpl, ModelingToolkit.missing_variable_defaults(sys_simpl), (0.0, 5*24))	 #! Generate warning for missing variable defaults that aren't dummies

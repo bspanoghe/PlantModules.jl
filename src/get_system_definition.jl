@@ -15,11 +15,9 @@ Creates a MTK system based on a set of structural and functional modules and how
 function get_system_definition(model_defaults, module_defaults,	module_coupling,
 	struct_connections, func_connections; checkunits = true
 	)
-
+ 
 	default_params = PlantModules.default_params # is this needed here?
 	default_u0s = PlantModules.default_u0s
-
-    println("$default_params") #!
 
 	graphs, intergraph_connections = struct_connections
     connecting_modules, get_connection_eqs = func_connections
@@ -42,7 +40,7 @@ function get_system_definition(model_defaults, module_defaults,	module_coupling,
 		end
 	end
 
-	system = ODESystem(connection_equations, name = :system, systems = vcat(MTK_systems, connection_MTKs), checks = checkunits)
+	system = ODESystem(connection_equations, independent_variable(MTK_systems[1]), name = :system, systems = vcat(MTK_systems, connection_MTKs), checks = checkunits)
 
 	return system
 end
@@ -59,22 +57,17 @@ get_MTK_system_dicts(graphs, module_coupling, module_defaults, model_defaults, d
 # Get MTK system corresponding with node
 function getMTKsystem(node, module_coupling, module_defaults, model_defaults, default_params, default_u0s)
 	structmodule = PlantModules.nodetype(node)
-	println("")
-    println("Are we live?") #! debugging
-    println("structmodule: $structmodule")
 	func_modules = [coupling.first for coupling in module_coupling if structmodule in coupling.second]
 
 	component_systems = Vector{ODESystem}(undef, length(func_modules))
 
-    println("node: $(node)")
-	println("func_modules: $(func_modules)")
-	println("")
 	for (modulenum, func_module) in enumerate(func_modules)
 		nodeparams = getnodeparams(node, structmodule, func_module, module_defaults, model_defaults, default_params)
 		nodeu0s = getnodeu0s(node, structmodule, func_module, module_defaults, model_defaults, default_u0s)
 
-		component_systems[modulenum] = func_module(; :name => :foo, # real name given later
+		component_systems[modulenum] = func_module(; :name => :foo,
 			Pair.(keys(nodeparams), values(nodeparams))..., Pair.(keys(nodeu0s), values(nodeu0s))...)
+				# real name given later
 	end
 
 	MTKsystem = collapse(component_systems, name = Symbol(string(structmodule) * string(PlantModules.id(node))))
@@ -136,7 +129,7 @@ end
 
 # collapse multiple ODESystems into one. like ModelingToolkit.compose, but keeps a single namespace
 function collapse(systems::Vector{ODESystem}; name::Symbol)
-    return ODESystem(vcat([system.eqs for system in systems]...), systems[1].iv, vcat([states(system) for system in systems]...),
+    return ODESystem(vcat([system.eqs for system in systems]...), systems[1].iv, vcat([unknowns(system) for system in systems]...),
         vcat([parameters(system) for system in systems]...), name = name)
 end
 

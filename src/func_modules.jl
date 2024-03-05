@@ -104,6 +104,47 @@ function environmental_module(; name, T, ρ_w, W_max, W_r)
     return ODESystem(eqs, t; name)
 end
 
+"""
+    Ψ_soil_module(; name)
+
+Returns a ModelingToolkit ODESystem describing an empirical relationship between
+the total water potential of the soil and its relative water content.
+"""
+function Ψ_soil_module(; name)
+	@variables (
+        Ψ(t), [description = "Total water potential", unit = u"MPa"],
+        W_r(t), [description = "Relative water content", unit = u"g / g"],
+    )
+    @parameters MPa_unit [description = "Dummy parameter for correcting units of empirical equation", unit = u"MPa"]
+
+	eqs = [Ψ ~ MPa_unit * -(1/(100*W_r) + 1) * exp((39.8 - 100*W_r) / 19)]
+
+	return ODESystem(eqs, t; name)
+end
+
+"""
+    Ψ_air_module(; name, T)
+
+Returns a ModelingToolkit ODESystem describing the relationship between
+the total water potential of the air and its relative water content.
+"""
+function Ψ_air_module(; name, T)
+	@variables (
+        Ψ(t), [description = "Total water potential", unit = u"MPa"],
+        W_r(t), [description = "Relative water content", unit = u"g / g"],
+    )
+	@parameters T = T [description = "Temperature", unit = u"K"]
+	@constants (
+        R = 8.314e-6, [description = "Ideal gas constant", unit = u"MJ/K/mol"],
+        V_w = 18e-6, [description = "Molar volume of water", unit = u"m^3/mol"]
+    )
+
+	eqs = [Ψ ~ R * T / V_w * log(W_r)]
+		#! What's this equation called again? (Ask Jeroen)
+
+	return ODESystem(eqs, t; name)
+end
+
 # Module connections #
 
 """
@@ -167,6 +208,11 @@ default_params = (
     environmental_module = (
         T = 298.15, ρ_w = 1.0e6, W_max = 1e6
     ),
+    Ψ_soil_module = (
+    ),
+    Ψ_air_module = (
+        T = 298.15,
+    ),
     hydraulic_connection = (
         K = 3,
     )
@@ -181,7 +227,11 @@ default_u0s = (
     ),
     environmental_module = (
         W_r = 0.8,
-    ), 
+    ),
+    Ψ_soil_module = (
+    ),
+    Ψ_air_module = (
+    ),
     hydraulic_connection = (
     )
 )

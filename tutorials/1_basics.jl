@@ -1,21 +1,17 @@
 ### A Pluto.jl notebook ###
-# v0.19.36
+# v0.19.40
 
 using Markdown
 using InteractiveUtils
 
-# ╔═╡ 34fd1713-4d0a-4bc9-81e1-bacf418747a2
-# Maybe not include this in the tutorial?
-using Pkg; Pkg.activate("..")
+# ╔═╡ 57b8dcb8-9baa-4ddf-9368-431b1be5850e
+using Pkg; Pkg.activate(".")
 
-# ╔═╡ 0374baed-a73d-407e-8ffb-8ddf9ef12d86
-Pkg.add(path="..")
+# ╔═╡ 662c0476-70aa-4a60-a81c-d7db2248b728
+using PlantModules
 
 # ╔═╡ 65f88593-1180-447a-900f-49aef4647cd1
 using PlantGraphs, ModelingToolkit, DifferentialEquations, Plots, Unitful #! MTK imports etc. should not be necessary when package is done
-
-# ╔═╡ 662c0476-70aa-4a60-a81c-d7db2248b728
-include("../src/PlantModules.jl")
 
 # ╔═╡ 56c3527f-d8df-4f5c-9075-77c34d5c7204
 md"""
@@ -141,52 +137,19 @@ Now that we have an idea of the plant's structural modules, we need to define so
 # ╔═╡ c04564c4-4fb5-47bf-bc14-77aaebdece15
 md"""
 PlantModules defines functional modules as as sets of differential equations implemented in [ModelingToolkit](https://docs.sciml.ai/ModelingToolkit/stable/).
-There are three functional modules already provided by PlantModules:
+There are five functional modules already provided by PlantModules:
 
 - `PlantModules.hydraulic_module`, which describes the hydraulics-driven growth of a compartment.
 - `PlantModules.environmental_module`, which describes a compartment that is subject to hydraulic laws but does therefor not change in size.
 - `PlantModules.constant_carbon_module`, which describes a compartment with a constant amount of carbon.
+- `PlantModules.Ψ_soil_module`, which describes an empirical relationship between the total water potential and relative water content of soil.
+- `PlantModules.Ψ_air_module`, which describes the relationship between the total water potential and water potential of air.
 """
 
-# ╔═╡ 2ca2f739-2b61-4519-bdc4-d3081c793446
+# ╔═╡ 1e2eaa86-d6e0-4749-bc92-04c64fe9f47d
 md"""
-While these pre-implemented modules already define most of the functional process, they both lack an equation for one of the variables that they still expect to be defined by the user.
-The former module, which we will use to simulate the three structural plant modules, requires a specification for the carbon content (in mol / m^3).
-The latter module, which we will use to simulate the soil and air, still expects a specification of the water potential (in MPa).
-
-We can provide this missing information as either a constant value or a function of the variables and parameters defined in that functional module. We'll define them here and connect them to their function modules right after.
+The first module contains the most important (and theoretically founded) functionality of the package, whereas the other four are mostly to allow for implementing a model that works out of the box. Users that want to create a realistic model are expected to implement some functional modules of their own in accordance with their own use for the package, as will be discussed next tutorial. For now, we will stick to the pre-implemented functional modules.
 """
-#! Replace with default behaviour and skip here?
-
-# ╔═╡ 96064ce5-d555-46a7-a647-8f94de01cd31
-C_root = 250 # We'll assume the soluble carbon content remains constant over the simulated time
-
-# ╔═╡ 805e3bf4-0b17-4a7e-a9e6-b18d64ea52bb
-C_stem = 300 # Idem here
-
-# ╔═╡ af203a2b-2299-4b2b-b034-c3cb39648bb7
-C_leaf = 330 # And here!
-
-# ╔═╡ 68fbfd88-b1a6-4d52-aee4-37e76b191fe4
-function Ψ_soil_module(; name)
-	@variables t Ψ(t) W_r(t)
-	eqs = [Ψ ~ -(1/(100*W_r) + 1) * exp((39.8 - 100*W_r) / 19)] #! check for realistic value of W_r
-		# An empirical relationship between the soil water potential and relative water content
-
-	return ODESystem(eqs; name)
-end
-
-# ╔═╡ b69ee1cb-6506-4152-9ef0-b02a43a90990
-function Ψ_air_module(; name) #! replace by constant Ψ?
-	@variables t Ψ(t) W_r(t)
-	@parameters T
-	@constants R = 8.314e-6 #= MJ/K/mol =# V_w = 18e-6 #= m^3/mol =#
-
-	eqs = [Ψ ~ R * T / V_w * log(W_r)]
-		#! What's this equation called again? (Ask Jeroen)
-
-	return ODESystem(eqs; name)
-end
 
 # ╔═╡ 4d17b269-06b8-4293-b2cb-b6bd9fa0ccc8
 md"""
@@ -210,14 +173,14 @@ Before we change any of the default parameter - and initial values, we can take 
 """
 
 # ╔═╡ 1394e5ed-39f3-4a9f-8737-be7183219314
-PlantModules.default_params
+PlantModules.default_params # Parameter values
 
 # ╔═╡ ae8b0cb6-6f0f-4c18-b05f-01aec542037c
-PlantModules.default_u0s
+PlantModules.default_u0s # Initial values
 
 # ╔═╡ fbe00b62-6ca7-4c90-9050-081312911c74
 md"""
-Now imagine we have some data on our plant in question and it calls for different default values. This is done by specifying the name of the parameter or variable together with its desired value as a Julia Pair.
+Now imagine we have some data on our plant in question and it calls for different default values. This is done by specifying the name of the parameter or variable together with its desired value as a NamedTuple:
 """
 
 # ╔═╡ 271d48a7-7022-4766-83d9-a70fab92515e
@@ -230,17 +193,12 @@ Some of the information we have requires different default values specifically f
 
 # ╔═╡ 5f21a4b0-f663-4777-94f3-d00acba109b3
 module_defaults = (
-	Root = (shape = PlantModules.Cuboid(ϵ_D = [5.0, 0.3, 0.2], ϕ_D = [0.7, 0.1, 0.05]), D = [0.3, 0.03, 0.01], M = C_root),
-	Stem = (shape = PlantModules.Cilinder(ϵ_D = [6.0, 0.15], ϕ_D = [0.8, 0.03]), D = [0.015, 0.1], M = C_stem),
-	Leaf = (shape = PlantModules.Sphere(ϵ_D = [3.0], ϕ_D = [0.45]), M = C_leaf),
+	Root = (shape = PlantModules.Cuboid(ϵ_D = [5.0, 0.3, 0.2], ϕ_D = [0.7, 0.1, 0.05]), D = [0.3, 0.03, 0.01], M = 250),
+	Stem = (shape = PlantModules.Cilinder(ϵ_D = [6.0, 0.15], ϕ_D = [0.8, 0.03]), D = [0.015, 0.1], M = 300),
+	Leaf = (shape = PlantModules.Sphere(ϵ_D = [3.0], ϕ_D = [0.45]), M = 330),
 	Soil = (W_max = 500.0, T = 288.15),
 	Air = ()
 )
-
-# ╔═╡ d574346b-e8d8-49cd-a3bc-bf53617119f1
-md"""
-Notice that instead of a constant value, we specified a **function** for some of our variables, as discussed in the section [Defining the functional modules](nothinghere). The user is not limited to only providing functions for variables missing an equation in their functional module, though: functions can also be provided for parameters in case time-variable parameters are desired!
-"""
 
 # ╔═╡ 930e7ed8-0bfe-4e5a-8890-a1d1ce155881
 md"""
@@ -249,7 +207,7 @@ md"""
 
 # ╔═╡ 4cedbd9d-84ed-46f3-9a10-6cb993643f87
 md"""
-Our model needs to know which structural modules make use of which functional modules. As perhaps the simplest part of our modeling workflow, we can define this using another Vector of Pairs.
+Our model needs to know which structural modules make use of which functional modules. As perhaps the simplest part of our modeling workflow, we can define this using a Vector of Pairs.
 """
 
 # ╔═╡ d54705b3-d8f4-4cc2-a780-369343749113
@@ -257,8 +215,8 @@ module_coupling = [ #! switch around?
 	PlantModules.hydraulic_module => [:Root, :Stem, :Leaf],
 	PlantModules.constant_carbon_module => [:Root, :Stem, :Leaf],
 	PlantModules.environmental_module => [:Soil, :Air],
-	Ψ_soil_module => [:Soil],
-	Ψ_air_module => [:Air]
+	PlantModules.Ψ_soil_module => [:Soil],
+	PlantModules.Ψ_air_module => [:Air]
 ]
 
 # ╔═╡ 5885b970-cfb6-4e3b-8039-23a5f7ab4bae
@@ -277,7 +235,7 @@ md"""
 
 As mentioned near the beginning, PlantModules uses graphs to define relationships between modules, and the structural modules were implemented as graph node types. All we need to do now is create a graph using these node types reflecting the desired structure of our plant.
 
-Since we're using the PlantGraphs Julia package for this tutorial, we can easily define simple graphs using the DSL:
+Since we're using the PlantGraphs Julia package for this tutorial, we can easily define simple graphs using its syntax:
 """
 
 # ╔═╡ 9af27c17-8f21-4f22-a5bb-e9c95cfdf2f9
@@ -307,8 +265,13 @@ air_graph = Air()
 # ╔═╡ 8980f1eb-e461-4624-9cce-83a7cf822349
 graphs = [plant_graph, soil_graph, air_graph]
 
+# ╔═╡ 20049311-d6e6-41d3-a0d8-8bad88c174f9
+md"""
+The following syntax means: "connect all Root nodes from `graphs[1]` to all Soil nodes from `graphs[2]`", and so on. Note that the order matters! For example, `[1, 2] => (:Root, :Soil)` is not the same as `[2, 1] => (:Root, :Soil)`.
+"""
+
 # ╔═╡ 61bf737a-2226-42dc-b93a-a8f578048268
-intergraph_connections = [[1, 2] => (:Root, :Soil), [1, 3] => (:Leaf, :Air), [2, 3] => (:Soil, :Air)]
+intergraph_connections = [[1, 2] => (:Root, :Soil), [1, 3] => (:Leaf, :Air), [2, 3] => (:Soil, :Air)] # Let's also add a connection between the soil and the air to simulate direct evaporation
 
 # ╔═╡ 668e02ee-ac78-4b3d-983d-402ec04584ef
 md"""
@@ -334,11 +297,11 @@ Defining a new functional connection module is discussed in the following tutori
 
 # ╔═╡ 611289e9-e22c-4e6e-beec-ccea90eb48c9
 connecting_modules = [
-	:default => PlantModules.hydraulic_connection, #! make sure default works
+	:default => PlantModules.hydraulic_connection,
 	(:Soil, :Root) => (PlantModules.hydraulic_connection, [:K => 8]),
-	(:Root, :Stem) => (PlantModules.hydraulic_connection, [:K => 4]), # 6*10^-7 kg/s/MPa * 1000 g/kg * 3600 s/h = 2.2 g/h/MPa
+	(:Root, :Stem) => (PlantModules.hydraulic_connection, [:K => 4]),
 	(:Leaf, :Air) => (PlantModules.hydraulic_connection, [:K => 1e-2]),
-	(:Soil, :Air) => (PlantModules.hydraulic_connection, [:K => 5e-2]) #! check value
+	(:Soil, :Air) => (PlantModules.hydraulic_connection, [:K => 5e-2])
 ]
 
 # ╔═╡ 5ca7ded4-d333-4edb-96db-3fdb7bc827ce
@@ -359,15 +322,15 @@ md"""
 
 # ╔═╡ bc7573e7-bcd6-4347-9b0c-9111a824c9b5
 md"""
-Now that we have all parts of our model defined, all that's left to do is putting it together. For this we use the main workhorse of PlantModules: `PlantSystem`.
+Now that we have all parts of our model defined, all that's left to do is putting it together. For this we use the main workhorse of PlantModules: `get_system_definition`.
 """
 
 # ╔═╡ a3c5dba8-8acc-424a-87bc-d1c6a263578c
-system = PlantModules.get_system_definition(model_defaults, module_defaults, module_coupling, struct_connections, func_connections, checkunits = false)
+system = PlantModules.get_system_definition(model_defaults, module_defaults, module_coupling, struct_connections, func_connections);
 
 # ╔═╡ d51795b2-32d3-455c-b785-5e501cfbdd08
 md"""
-Calling this constructor will create a `PlantSystem`-type variable containing all required information for running the model with ModelingToolkit. It is possible to fine-tune the model even further at this stage as described in the [Customizing the model](nothinghere) section of the docs, thought this should generally not be required.
+This function will generate the `ODESystem` describing the model. It is possible to fine-tune the model even further at this stage as described in the [Customizing the model](nothinghere) section of the docs, thought this should generally not be required.
 """
 
 # ╔═╡ d3d7b52b-016b-4c17-a4cc-18ec4ad8d686
@@ -377,14 +340,17 @@ md"""
 
 # ╔═╡ 6b46bf1d-b54e-48e3-b4eb-364b4e2b1dfd
 md"""
-The rest of the modeling workflow is mostly taken care of by the ModelingToolkit and DifferentialEquations Julia packages, with some syntactic sugar added by PlantModules. For users that are unfamiliar with the package, it is recommended to take a brief look at [the ModelingToolkit docs](https://docs.sciml.ai/ModelingToolkit/stable/) before proceeding.
+The rest of the modeling workflow is mostly taken care of by ModelingToolkit.jl and DifferentialEquations.jl, with some syntactic sugar added by PlantModules. For users that are unfamiliar with the package, it is recommended to take a brief look at [the ModelingToolkit docs](https://docs.sciml.ai/ModelingToolkit/stable/) before proceeding.
 """
 
 # ╔═╡ bf114636-1e35-49f1-9407-f472b443a9ea
 time_span = (0, 7*24.0) # We'll simulate our problem for a timespan of 7 days
 
+# ╔═╡ 2f431e8c-d0e4-4117-896f-3140d9633d1d
+sys_simpl = structural_simplify(system);
+
 # ╔═╡ 50d6fc31-80f5-4db7-b716-b26765008a0d
-prob = ODEProblem(structural_simplify(system), ModelingToolkit.missing_variable_defaults(structural_simplify(system)), time_span)
+prob = ODEProblem(sys_simpl, ModelingToolkit.missing_variable_defaults(sys_simpl), time_span);
 
 # ╔═╡ c38b1a71-c5e9-4bfa-a210-bcbf9068f7ed
 sol = solve(prob)
@@ -397,7 +363,7 @@ Finding the answer to our toy problem now comes down to plotting out the soil wa
 """
 
 # ╔═╡ fe4df2d4-878e-41aa-8860-991c891e2dd2
-plot(sol, struct_modules = [:Soil], func_vars = [:W]) #! imagine that this works
+Plots.plot(sol, struct_modules = [:Soil], func_vars = [:W]) #! imagine that this works
 
 # ╔═╡ 2d131155-f62b-4f4a-92d8-9e7443202434
 md"""
@@ -410,10 +376,6 @@ md"""
 
 - Update hyperlinks with pages of docs when they exist
 - Change parameter - and initial values with logical ones based on some data or something
-- Add shapes in some better way
-- Add Unitful units?
-- How to add multiple soil compartments?
-- Add connection between soil and air?
 """
 
 # ╔═╡ 38c69eea-a4dd-4fc0-951f-dc36e9530b80
@@ -421,7 +383,6 @@ md"""
 
 # ╔═╡ Cell order:
 # ╟─56c3527f-d8df-4f5c-9075-77c34d5c7204
-# ╠═0374baed-a73d-407e-8ffb-8ddf9ef12d86
 # ╟─6ab177fd-ed5b-4ae4-a2b5-f7f4eb8e4d0d
 # ╟─1144887a-a4c7-46f6-9cf8-cba50cf873d0
 # ╟─aa3b75e4-1868-4c84-8dc8-f9b54d560b3a
@@ -430,7 +391,7 @@ md"""
 # ╟─aec7bcd6-6f27-4cf5-a955-f4d59e778fd3
 # ╟─659e911c-8af2-4a66-855a-e333c41120c1
 # ╟─e232199f-ee2f-4294-8762-f41b37883d26
-# ╟─34fd1713-4d0a-4bc9-81e1-bacf418747a2
+# ╠═57b8dcb8-9baa-4ddf-9368-431b1be5850e
 # ╠═662c0476-70aa-4a60-a81c-d7db2248b728
 # ╠═65f88593-1180-447a-900f-49aef4647cd1
 # ╠═018463a2-c562-44d7-892e-b90dad29081e
@@ -444,12 +405,7 @@ md"""
 # ╠═dac02191-b640-40f5-a7d6-e6b06b946c23
 # ╟─43211f69-6bfe-4fd1-b474-65d0601558de
 # ╟─c04564c4-4fb5-47bf-bc14-77aaebdece15
-# ╟─2ca2f739-2b61-4519-bdc4-d3081c793446
-# ╠═96064ce5-d555-46a7-a647-8f94de01cd31
-# ╠═805e3bf4-0b17-4a7e-a9e6-b18d64ea52bb
-# ╠═af203a2b-2299-4b2b-b034-c3cb39648bb7
-# ╠═68fbfd88-b1a6-4d52-aee4-37e76b191fe4
-# ╠═b69ee1cb-6506-4152-9ef0-b02a43a90990
+# ╟─1e2eaa86-d6e0-4749-bc92-04c64fe9f47d
 # ╟─4d17b269-06b8-4293-b2cb-b6bd9fa0ccc8
 # ╟─3035b6d0-bca0-4803-b32a-da1459bdd880
 # ╟─df4cd3de-d2b2-4f11-b755-a36e640fd2d5
@@ -459,7 +415,6 @@ md"""
 # ╠═271d48a7-7022-4766-83d9-a70fab92515e
 # ╟─3c13c600-5135-44ea-8fc2-a1e11f72d0c5
 # ╠═5f21a4b0-f663-4777-94f3-d00acba109b3
-# ╟─d574346b-e8d8-49cd-a3bc-bf53617119f1
 # ╟─930e7ed8-0bfe-4e5a-8890-a1d1ce155881
 # ╟─4cedbd9d-84ed-46f3-9a10-6cb993643f87
 # ╠═d54705b3-d8f4-4cc2-a780-369343749113
@@ -473,6 +428,7 @@ md"""
 # ╠═3bf42137-1551-44d6-b7af-eab13a97b6ef
 # ╠═db8fe96d-c8c2-47c0-9377-281ce577a920
 # ╠═8980f1eb-e461-4624-9cce-83a7cf822349
+# ╟─20049311-d6e6-41d3-a0d8-8bad88c174f9
 # ╠═61bf737a-2226-42dc-b93a-a8f578048268
 # ╟─668e02ee-ac78-4b3d-983d-402ec04584ef
 # ╠═caab574a-05c5-4c0d-9ae4-19fd514a6c6c
@@ -489,6 +445,7 @@ md"""
 # ╟─d3d7b52b-016b-4c17-a4cc-18ec4ad8d686
 # ╟─6b46bf1d-b54e-48e3-b4eb-364b4e2b1dfd
 # ╠═bf114636-1e35-49f1-9407-f472b443a9ea
+# ╠═2f431e8c-d0e4-4117-896f-3140d9633d1d
 # ╠═50d6fc31-80f5-4db7-b716-b26765008a0d
 # ╠═c38b1a71-c5e9-4bfa-a210-bcbf9068f7ed
 # ╟─a6608eff-9399-443c-a33a-c62341f7b14c

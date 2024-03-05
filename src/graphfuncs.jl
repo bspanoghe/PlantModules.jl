@@ -62,8 +62,8 @@ function attributes(node::PlantGraphs.Node)
 	return Dict([field => fieldvalue for (field, fieldvalue) in zip(fields, fieldvalues)])
 end
 
-nodetype(node::PlantGraphs.GraphNode) = string(node.data) |> x -> split(x, '(')[1] |> Symbol
-nodetype(node::PlantGraphs.Node) = string(node) |> x -> split(x, '(')[1] |> Symbol
+nodetype(node::PlantGraphs.GraphNode) = typeof(node.data).name.name
+nodetype(node::PlantGraphs.Node) = typeof(node).name.name
 
 id(node::PlantGraphs.GraphNode) = node.self_id
 id(node::PlantGraphs.Node) = 1 # The entire graph only consists of one node if the input type is Node
