@@ -8,6 +8,9 @@ using InteractiveUtils
 # Maybe not include this in the tutorial?
 using Pkg; Pkg.activate("..")
 
+# ╔═╡ 0374baed-a73d-407e-8ffb-8ddf9ef12d86
+Pkg.add(path="..")
+
 # ╔═╡ 65f88593-1180-447a-900f-49aef4647cd1
 using PlantGraphs, ModelingToolkit, DifferentialEquations, Plots, Unitful #! MTK imports etc. should not be necessary when package is done
 
@@ -381,7 +384,7 @@ The rest of the modeling workflow is mostly taken care of by the ModelingToolkit
 time_span = (0, 7*24.0) # We'll simulate our problem for a timespan of 7 days
 
 # ╔═╡ 50d6fc31-80f5-4db7-b716-b26765008a0d
-prob = ODEProblem(plantsys, time_span)
+prob = ODEProblem(structural_simplify(system), ModelingToolkit.missing_variable_defaults(structural_simplify(system)), time_span)
 
 # ╔═╡ c38b1a71-c5e9-4bfa-a210-bcbf9068f7ed
 sol = solve(prob)
@@ -418,6 +421,7 @@ md"""
 
 # ╔═╡ Cell order:
 # ╟─56c3527f-d8df-4f5c-9075-77c34d5c7204
+# ╠═0374baed-a73d-407e-8ffb-8ddf9ef12d86
 # ╟─6ab177fd-ed5b-4ae4-a2b5-f7f4eb8e4d0d
 # ╟─1144887a-a4c7-46f6-9cf8-cba50cf873d0
 # ╟─aa3b75e4-1868-4c84-8dc8-f9b54d560b3a

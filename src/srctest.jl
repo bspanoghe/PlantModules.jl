@@ -90,20 +90,11 @@ connecting_modules = [
 get_connection_eqs = PlantModules.hydraulic_connection_eqs #!
 
 func_connections = [connecting_modules, get_connection_eqs]
-#=
-time_span = (0, 7*24.0) # We'll simulate our problem for a timespan of 7 days
-prob = ODEProblem(plantsys, time_span)
-sol = solve(prob)
-
-plot(sol, struct_modules = [:Soil], func_vars = [:W]) #! imagine that this works
-=#
-
-include("PlantModules.jl")
 
 system = PlantModules.get_system_definition(model_defaults, module_defaults, module_coupling,
 	struct_connections, func_connections, checkunits = false)
 
-	sys_simpl = structural_simplify(system)
+sys_simpl = structural_simplify(system);
 prob = ODEProblem(sys_simpl, ModelingToolkit.missing_variable_defaults(sys_simpl), (0.0, 5*24))	 #! Generate warning for missing variable defaults that aren't dummies
 sol = solve(prob)
 

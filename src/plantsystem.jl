@@ -59,14 +59,16 @@ get_MTK_system_dicts(graphs, module_coupling, module_defaults, model_defaults, d
 # Get MTK system corresponding with node
 function getMTKsystem(node, module_coupling, module_defaults, model_defaults, default_params, default_u0s)
 	structmodule = PlantModules.nodetype(node)
+	println("")
     println("Are we live?") #! debugging
-    println("structmodule: $structmodule, module_coupling: $module_coupling")
+    println("structmodule: $structmodule")
 	func_modules = [coupling.first for coupling in module_coupling if structmodule in coupling.second]
 
 	component_systems = Vector{ODESystem}(undef, length(func_modules))
 
-    println("node: $(node), func_modules: $(func_modules)")
-
+    println("node: $(node)")
+	println("func_modules: $(func_modules)")
+	println("")
 	for (modulenum, func_module) in enumerate(func_modules)
 		nodeparams = getnodeparams(node, structmodule, func_module, module_defaults, model_defaults, default_params)
 		nodeu0s = getnodeu0s(node, structmodule, func_module, module_defaults, model_defaults, default_u0s)
