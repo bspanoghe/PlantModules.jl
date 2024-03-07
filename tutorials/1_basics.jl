@@ -297,7 +297,7 @@ Defining a new functional connection module is discussed in the following tutori
 
 # ╔═╡ 611289e9-e22c-4e6e-beec-ccea90eb48c9
 connecting_modules = [
-	:default => PlantModules.hydraulic_connection,
+	() => PlantModules.hydraulic_connection,
 	(:Soil, :Root) => (PlantModules.hydraulic_connection, [:K => 8]),
 	(:Root, :Stem) => (PlantModules.hydraulic_connection, [:K => 4]),
 	(:Leaf, :Air) => (PlantModules.hydraulic_connection, [:K => 1e-2]),
@@ -322,11 +322,11 @@ md"""
 
 # ╔═╡ bc7573e7-bcd6-4347-9b0c-9111a824c9b5
 md"""
-Now that we have all parts of our model defined, all that's left to do is putting it together. For this we use the main workhorse of PlantModules: `get_system_definition`.
+Now that we have all parts of our model defined, all that's left to do is putting it together. For this we use the main workhorse of PlantModules: `generate_system`.
 """
 
 # ╔═╡ a3c5dba8-8acc-424a-87bc-d1c6a263578c
-system = PlantModules.get_system_definition(model_defaults, module_defaults, module_coupling, struct_connections, func_connections);
+system = PlantModules.generate_system(model_defaults, module_defaults, module_coupling, struct_connections, func_connections);
 
 # ╔═╡ d51795b2-32d3-455c-b785-5e501cfbdd08
 md"""

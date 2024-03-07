@@ -48,8 +48,7 @@ function attributes(node::PlantGraphs.GraphNode)
 		return Dict([])
 	end
 
-	fieldvalues = getfield.([node.data], fields...)
-	return Dict([field => fieldvalue for (field, fieldvalue) in zip(fields, fieldvalues)])
+	return [field => getfield(node.data, field) for field in fields]
 end
 function attributes(node::PlantGraphs.Node)
 	fields = fieldnames(typeof(node))
@@ -58,8 +57,7 @@ function attributes(node::PlantGraphs.Node)
 		return Dict([])
 	end
 
-	fieldvalues = getfield.([node], fields...)
-	return Dict([field => fieldvalue for (field, fieldvalue) in zip(fields, fieldvalues)])
+	return [field => getfield(node, field) for field in fields]
 end
 
 nodetype(node::PlantGraphs.GraphNode) = typeof(node.data).name.name

@@ -1,5 +1,5 @@
 """
-    get_system_definition(model_defaults, module_defaults,	module_coupling,
+	generate_system(model_defaults, module_defaults,	module_coupling,
 	struct_connections, func_connections; checkunits = true)
 
 Creates a MTK system based on a set of structural and functional modules and how those are connected.
@@ -12,12 +12,10 @@ Creates a MTK system based on a set of structural and functional modules and how
 - `func_connections`: Additional functional information about the connections between structural modules.
 - `checkunits`: Should the model check the units of the given equations? Defaults to `true`.
 """
-function get_system_definition(model_defaults, module_defaults,	module_coupling,
-	struct_connections, func_connections; checkunits = true
+function generate_system(model_defaults, module_defaults, module_coupling,
+	struct_connections, func_connections; default_params = PlantModules.default_params,
+	default_u0s = PlantModules.default_u0s, checkunits = true
 	)
- 
-	default_params = PlantModules.default_params # is this needed here?
-	default_u0s = PlantModules.default_u0s
 
 	graphs, intergraph_connections = struct_connections
     connecting_modules, get_connection_eqs = func_connections
@@ -154,13 +152,13 @@ function get_func_connection(node, nb_node, connecting_modules, default_params, 
 	structmodule = PlantModules.nodetype(node)
 	nb_structmodule = PlantModules.nodetype(nb_node)
 
-	func_connection_keys = first.(connecting_modules)
-	connection_idx = findfirst([(structmodule, nb_structmodule)] .== func_connection_keys .|| [(nb_structmodule, structmodule)] .== func_connection_keys) # assuming symmetry in functional connections
-	
-	if isnothing(connection_idx)
-		connector_func, connection_specific_values = connecting_modules[1][2], []
+	connecting_module_vec = [connecting_module for connecting_module in connecting_modules if issetequal(connecting_module.first, (structmodule, nb_structmodule))]
+
+	if isempty(connecting_module_vec)
+		default_connecting_module = [connecting_module for connecting_module in connecting_modules if isempty(connecting_module.first)]
+		connector_func, connection_specific_values = default_connecting_module[1].second, []
 	else
-		connector_func, connection_specific_values = connecting_modules[connection_idx].second
+		connector_func, connection_specific_values = connecting_module_vec[1].second
 	end
 
 	default_conn_info = merge(get(default_params, Symbol(connector_func), []), get(default_u0s, Symbol(connector_func), []))
@@ -173,6 +171,21 @@ function get_func_connection(node, nb_node, connecting_modules, default_params, 
 	)
 
 	return func_connection
+end
+
+# get neighbouring nodes of a node both from the same graph and all connected graphs
+function get_nb_nodes(node, graphs, graphnr, intergraph_connections)
+	graph = graphs[graphnr]
+	
+	intra_nb_nodes = PlantModules.neighbours(node, graph)
+	intra_nb_node_graphnrs = repeat([graphnr], length(intra_nb_nodes))
+
+	inter_nb_nodes, inter_nb_node_graphnrs = get_intergraph_neighbours(node, graphnr, graphs, intergraph_connections)
+
+	nb_nodes = vcat(intra_nb_nodes, inter_nb_nodes)
+	nb_node_graphnrs = vcat(intra_nb_node_graphnrs, inter_nb_node_graphnrs)
+
+	return nb_nodes, nb_node_graphnrs
 end
 
 function get_intergraph_neighbours(node, node_graphnr, graphs, intergraph_connections)
@@ -194,21 +207,6 @@ function get_intergraph_neighbours(node, node_graphnr, graphs, intergraph_connec
 			append!(nb_node_graphnrs, repeat([nb_graphnr], length(connection_nb_nodes)))
 		end
 	end
-
-	return nb_nodes, nb_node_graphnrs
-end
-
-# get neighbouring nodes of a node both from the same graph and all connected graphs
-function get_nb_nodes(node, graphs, graphnr, intergraph_connections)
-	graph = graphs[graphnr]
-	
-	intra_nb_nodes = PlantModules.neighbours(node, graph)
-	intra_nb_node_graphnrs = repeat([graphnr], length(intra_nb_nodes))
-
-	inter_nb_nodes, inter_nb_node_graphnrs = get_intergraph_neighbours(node, graphnr, graphs, intergraph_connections)
-
-	nb_nodes = vcat(intra_nb_nodes, inter_nb_nodes)
-	nb_node_graphnrs = vcat(intra_nb_node_graphnrs, inter_nb_node_graphnrs)
 
 	return nb_nodes, nb_node_graphnrs
 end
