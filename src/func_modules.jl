@@ -7,15 +7,15 @@ d = Differential(t);
 Returns a ModelingToolkit ODESystem describing the turgor-driven growth of a plant compartment.
 WARNING: this module still requires an equation to be given for the osmotically active metabolite content M.
 """
-function hydraulic_module(; name, T, ρ_w, shape::Shape, Γ, P, D)
+function hydraulic_module(; name, T, shape::Shape, Γ, P, D)
     num_D = length(shape.ϵ_D)
     @constants (
         P_0 = 0.0, [description = "Minimum pressure", unit = u"MPa"],
-        R = 8.314e-6, [description = "Ideal gas constant", unit = u"MJ / K / mol"]
+        R = 8.314e-6, [description = "Ideal gas constant", unit = u"MJ / K / mol"],
+        ρ_w = 1.0e6, [description = "Density of water", unit = u"g / m^3"],
     )
     @parameters (
         T = T, [description = "Temperature", unit = u"K"],
-        ρ_w = ρ_w, [description = "Density of water", unit = u"g / m^3"],
         ϵ_D[1:num_D] = shape.ϵ_D, [description = "Dimensional elastic modulus", unit = u"MPa"],
         ϕ_D[1:num_D] = shape.ϕ_D, [description = "Dimensional extensibility", unit = u"MPa^-1 * hr^-1"],
         Γ = Γ, [description = "Critical turgor pressure", unit = u"MPa"]
@@ -77,7 +77,7 @@ end
 Returns a ModelingToolkit ODESystem describing a non-growing water reservoir.
 WARNING: this module still requires an equation to be given for the total water potential Ψ.
 """
-function environmental_module(; name, T, ρ_w, W_max, W_r)
+function environmental_module(; name, T, W_max, W_r)
     @parameters (
         T = T, [description = "Temperature", unit = u"K"],
         ρ_w = ρ_w, [description = "Density of water", unit = u"g / m^3"],
@@ -200,7 +200,7 @@ LSE(x::Real...; γ = 1) = log(sum(exp.(γ .* x .- maximum(x))) ) / γ + maximum(
 
 default_params = (
     hydraulic_module = (
-        T = 298.15, ρ_w = 1.0e6, shape = Sphere(ϵ_D = [1.0], ϕ_D = [1.0]), Γ = 0.3
+        T = 298.15, shape = Sphere(ϵ_D = [1.0], ϕ_D = [1.0]), Γ = 0.3
     ),
     constant_carbon_module = (
         shape = Sphere(ϵ_D = [1.0], ϕ_D = [1.0]),

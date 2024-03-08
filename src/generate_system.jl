@@ -54,7 +54,7 @@ get_MTK_system_dicts(graphs, module_coupling, module_defaults, model_defaults, d
 
 # Get MTK system corresponding with node
 function getMTKsystem(node, module_coupling, module_defaults, model_defaults, default_params, default_u0s)
-	structmodule = PlantModules.nodetype(node)
+	structmodule = PlantModules.structmod(node)
 	func_modules = [coupling.first for coupling in module_coupling if structmodule in coupling.second]
 
 	component_systems = Vector{ODESystem}(undef, length(func_modules))
@@ -149,8 +149,8 @@ end
 
 # given two nodes' structural modules, get the MTK system of the functional connection between them
 function get_func_connection(node, nb_node, connecting_modules, default_params, default_u0s)
-	structmodule = PlantModules.nodetype(node)
-	nb_structmodule = PlantModules.nodetype(nb_node)
+	structmodule = PlantModules.structmod(node)
+	nb_structmodule = PlantModules.structmod(nb_node)
 
 	connecting_module_vec = [connecting_module for connecting_module in connecting_modules if issetequal(connecting_module.first, (structmodule, nb_structmodule))]
 
@@ -198,11 +198,11 @@ function get_intergraph_neighbours(node, node_graphnr, graphs, intergraph_connec
 	] # igidx is index of the node's graph in the intergraph connection
 
 	for (node_intergraph_connection, igidx) in node_intergraph_connections_plus_igidxs
-		if PlantModules.nodetype(node) == node_intergraph_connection[2][igidx]
+		if PlantModules.structmod(node) == node_intergraph_connection[2][igidx]
 			nb_igidx = 3-igidx # 2 if igidx == 1 and 1 if igidx == 2
 			nb_graphnr = node_intergraph_connection[1][nb_igidx]
 			nb_graph = graphs[nb_graphnr]
-			connection_nb_nodes = [nb_node for nb_node in PlantModules.nodes(nb_graph) if PlantModules.nodetype(nb_node) == node_intergraph_connection[2][nb_igidx]]
+			connection_nb_nodes = [nb_node for nb_node in PlantModules.nodes(nb_graph) if PlantModules.structmod(nb_node) == node_intergraph_connection[2][nb_igidx]]
 			append!(nb_nodes, connection_nb_nodes)
 			append!(nb_node_graphnrs, repeat([nb_graphnr], length(connection_nb_nodes)))
 		end

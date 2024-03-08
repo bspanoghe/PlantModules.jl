@@ -59,7 +59,7 @@ A cuboidal compartment shape, defined by three dimensions: the length, the width
 - `ϕ_D`: A three-dimensional vector containing the dimensional extensibility along the length, the width and the height.
 """
 struct Cuboid<:Shape
-    ϵ_D::Vector
+    ϵ_D::Vector #! replace by tuple?
     ϕ_D::Vector
     function Cuboid(; ϵ_D::Vector, ϕ_D::Vector)
         length(ϵ_D) != 3 && error("An array of length $(length(ϵ_D)) was given for ϵ_D while length 3 was expected.")

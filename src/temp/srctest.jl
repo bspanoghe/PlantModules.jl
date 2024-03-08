@@ -28,7 +28,7 @@ PlantModules.default_params
 PlantModules.default_u0s
 
 model_defaults = (Γ = 0.4, P = 0.2, T = 293.15) #! currently assumed variables with same name are the same for all functional modules
-#! keep?
+#! replace with function that generates new default_params
 
 module_defaults = (
 	Root = (shape = PlantModules.Cuboid(ϵ_D = [5.0, 0.3, 0.2], ϕ_D = [0.7, 0.1, 0.05]), D = [0.3, 0.03, 0.01], M = C_root), #! changed C to M_const #! include check whether module_defaults variabkle names correspond with default_params / default_u0s ?
@@ -62,7 +62,7 @@ intergraph_connections = [[1, 2] => (:Root, :Soil), [1, 3] => (:Leaf, :Air), [2,
 struct_connections = [graphs, intergraph_connections]
 
 connecting_modules = [
-	() => PlantModules.hydraulic_connection, #! make sure default works
+	() => PlantModules.hydraulic_connection,
 	(:Soil, :Root) => (PlantModules.hydraulic_connection, [:K => 8]),
 	(:Root, :Stem) => (PlantModules.hydraulic_connection, [:K => 4]), # 6*10^-7 kg/s/MPa * 1000 g/kg * 3600 s/h = 2.2 g/h/MPa
 	(:Leaf, :Air) => (PlantModules.hydraulic_connection, [:K => 1e-2]),
@@ -158,6 +158,7 @@ wandering_eqs(node_MTK, nb_node_MTKs, connection_MTKs) = [
 Base.@kwdef mutable struct Forest <: Node
 	N::Int = 20
 	P::Int = 10
+	δ::Float64 = 1.0
 end
 
 Base.@kwdef mutable struct Grassland <: Node
@@ -187,7 +188,7 @@ module_coupling = [
 	lotka_volterra => [:Grassland, :Forest],
 	fountain_of_rabbits => [:Cave]
 ]
-graph = Grassland() + Grassland(N = 200, P = 3) + (Forest(), Forest(N = 5, P = 0))
+graph = Grassland() + Grassland(N = 200, P = 3) + (Forest(δ = 1.8), Forest(N = 5, P = 0, δ = 2.3))
 graphs = [graph, Cave()]
 struct_connections = [graphs, [[1, 2] => (:Forest, :Cave)]] #! make vector of graphs as input unnecessary when theres only 1 graph
 func_connections = [[() => wandering_animals], wandering_eqs]
@@ -207,10 +208,10 @@ issetequal(PlantModules.nodes(graph), [node1, node2, node3, node4])
 issetequal(PlantModules.neighbours(node2, graph), [node1, node3, node4])
 
 ## attributes
-issetequal(PlantModules.attributes(node4), [:P => 0, :N => 5])
+issetequal(PlantModules.attributes(node4), [:P => 0, :N => 5, :δ => 2.3])
 
-## nodetype
-PlantModules.nodetype(node1) == :Grassland
+## structmod
+PlantModules.structmod(node1) == :Grassland
 
 ## id
 allunique(PlantModules.id.([node1, node2, node3, node4]))
@@ -222,7 +223,7 @@ allunique(PlantModules.id.([node1, node2, node3, node4]))
 node1, node2, node3, node4 = collect(values(graph.nodes))
 
 sys1 = PlantModules.getMTKsystem(node1, module_coupling, module_defaults, model_defaults, default_params, default_u0s)
-sys1.name == Symbol(string(PlantModules.nodetype(node1)) * string(PlantModules.id(node1)))
+sys1.name == Symbol(string(PlantModules.structmod(node1)) * string(PlantModules.id(node1)))
 
 ## get_MTK_system_dicts
 MTK_system_dicts = PlantModules.get_MTK_system_dicts(graphs, module_coupling, module_defaults, model_defaults, default_params, default_u0s)
@@ -240,8 +241,17 @@ issetequal(nb_nodes, [node2, graphs[2]])
 node = node4
 graphnr = 1
 PlantModules.get_connection_info(node, graphnr, nb_nodes, nb_node_graphnrs, connecting_modules, get_connection_eqs, default_params, default_u0s, MTK_system_dicts)
+#! test
 
-## 
+## getnodeu0s
+node = node4
+structmodule = :Forest
+func_module = lotka_volterra
+nodeu0s = PlantModules.getnodeu0s(node, structmodule, func_module, module_defaults, model_defaults, default_u0s)
+issetequal(nodeu0s, [:P => 0, :N => 5])
+
+
+########################
 
 sys = PlantModules.generate_system(model_defaults, module_defaults, module_coupling, struct_connections, func_connections,
 	default_params = default_params, default_u0s = default_u0s
@@ -254,4 +264,9 @@ sol = solve(prob)
 
 plot(sol)
 
-PlantModules.plot
+PlantModules.plotnode(sol, PlantModules.nodes(graphs[2])[1])
+PlantModules.plotnode(sol, PlantModules.nodes(graphs[1])[1], func_varname = :N)
+PlantModules.plotgraph(sol, graphs[1])
+PlantModules.plotgraph(sol, graphs[1], struct_module = :Forest)
+PlantModules.plotgraph(sol, graphs[1], func_varname = :ΣF_P)
+PlantModules.plotgraph(sol, graphs[1], struct_module = :Grassland, func_varname = :P)

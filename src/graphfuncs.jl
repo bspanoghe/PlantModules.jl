@@ -1,35 +1,35 @@
 """
 	nodes(graph)
 
-Returns all nodes of the given graph.
+Returns a `Vector` containing all nodes of the given graph.
 """
 nodes(graph) = error("Function not yet defined for input type $(typeof(graph)).")
 
 """
 	neighbours(node)
 
-Returns the neighbours of the given node.
+Returns a `Vector` containing the neighbours of the given node.
 """
 neighbours(node) = error("Function not yet defined for input type $(typeof(node)).")
 
 """
 	attributes(node)
 
-Returns the attributes of the given node.
+Returns a `Dict` containing the functional variable names and values of the given node.
 """
 attributes(node) = error("Function not yet defined for input type $(typeof(node)).")
 
 """
-	nodetype(node)
+	structmod(node)
 
-Returns the type of the node, corresponding with the name of a structural module.
+Returns the structural module corresponding with the node as a `Symbol`.
 """
-nodetype(node) = error("Function not yet defined for input type $(typeof(node)).")
+structmod(node) = error("Function not yet defined for input type $(typeof(node)).")
 
 """
 	id(node)
 
-Returns the id of the node.
+Returns the id of the node as an `Int`.
 """
 id(node) = error("Function not yet defined for input type $(typeof(node)).")
 
@@ -48,8 +48,9 @@ function attributes(node::PlantGraphs.GraphNode)
 		return Dict([])
 	end
 
-	return [field => getfield(node.data, field) for field in fields]
+	return Dict([field => getfield(node.data, field) for field in fields])
 end
+
 function attributes(node::PlantGraphs.Node)
 	fields = fieldnames(typeof(node))
 	
@@ -57,11 +58,11 @@ function attributes(node::PlantGraphs.Node)
 		return Dict([])
 	end
 
-	return [field => getfield(node, field) for field in fields]
+	return Dict([field => getfield(node, field) for field in fields])
 end
 
-nodetype(node::PlantGraphs.GraphNode) = typeof(node.data).name.name
-nodetype(node::PlantGraphs.Node) = typeof(node).name.name
+structmod(node::PlantGraphs.GraphNode) = typeof(node.data).name.name
+structmod(node::PlantGraphs.Node) = typeof(node).name.name
 
 id(node::PlantGraphs.GraphNode) = node.self_id
 id(node::PlantGraphs.Node) = 1 # The entire graph only consists of one node if the input type is Node
