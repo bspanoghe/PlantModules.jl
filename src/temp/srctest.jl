@@ -81,23 +81,9 @@ sys_simpl = structural_simplify(system);
 prob = ODEProblem(sys_simpl, ModelingToolkit.missing_variable_defaults(sys_simpl), (0.0, 5*24))	 #! Generate warning for missing variable defaults that aren't dummies
 sol = solve(prob)
 
-plot(sol, idxs = [Symbol("Soil1₊Ψ"), Symbol("Root1₊Ψ"), Symbol("Stem2₊Ψ"), Symbol("Leaf3₊Ψ"), Symbol("Leaf4₊Ψ"), Symbol("Air1₊Ψ")])
-plot(sol, idxs = [Symbol("Soil1₊Ψ"), Symbol("Root1₊Ψ"), Symbol("Stem2₊Ψ"), Symbol("Leaf3₊Ψ"), Symbol("Leaf4₊Ψ")])
-plot(sol, idxs = [Symbol("Root1₊Π"), Symbol("Stem2₊Π"), Symbol("Leaf3₊Π"), Symbol("Leaf4₊Π")])
-plot(sol, idxs = [Symbol("Root1₊P"), Symbol("Stem2₊P"), Symbol("Leaf3₊P"), Symbol("Leaf4₊P")])
-
-plot(sol, idxs = [Symbol("Root1₊M")])
-plot(sol, idxs = [Symbol("Leaf3₊M")])
-plot(sol, idxs = [Symbol("Leaf4₊M")])
-
-plot(sol, idxs = [Symbol("Soil1₊W")])
-plot(sol, idxs = [Symbol("Root1₊W")])
-plot(sol, idxs = [Symbol("Stem2₊W")])
-plot(sol, idxs = [Symbol("Leaf3₊W")])
-plot(sol, idxs = [Symbol("Leaf4₊W")])
-plot(sol, idxs = [Symbol("Air1₊W")])
-
-plot(sol, idxs = [Symbol("Root1_Soil1₊F"), Symbol("Air1_Leaf3₊F")])
+PlantModules.plotgraph(sol, graphs[1]) .|> display
+PlantModules.plotgraph(sol, graphs[2]) .|> display
+PlantModules.plotgraph(sol, graphs[3]) .|> display
 
 # tests #
 
@@ -188,7 +174,7 @@ module_coupling = [
 	lotka_volterra => [:Grassland, :Forest],
 	fountain_of_rabbits => [:Cave]
 ]
-graph = Grassland() + Grassland(N = 200, P = 3) + (Forest(δ = 1.8), Forest(N = 5, P = 0, δ = 2.3))
+graph = Grassland() + Grassland(N = 50, P = 3) + (Forest(δ = 1.8), Forest(N = 5, P = 0, δ = 2.3))
 graphs = [graph, Cave()]
 struct_connections = [graphs, [[1, 2] => (:Forest, :Cave)]] #! make vector of graphs as input unnecessary when theres only 1 graph
 func_connections = [[() => wandering_animals], wandering_eqs]
@@ -264,9 +250,11 @@ sol = solve(prob)
 
 plot(sol)
 
-PlantModules.plotnode(sol, PlantModules.nodes(graphs[2])[1])
+PlantModules.plotnode(sol, PlantModules.nodes(graphs[2])[1]) .|> display
 PlantModules.plotnode(sol, PlantModules.nodes(graphs[1])[1], func_varname = :N)
-PlantModules.plotgraph(sol, graphs[1])
-PlantModules.plotgraph(sol, graphs[1], struct_module = :Forest)
+PlantModules.plotgraph(sol, graphs[1]) .|> display
+PlantModules.plotgraph(sol, graphs[1], struct_module = :Forest) .|> display
 PlantModules.plotgraph(sol, graphs[1], func_varname = :ΣF_P)
 PlantModules.plotgraph(sol, graphs[1], struct_module = :Grassland, func_varname = :P)
+
+include("../PlantModules.jl")

@@ -1,6 +1,6 @@
 module PlantModules
 
-export PlantSystem
+export generate_system, plotgraph, plotnode
 
 using ModelingToolkit
 using DifferentialEquations

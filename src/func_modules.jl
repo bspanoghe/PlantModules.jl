@@ -2,7 +2,7 @@
 d = Differential(t);
 
 """
-    hydraulic_module(; name, T, ρ_w, shape, Γ)
+    hydraulic_module(; name, T, shape, Γ, P, D)
 
 Returns a ModelingToolkit ODESystem describing the turgor-driven growth of a plant compartment.
 WARNING: this module still requires an equation to be given for the osmotically active metabolite content M.
@@ -12,13 +12,13 @@ function hydraulic_module(; name, T, shape::Shape, Γ, P, D)
     @constants (
         P_0 = 0.0, [description = "Minimum pressure", unit = u"MPa"],
         R = 8.314e-6, [description = "Ideal gas constant", unit = u"MJ / K / mol"],
-        ρ_w = 1.0e6, [description = "Density of water", unit = u"g / m^3"],
     )
     @parameters (
         T = T, [description = "Temperature", unit = u"K"],
         ϵ_D[1:num_D] = shape.ϵ_D, [description = "Dimensional elastic modulus", unit = u"MPa"],
         ϕ_D[1:num_D] = shape.ϕ_D, [description = "Dimensional extensibility", unit = u"MPa^-1 * hr^-1"],
-        Γ = Γ, [description = "Critical turgor pressure", unit = u"MPa"]
+        Γ = Γ, [description = "Critical turgor pressure", unit = u"MPa"],
+        ρ_w = 1.0e6, [description = "Density of water", unit = u"g / m^3"],
     )
     @variables (
         Ψ(t), [description = "Total water potential", unit = u"MPa"],
@@ -72,7 +72,7 @@ function constant_carbon_module(; name, M, shape::Shape, D)
 end
 
 """
-    environmental_module(; name, T, ρ_w, W_max)
+    environmental_module(; name, T, W_max, W_r)
 
 Returns a ModelingToolkit ODESystem describing a non-growing water reservoir.
 WARNING: this module still requires an equation to be given for the total water potential Ψ.
@@ -80,7 +80,6 @@ WARNING: this module still requires an equation to be given for the total water 
 function environmental_module(; name, T, W_max, W_r)
     @parameters (
         T = T, [description = "Temperature", unit = u"K"],
-        ρ_w = ρ_w, [description = "Density of water", unit = u"g / m^3"],
         W_max = W_max, [description = "Water capacity of compartment", unit = u"g"],
         )
     @variables (
@@ -96,10 +95,6 @@ function environmental_module(; name, T, W_max, W_r)
         W_r ~ W / W_max,
         ΔW ~ ΣF, # Water content changes due to flux (depending on water potentials as defined in connections)
         d(W) ~ ΔW,
-
-        # prevent variables from being erased from existence
-        Ψ ~ Ψ,
-        T ~ T
     ]
     return ODESystem(eqs, t; name)
 end
@@ -115,7 +110,7 @@ function Ψ_soil_module(; name)
         Ψ(t), [description = "Total water potential", unit = u"MPa"],
         W_r(t), [description = "Relative water content", unit = u"g / g"],
     )
-    @parameters MPa_unit [description = "Dummy parameter for correcting units of empirical equation", unit = u"MPa"]
+    @parameters MPa_unit = 1 [description = "Dummy parameter for correcting units of empirical equation", unit = u"MPa"]
 
 	eqs = [Ψ ~ MPa_unit * -(1/(100*W_r) + 1) * exp((39.8 - 100*W_r) / 19)]
 
@@ -206,7 +201,7 @@ default_params = (
         shape = Sphere(ϵ_D = [1.0], ϕ_D = [1.0]),
     ),
     environmental_module = (
-        T = 298.15, ρ_w = 1.0e6, W_max = 1e6
+        T = 298.15, W_max = 1e6
     ),
     Ψ_soil_module = (
     ),

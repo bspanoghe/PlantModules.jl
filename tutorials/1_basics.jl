@@ -11,7 +11,7 @@ using Pkg; Pkg.activate(".")
 using PlantModules
 
 # ╔═╡ 65f88593-1180-447a-900f-49aef4647cd1
-using PlantGraphs, ModelingToolkit, DifferentialEquations, Plots, Unitful #! MTK imports etc. should not be necessary when package is done
+using PlantGraphs, ModelingToolkit, DifferentialEquations, Plots, Unitful
 
 # ╔═╡ 56c3527f-d8df-4f5c-9075-77c34d5c7204
 md"""
@@ -173,10 +173,10 @@ Before we change any of the default parameter - and initial values, we can take 
 """
 
 # ╔═╡ 1394e5ed-39f3-4a9f-8737-be7183219314
-PlantModules.default_params # Parameter values
+PlantModules.default_params |> print # Parameter values
 
 # ╔═╡ ae8b0cb6-6f0f-4c18-b05f-01aec542037c
-PlantModules.default_u0s # Initial values
+PlantModules.default_u0s |> print # Initial values
 
 # ╔═╡ fbe00b62-6ca7-4c90-9050-081312911c74
 md"""
@@ -184,7 +184,7 @@ Now imagine we have some data on our plant in question and it calls for differen
 """
 
 # ╔═╡ 271d48a7-7022-4766-83d9-a70fab92515e
-model_defaults = (Γ = 0.4, P = 0.2, T = 293.15)
+model_defaults = (Γ = 0.4, P = 0.2, T = 293.15) # will be changed to function giving altered version of default_params / default_u0s
 
 # ╔═╡ 3c13c600-5135-44ea-8fc2-a1e11f72d0c5
 md"""
@@ -304,8 +304,19 @@ connecting_modules = [
 	(:Soil, :Air) => (PlantModules.hydraulic_connection, [:K => 5e-2])
 ]
 
+# ╔═╡ a8a725d4-d876-4867-acbc-26bbadc4b462
+md"""
+These connecting modules define the functional information of the graph edges. In this case: the flow of water between nodes based on some hydraulic conductivity parameter and a difference in water potentials.
+However, the system also needs to know how the edges relate to the nodes functionally. For example, the net amount of water coming into a node is the sum of all water flows of edges connected to this node. This information is given under the form of a function returning a set of equations. For the hydraulic model, this is already provided.
+"""
+
 # ╔═╡ 5ca7ded4-d333-4edb-96db-3fdb7bc827ce
 get_connection_eqs = PlantModules.hydraulic_connection_eqs
+
+# ╔═╡ 113c0bdc-53e4-4a19-a47c-f4afba237eeb
+md"""
+The functional connections are then defined as the combination of the functional modules and the function generating connecting equations.
+"""
 
 # ╔═╡ ebf46963-bb9d-4604-924c-2b051189debc
 func_connections = [connecting_modules, get_connection_eqs]
@@ -362,12 +373,12 @@ md"""
 Finding the answer to our toy problem now comes down to plotting out the soil water content and visually inspecting when it gets too low:
 """
 
-# ╔═╡ fe4df2d4-878e-41aa-8860-991c891e2dd2
-Plots.plot(sol, struct_modules = [:Soil], func_vars = [:W]) #! imagine that this works
+# ╔═╡ e890700e-80a4-4dfc-8380-732bf91d1aa4
+plotnode(sol, graphs[2], func_varname = :W_r)
 
 # ╔═╡ 2d131155-f62b-4f4a-92d8-9e7443202434
 md"""
-(Short discussion of plot and how it saved our lives)
+We can see the soil still has a relative water content of over 30% after 150 hours or 6 days. Some of the parameters in this example probably need to be changed!
 """
 
 # ╔═╡ fb3c58df-1d6b-4ced-803d-2d0fc537b942
@@ -377,9 +388,6 @@ md"""
 - Update hyperlinks with pages of docs when they exist
 - Change parameter - and initial values with logical ones based on some data or something
 """
-
-# ╔═╡ 38c69eea-a4dd-4fc0-951f-dc36e9530b80
-
 
 # ╔═╡ Cell order:
 # ╟─56c3527f-d8df-4f5c-9075-77c34d5c7204
@@ -435,7 +443,9 @@ md"""
 # ╟─f03a61ce-a0ff-43ff-abdd-2342f76e8c93
 # ╟─ac6e098d-98ff-4940-8386-dc76c75eb2c3
 # ╠═611289e9-e22c-4e6e-beec-ccea90eb48c9
+# ╟─a8a725d4-d876-4867-acbc-26bbadc4b462
 # ╠═5ca7ded4-d333-4edb-96db-3fdb7bc827ce
+# ╟─113c0bdc-53e4-4a19-a47c-f4afba237eeb
 # ╠═ebf46963-bb9d-4604-924c-2b051189debc
 # ╟─fb72735b-3d45-438d-ad83-3e36f42f5bb8
 # ╟─210d81ef-153e-4744-8266-80af4099770c
@@ -449,7 +459,6 @@ md"""
 # ╠═50d6fc31-80f5-4db7-b716-b26765008a0d
 # ╠═c38b1a71-c5e9-4bfa-a210-bcbf9068f7ed
 # ╟─a6608eff-9399-443c-a33a-c62341f7b14c
-# ╠═fe4df2d4-878e-41aa-8860-991c891e2dd2
+# ╠═e890700e-80a4-4dfc-8380-732bf91d1aa4
 # ╟─2d131155-f62b-4f4a-92d8-9e7443202434
 # ╟─fb3c58df-1d6b-4ced-803d-2d0fc537b942
-# ╠═38c69eea-a4dd-4fc0-951f-dc36e9530b80

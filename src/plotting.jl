@@ -56,12 +56,9 @@ function plotnode(sol::ODESolution, node; func_varname::Symbol = Symbol(""))
         func_varnames = [unknown.val.metadata[ModelingToolkit.VariableSource][2] for unknown in nodesystem.unknowns] |> unique
 
         plots = [getplot(sol, nodesystem, func_varname) for func_varname in func_varnames]
-        for myplot in plots
-            display(Plots.plot(myplot))
-            sleep(0.1)
-        end
+        return plots
     else
-        display(getplot(sol, nodesystem, func_varname))
+        return getplot(sol, nodesystem, func_varname)
     end
 end
 
@@ -74,6 +71,8 @@ function plotgraph(sol::ODESolution, graph; struct_module::Symbol = Symbol(""), 
         ]  |> x -> reduce(vcat, x) |> unique
         nodesystems = reduce(vcat, nodesystems_by_structmod)
 
+        plots = []
+
         for func_varname in func_varnames
             myplot = Plots.plot();
             for nodesystem in nodesystems #! oh the inefficiency
@@ -81,23 +80,24 @@ function plotgraph(sol::ODESolution, graph; struct_module::Symbol = Symbol(""), 
                     getplot!(sol, nodesystem, func_varname);
                 end
             end
-            display(Plots.plot(myplot))
-            sleep(0.1)
+            push!(plots, myplot)
         end
+        return plots
 
     elseif func_varname == Symbol("") # Only structural module provided
         nodesystems = getnodesystems(sol, graph, struct_module)
 
         func_varnames = [unknown.val.metadata[ModelingToolkit.VariableSource][2] for unknown in nodesystems[1].unknowns] |> unique
     
+        plots = []
         for func_varname in func_varnames
             myplot = Plots.plot();
             for nodesystem in nodesystems
                 getplot!(sol, nodesystem, func_varname);
             end
-            display(Plots.plot(myplot))
-            sleep(0.1)
+            push!(plots, myplot)
         end
+        return plots
     elseif struct_module == Symbol("") # Only variable name provided
         struct_modules = PlantModules.nodes(graph) .|> PlantModules.structmod |> unique
         nodesystems = [getnodesystems(sol, graph, struct_module) for struct_module in struct_modules] |> x -> reduce(vcat, x)
@@ -105,14 +105,13 @@ function plotgraph(sol::ODESolution, graph; struct_module::Symbol = Symbol(""), 
         for nodesystem in nodesystems
             getplot!(sol, nodesystem, func_varname);
         end
-        display(myplot)
+        return(myplot)
     else # Everything provided
         nodesystems = getnodesystems(sol, graph, struct_module)
         myplot = Plots.plot();
         for nodesystem in nodesystems
             getplot!(sol, nodesystem, func_varname);
         end
-        display(myplot)
+        return(myplot)
     end
-
 end

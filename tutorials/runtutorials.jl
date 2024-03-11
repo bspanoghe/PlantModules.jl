@@ -1,7 +1,7 @@
 if split(pwd(), '\\')[end] != "tutorials"
     cd("./tutorials")
 end
-using Pkg; Pkg.activate(".")
+using Pkg; Pkg.instantiate("."); Pkg.activate(".")
 Pkg.develop(path = "..")
 
 using Pluto
