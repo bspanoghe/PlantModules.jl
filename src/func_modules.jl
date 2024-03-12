@@ -36,8 +36,8 @@ function hydraulic_module(; name, T, shape::Shape, Γ, P, D)
     )
 
     eqs = [
-        Ψ ~ Π + P, # Water potential consists of a solute- and a pressure component
-        Π ~ -R*T*M, # Solute component is determined by concentration of dissolved metabolites
+        Ψ ~ P - Π, # Water potential consists of a solute- and a pressure component
+        Π ~ R*T*M, # Solute component is determined by concentration of dissolved metabolites
         ΔW ~ ΣF, # Water content changes due to flux (depending on water potentials as defined in connections)
         V ~ W / ρ_w, # Shape is directly related to water content        
         V ~ volume(shape, D), # Shape is also directly related to compartment dimensions
@@ -158,7 +158,9 @@ function hydraulic_connection(; name, K)
     )
 
     eqs = [
-        F ~ K * (Ψ_2 - Ψ_1) #! make K per m^2 ?
+        F ~ K * (Ψ_2 - Ψ_1) 
+            #! make K per m^2 ?
+            # or make K = (1/2/K_1 + 1/2/K_2)^-1
     ]
     return ODESystem(eqs, t; name)
 end
@@ -167,7 +169,7 @@ hydraulic_connection_eqs(node_MTK, nb_node_MTKs, connection_MTKs) = [
 	[connection_MTK.Ψ_1 ~ node_MTK.Ψ for connection_MTK in connection_MTKs]...,
 	[connection_MTK.Ψ_2 ~ nb_node_MTK.Ψ for (connection_MTK, nb_node_MTK) in zip(connection_MTKs, nb_node_MTKs)]...,
 	node_MTK.ΣF ~ sum([connection_MTK.F for connection_MTK in connection_MTKs])
-] #! put this in func_modules and explain to user they gotta provide this stuff mr white yo
+]
 
 # Helper functions #
 
