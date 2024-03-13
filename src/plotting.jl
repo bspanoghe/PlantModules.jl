@@ -115,3 +115,65 @@ function plotgraph(sol::ODESolution, graph; struct_module::Symbol = Symbol(""), 
         return(myplot)
     end
 end
+
+
+function plotgraph(sol::ODESolution, graphs::Vector; struct_module::Symbol = Symbol(""), func_varname::Symbol = Symbol(""))
+    if struct_module == Symbol("") && func_varname == Symbol("") # Ya get nothin'
+        nodesystems_by_structmod = []
+        for graph in graphs
+            struct_modules = PlantModules.nodes(graph) .|> PlantModules.structmod |> unique
+            append!(nodesystems_by_structmod, [getnodesystems(sol, graph, struct_module) for struct_module in struct_modules])
+        end
+
+        func_varnames = [[unknown.val.metadata[ModelingToolkit.VariableSource][2] for unknown in nodesystems[1].unknowns]
+            for nodesystems in nodesystems_by_structmod
+        ]  |> x -> reduce(vcat, x) |> unique
+        nodesystems = reduce(vcat, nodesystems_by_structmod)
+        plots = []
+
+        for func_varname in func_varnames
+            myplot = Plots.plot();
+            for nodesystem in nodesystems #! oh the inefficiency
+                if func_varname in [unknown.val.metadata[ModelingToolkit.VariableSource][2] for unknown in nodesystem.unknowns]
+                    getplot!(sol, nodesystem, func_varname);
+                end
+            end
+            push!(plots, myplot)
+        end
+        return plots
+
+    elseif func_varname == Symbol("") # Only structural module provided
+        nodesystems = [getnodesystems(sol, graph, struct_module) for graph in graphs] |> x -> reduce(vcat, x)
+
+        func_varnames = [unknown.val.metadata[ModelingToolkit.VariableSource][2] for unknown in nodesystems[1].unknowns] |> unique
+    
+        plots = []
+        for func_varname in func_varnames
+            myplot = Plots.plot();
+            for nodesystem in nodesystems
+                getplot!(sol, nodesystem, func_varname);
+            end
+            push!(plots, myplot)
+        end
+        return plots
+    elseif struct_module == Symbol("") # Only variable name provided
+        nodesystems = []
+        for graph in graphs
+            struct_modules = PlantModules.nodes(graph) .|> PlantModules.structmod |> unique
+            append!(nodesystems, [getnodesystems(sol, graph, struct_module) for struct_module in struct_modules] |> x -> reduce(vcat, x))
+        end
+
+        myplot = Plots.plot();
+        for nodesystem in nodesystems
+            getplot!(sol, nodesystem, func_varname);
+        end
+        return(myplot)
+    else # Everything provided
+        nodesystems = [getnodesystems(sol, graph, struct_module) for graph in graphs] |> x -> reduce(vcat, x)
+        myplot = Plots.plot();
+        for nodesystem in nodesystems
+            getplot!(sol, nodesystem, func_varname);
+        end
+        return(myplot)
+    end
+end
