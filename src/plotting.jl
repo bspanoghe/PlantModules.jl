@@ -3,7 +3,7 @@
 function getnodesystem(sol::ODESolution, node)
     system = sol.prob.f.sys
     nodename = string(PlantModules.structmod(node)) * string(PlantModules.id(node))
-    nodesystem = [subsys for subsys in system.systems if subsys.name == Symbol(nodename)][1]
+    nodesystem = [subsys for subsys in getproperty(system, :systems) if get_name(subsys) == Symbol(nodename)][1]
     return nodesystem
 end
 
@@ -53,7 +53,7 @@ function plotnode(sol::ODESolution, node; func_varname::Symbol = Symbol(""))
     nodesystem = getnodesystem(sol, node)
 
     if func_varname == Symbol("") # No functional variable name given => show all
-        func_varnames = [unknown.val.metadata[ModelingToolkit.VariableSource][2] for unknown in nodesystem.unknowns] |> unique
+        func_varnames = [unknown.metadata[ModelingToolkit.VariableSource][2] for unknown in get_unknowns(nodesystem)] |> unique
 
         plots = [getplot(sol, nodesystem, func_varname) for func_varname in func_varnames]
         return plots
@@ -66,7 +66,7 @@ function plotgraph(sol::ODESolution, graph; struct_module::Symbol = Symbol(""), 
     if struct_module == Symbol("") && func_varname == Symbol("") # Ya get nothin'
         struct_modules = PlantModules.nodes(graph) .|> PlantModules.structmod |> unique
         nodesystems_by_structmod = [getnodesystems(sol, graph, struct_module) for struct_module in struct_modules]
-        func_varnames = [[unknown.val.metadata[ModelingToolkit.VariableSource][2] for unknown in nodesystems[1].unknowns]
+        func_varnames = [[unknown.metadata[ModelingToolkit.VariableSource][2] for unknown in get_unknowns(nodesystems[1])]
             for nodesystems in nodesystems_by_structmod
         ]  |> x -> reduce(vcat, x) |> unique
         nodesystems = reduce(vcat, nodesystems_by_structmod)
@@ -76,7 +76,7 @@ function plotgraph(sol::ODESolution, graph; struct_module::Symbol = Symbol(""), 
         for func_varname in func_varnames
             myplot = Plots.plot();
             for nodesystem in nodesystems #! oh the inefficiency
-                if func_varname in [unknown.val.metadata[ModelingToolkit.VariableSource][2] for unknown in nodesystem.unknowns]
+                if func_varname in [unknown.metadata[ModelingToolkit.VariableSource][2] for unknown in get_unknowns(nodesystem)]
                     getplot!(sol, nodesystem, func_varname);
                 end
             end
@@ -87,7 +87,7 @@ function plotgraph(sol::ODESolution, graph; struct_module::Symbol = Symbol(""), 
     elseif func_varname == Symbol("") # Only structural module provided
         nodesystems = getnodesystems(sol, graph, struct_module)
 
-        func_varnames = [unknown.val.metadata[ModelingToolkit.VariableSource][2] for unknown in nodesystems[1].unknowns] |> unique
+        func_varnames = [unknown.metadata[ModelingToolkit.VariableSource][2] for unknown in get_unknowns(nodesystems[1])] |> unique
     
         plots = []
         for func_varname in func_varnames
@@ -125,7 +125,7 @@ function plotgraph(sol::ODESolution, graphs::Vector; struct_module::Symbol = Sym
             append!(nodesystems_by_structmod, [getnodesystems(sol, graph, struct_module) for struct_module in struct_modules])
         end
 
-        func_varnames = [[unknown.val.metadata[ModelingToolkit.VariableSource][2] for unknown in nodesystems[1].unknowns]
+        func_varnames = [[unknown.metadata[ModelingToolkit.VariableSource][2] for unknown in get_unknowns(nodesystems[1])]
             for nodesystems in nodesystems_by_structmod
         ]  |> x -> reduce(vcat, x) |> unique
         nodesystems = reduce(vcat, nodesystems_by_structmod)
@@ -134,7 +134,7 @@ function plotgraph(sol::ODESolution, graphs::Vector; struct_module::Symbol = Sym
         for func_varname in func_varnames
             myplot = Plots.plot();
             for nodesystem in nodesystems #! oh the inefficiency
-                if func_varname in [unknown.val.metadata[ModelingToolkit.VariableSource][2] for unknown in nodesystem.unknowns]
+                if func_varname in [unknown.metadata[ModelingToolkit.VariableSource][2] for unknown in get_unknowns(nodesystem)]
                     getplot!(sol, nodesystem, func_varname);
                 end
             end
@@ -145,7 +145,7 @@ function plotgraph(sol::ODESolution, graphs::Vector; struct_module::Symbol = Sym
     elseif func_varname == Symbol("") # Only structural module provided
         nodesystems = [getnodesystems(sol, graph, struct_module) for graph in graphs] |> x -> reduce(vcat, x)
 
-        func_varnames = [unknown.val.metadata[ModelingToolkit.VariableSource][2] for unknown in nodesystems[1].unknowns] |> unique
+        func_varnames = [unknown.metadata[ModelingToolkit.VariableSource][2] for unknown in get_unknowns(nodesystems[1])] |> unique
     
         plots = []
         for func_varname in func_varnames

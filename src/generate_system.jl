@@ -38,7 +38,7 @@ function generate_system(model_defaults, module_defaults, module_coupling,
 		end
 	end
 
-	system = ODESystem(connection_equations, independent_variable(MTK_systems[1]), name = :system, systems = vcat(MTK_systems, connection_MTKs), checks = checkunits)
+	system = ODESystem(connection_equations, get_iv(MTK_systems[1]), name = :system, systems = vcat(MTK_systems, connection_MTKs), checks = checkunits)
 
 	return system
 end
@@ -127,7 +127,7 @@ end
 
 # collapse multiple ODESystems into one. like ModelingToolkit.compose, but keeps a single namespace
 function collapse(systems::Vector{ODESystem}; name::Symbol)
-    return ODESystem(vcat([system.eqs for system in systems]...), systems[1].iv, vcat([unknowns(system) for system in systems]...),
+    return ODESystem(vcat([get_eqs(system) for system in systems]...), get_iv(systems[1]), vcat([unknowns(system) for system in systems]...),
         vcat([parameters(system) for system in systems]...), name = name)
 end
 
