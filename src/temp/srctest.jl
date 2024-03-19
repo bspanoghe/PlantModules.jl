@@ -27,8 +27,10 @@ C_leaf = 330 # And here!
 PlantModules.default_params
 PlantModules.default_u0s
 
-model_defaults = (Γ = 0.4, P = 0.2, T = 293.15) #! currently assumed variables with same name are the same for all functional modules
+default_changes = (Γ = 0.4, P = 0.2, T = 293.15) #! currently assumed variables with same name are the same for all functional modules
 #! replace with function that generates new default_params
+
+default_params, default_u0s = PlantModules.alter_defaults(default_changes)
 
 module_defaults = (
 	Root = (shape = PlantModules.Cuboid(ϵ_D = [5.0, 0.3, 0.2], ϕ_D = [0.7, 0.1, 0.05]), D = [0.3, 0.03, 0.01], M = C_root), #! changed C to M_const #! include check whether module_defaults variabkle names correspond with default_params / default_u0s ?
@@ -73,8 +75,8 @@ get_connection_eqs = PlantModules.hydraulic_connection_eqs #!
 
 func_connections = [connecting_modules, get_connection_eqs]
 
-system = PlantModules.generate_system(model_defaults, module_defaults, module_coupling,
-	struct_connections, func_connections, checkunits = false
+system = PlantModules.generate_system(default_params, default_u0s,
+	module_defaults, module_coupling, struct_connections, func_connections, checkunits = false
 )
 
 sys_simpl = structural_simplify(system);

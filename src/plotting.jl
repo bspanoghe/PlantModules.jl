@@ -1,7 +1,7 @@
 #! Add Plots kwargs and maybe add RecipesBase.jl (get rid of Plots dependency)?
 
 function getnodesystem(sol::ODESolution, node)
-    system = sol.prob.f.sys
+    system = getfield(sol.prob.f, :sys)
     nodename = string(PlantModules.structmod(node)) * string(PlantModules.id(node))
     nodesystem = [subsys for subsys in getproperty(system, :systems) if get_name(subsys) == Symbol(nodename)][1]
     return nodesystem
@@ -49,6 +49,12 @@ function getplot!(sol::ODESolution, func_var::Symbolics.Arr)
     end
 end
 
+"""
+    plotnode(sol::ODESolution, node; func_varname::Symbol)
+
+Returns a plot for every functional variable of the given node for the given solution `sol`.
+Optionally, the user can give the name of a functional variable to only return a plot of this variable.
+"""
 function plotnode(sol::ODESolution, node; func_varname::Symbol = Symbol(""))
     nodesystem = getnodesystem(sol, node)
 
@@ -62,6 +68,13 @@ function plotnode(sol::ODESolution, node; func_varname::Symbol = Symbol(""))
     end
 end
 
+"""
+    plotgraph(sol::ODESolution, graph; struct_module::Symbol, func_varname::Symbol)
+
+Returns a plot for every functional variable for every node of the given graph for the given solution `sol`.
+Optionally, the user can give the name of a functional variable to only return a plot of this variable,
+give the name of a structural module to limit considered nodes to those of this type, or both.
+"""
 function plotgraph(sol::ODESolution, graph; struct_module::Symbol = Symbol(""), func_varname::Symbol = Symbol(""))
     if struct_module == Symbol("") && func_varname == Symbol("") # Ya get nothin'
         struct_modules = PlantModules.nodes(graph) .|> PlantModules.structmod |> unique

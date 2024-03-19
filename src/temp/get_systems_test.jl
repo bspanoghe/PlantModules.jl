@@ -57,6 +57,9 @@ prob = ODEProblem(sys, [], (0.0, 3.0))
 sol = solve(prob, Rosenbrock23())
 plot(sol)
 
+ModelingToolkit.get_systems(sys)
+
+
 sol_system = sol.prob.f.sys
 ModelingToolkit.get_systems(sol_system)
 

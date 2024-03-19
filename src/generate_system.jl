@@ -1,26 +1,26 @@
 """
-	generate_system(model_defaults, module_defaults,	module_coupling,
+	generate_system(module_defaults,	module_coupling,
 	struct_connections, func_connections; checkunits = true)
 
 Creates a MTK system based on a set of structural and functional modules and how those are connected.
 
 # Arguments
-- `model_defaults`: Model-wide default parameters.
+- `default_params`: Model-wide default parameter values.
+- `default_u0s`: Model-wide default initial values.
 - `module_defaults`: Module-specific default parameters.
 - `module_coupling`: Coupling between functional and structural modules.
 - `struct_connections`: One or more graphs specifying how the structural modules are connected, alongside the connections between graphs.
 - `func_connections`: Additional functional information about the connections between structural modules.
 - `checkunits`: Should the model check the units of the given equations? Defaults to `true`.
 """
-function generate_system(model_defaults, module_defaults, module_coupling,
-	struct_connections, func_connections; default_params = PlantModules.default_params,
-	default_u0s = PlantModules.default_u0s, checkunits = true
+function generate_system(default_params, default_u0s, module_defaults,
+	module_coupling, struct_connections, func_connections; checkunits = true
 	)
 
 	graphs, intergraph_connections = struct_connections
     connecting_modules, get_connection_eqs = func_connections
 
-	MTK_system_dicts = get_MTK_system_dicts(graphs, module_coupling, module_defaults, model_defaults, default_params, default_u0s)
+	MTK_system_dicts = get_MTK_system_dicts(graphs, module_coupling, module_defaults, default_params, default_u0s)
 	MTK_systems = vcat(collect.(values.(MTK_system_dicts))...)
 
 	connection_MTKs = ODESystem[]
@@ -44,24 +44,24 @@ function generate_system(model_defaults, module_defaults, module_coupling,
 end
 
 # get node idx to corresponding MTK system
-get_MTK_system_dicts(graphs, module_coupling, module_defaults, model_defaults, default_params, default_u0s) = 
+get_MTK_system_dicts(graphs, module_coupling, module_defaults, default_params, default_u0s) = 
 	[
 		[PlantModules.id(node) => 
-			getMTKsystem(node, module_coupling, module_defaults, model_defaults, default_params, default_u0s)
+			getMTKsystem(node, module_coupling, module_defaults, default_params, default_u0s)
 			for node in PlantModules.nodes(graph)
 		] |> Dict for graph in graphs
 ]
 
 # Get MTK system corresponding with node
-function getMTKsystem(node, module_coupling, module_defaults, model_defaults, default_params, default_u0s)
+function getMTKsystem(node, module_coupling, module_defaults, default_params, default_u0s)
 	structmodule = PlantModules.structmod(node)
 	func_modules = [coupling.first for coupling in module_coupling if structmodule in coupling.second]
 
 	component_systems = Vector{ODESystem}(undef, length(func_modules))
 
 	for (modulenum, func_module) in enumerate(func_modules)
-		nodeparams = getnodeparams(node, structmodule, func_module, module_defaults, model_defaults, default_params)
-		nodeu0s = getnodeu0s(node, structmodule, func_module, module_defaults, model_defaults, default_u0s)
+		nodeparams = getnodeparams(node, structmodule, func_module, module_defaults, default_params)
+		nodeu0s = getnodeu0s(node, structmodule, func_module, module_defaults, default_u0s)
 
 		component_systems[modulenum] = func_module(; :name => :foo,
 			Pair.(keys(nodeparams), values(nodeparams))..., Pair.(keys(nodeu0s), values(nodeu0s))...)
@@ -74,7 +74,7 @@ function getMTKsystem(node, module_coupling, module_defaults, model_defaults, de
 end
 
 # get correct parameter values for node between those defined in the model defaults, module defaults and node values
-function getnodeparams(node, structmodule, func_module, module_defaults, model_defaults, default_params)
+function getnodeparams(node, structmodule, func_module, module_defaults, default_params)
 	if !haskey(default_params, Symbol(func_module))
 		return Dict() # no parameters specified in default_params => functional module has no parameters
 	end
@@ -91,8 +91,6 @@ function getnodeparams(node, structmodule, func_module, module_defaults, model_d
 			params[paramname] = node_attributes[paramname]
 		elseif paramname in keys(nodemoduledefaults) # Change to module-wide defaults
 			params[paramname] = nodemoduledefaults[paramname]
-		elseif paramname in keys(model_defaults) # Change to model-wide defaults
-			params[paramname] = model_defaults[paramname]
 		end
 	end
 
@@ -100,7 +98,7 @@ function getnodeparams(node, structmodule, func_module, module_defaults, model_d
 end
 
 # get correct inital variable values for node between those defined in the model defaults, module defaults and node values
-function getnodeu0s(node, structmodule, func_module, module_defaults, model_defaults, default_u0s)
+function getnodeu0s(node, structmodule, func_module, module_defaults, default_u0s)
 	if !haskey(default_u0s, Symbol(func_module))
 		return Dict() # no u0s specified in default_u0s => functional module has no u0s
 	end
@@ -117,8 +115,6 @@ function getnodeu0s(node, structmodule, func_module, module_defaults, model_defa
 			u0s[u0name] = node_attributes[u0name]
 		elseif u0name in keys(nodemoduledefaults) # Change to module-wide defaults
 			u0s[u0name] = nodemoduledefaults[u0name]
-		elseif u0name in keys(model_defaults) # Change to model-wide defaults
-			u0s[u0name] = model_defaults[u0name]
 		end
 	end
 

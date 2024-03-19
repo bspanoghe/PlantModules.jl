@@ -1,6 +1,6 @@
 module PlantModules
 
-export generate_system, plotgraph, plotnode
+export generate_system, alter_defaults, plotgraph, plotnode
 
 using ModelingToolkit
 import ModelingToolkit: get_eqs, get_systems, get_unknowns, get_defaults, get_name, get_iv
@@ -14,5 +14,6 @@ include("generate_system.jl")
 include("shapes.jl")
 include("func_modules.jl")
 include("plotting.jl")
+include("userfriendliness.jl")
 
 end # module
