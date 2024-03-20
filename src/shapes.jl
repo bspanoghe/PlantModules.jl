@@ -18,14 +18,14 @@ A spherical compartment shape, defined by a single dimension: the radius.
 - `ϵ_D`: A one-dimensional vector containing the dimensional elastic modulus along the radius.
 - `ϕ_D`: A one-dimensional vector containing the dimensional extensibility along the radius.
 """
-struct Sphere<:Shape
-    ϵ_D::Vector
-    ϕ_D::Vector
+struct Sphere{T}<:Shape
+    ϵ_D::T
+    ϕ_D::T
     function Sphere(; ϵ_D::Vector, ϕ_D::Vector)
-        length(ϵ_D) != 1 && error("An array of length $(length(ϵ_D)) was given for ϵ_D while length 1 was expected.")
-        length(ϕ_D) != 1 && error("An array of length $(length(ϕ_D)) was given for ϕ_D while length 1 was expected.")
+        length(ϵ_D) != 1 && error("An array of length $(length(ϵ_D)) was given for ϵ_D while length 1 was expected for shape Sphere.")
+        length(ϕ_D) != 1 && error("An array of length $(length(ϕ_D)) was given for ϕ_D while length 1 was expected for shape Sphere.")
 
-        return new(ϵ_D, ϕ_D)
+        return new{typeof(ϵ_D)}(ϵ_D, ϕ_D)
     end
 end
 
@@ -38,14 +38,14 @@ A cilindrical compartment shape, defined by two dimensions: the radius and the l
 - `ϵ_D`: A two-dimensional vector containing the dimensional elastic modulus along the radius and the length.
 - `ϕ_D`: A two-dimensional vector containing the dimensional extensibility along the radius and the length.
 """
-struct Cilinder<:Shape
-    ϵ_D::Vector
-    ϕ_D::Vector
+struct Cilinder{T}<:Shape
+    ϵ_D::T
+    ϕ_D::T
     function Cilinder(; ϵ_D::Vector, ϕ_D::Vector)
-        length(ϵ_D) != 2 && error("An array of length $(length(ϵ_D)) was given for ϵ_D while length 2 was expected.")
-        length(ϕ_D) != 2 && error("An array of length $(length(ϕ_D)) was given for ϕ_D while length 2 was expected.")
+        length(ϵ_D) != 2 && error("An array of length $(length(ϵ_D)) was given for ϵ_D while length 2 was expected for shape Cilinder.")
+        length(ϕ_D) != 2 && error("An array of length $(length(ϕ_D)) was given for ϕ_D while length 2 was expected for shape Cilinder.")
 
-        return new(ϵ_D, ϕ_D)
+        return new{typeof(ϵ_D)}(ϵ_D, ϕ_D)
     end
 end
 
@@ -58,14 +58,14 @@ A cuboidal compartment shape, defined by three dimensions: the length, the width
 - `ϵ_D`: A three-dimensional vector containing the dimensional elastic modulus along the length, the width and the height.
 - `ϕ_D`: A three-dimensional vector containing the dimensional extensibility along the length, the width and the height.
 """
-struct Cuboid<:Shape
-    ϵ_D::Vector #! replace by tuple?
-    ϕ_D::Vector
+struct Cuboid{T}<:Shape
+    ϵ_D::T
+    ϕ_D::T
     function Cuboid(; ϵ_D::Vector, ϕ_D::Vector)
-        length(ϵ_D) != 3 && error("An array of length $(length(ϵ_D)) was given for ϵ_D while length 3 was expected.")
-        length(ϕ_D) != 3 && error("An array of length $(length(ϕ_D)) was given for ϕ_D while length 3 was expected.")
+        length(ϵ_D) != 3 && error("An array of length $(length(ϵ_D)) was given for ϵ_D while length 3 was expected for shape Cuboid.")
+        length(ϕ_D) != 3 && error("An array of length $(length(ϕ_D)) was given for ϕ_D while length 3 was expected for shape Cuboid.")
 
-        return new(ϵ_D, ϕ_D)
+        return new{typeof(ϵ_D)}(ϵ_D, ϕ_D)
     end
 end
 

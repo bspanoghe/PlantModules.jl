@@ -63,7 +63,7 @@ end
 Base.@kwdef mutable struct Cave <: Node end
 
 default_params = (
-    lotka_volterra = (α = 1.5, β = 2.0, δ = 1.5, γ = 0.8),
+    lotka_volterra = (α = 1.5, β = 1.9, δ = 1.5, γ = 0.8),
     fountain_of_rabbits = (η = 10,),
     wandering_animals = (κ = 0.01,)
 )
@@ -72,7 +72,6 @@ default_u0s = (
     fountain_of_rabbits = (N = 1, P = 0),
     wandering_animals = ()
 )
-model_defaults = (β = 1.9)
 module_defaults = (
     Grassland = (β = 0.1,),
     Forest = (δ = 2.3,),
@@ -117,11 +116,11 @@ node1, node2, node3, node4 = collect(values(graph.nodes))
 ## getMTKsystem
 node1, node2, node3, node4 = collect(values(graph.nodes))
 
-sys1 = PlantModules.getMTKsystem(node1, module_coupling, module_defaults, model_defaults, default_params, default_u0s)
+sys1 = PlantModules.getMTKsystem(node1, module_coupling, module_defaults, default_params, default_u0s)
 @test get_name(sys1) == Symbol(string(PlantModules.structmod(node1)) * string(PlantModules.id(node1)))
 
 ## get_MTK_system_dicts
-MTK_system_dicts = PlantModules.get_MTK_system_dicts(graphs, module_coupling, module_defaults, model_defaults, default_params, default_u0s)
+MTK_system_dicts = PlantModules.get_MTK_system_dicts(graphs, module_coupling, module_defaults, default_params, default_u0s)
 @test length(MTK_system_dicts) == 2
 @test length(MTK_system_dicts[1]) == 4
 @test length(MTK_system_dicts[2]) == 3
@@ -135,26 +134,25 @@ nb_nodes, nb_node_graphnrs = PlantModules.get_nb_nodes(node, graphs, graphnr, in
 ## get_connection_info
 node = node4
 graphnr = 1
-PlantModules.get_connection_info(node, graphnr, nb_nodes, nb_node_graphnrs, connecting_modules, get_connection_eqs, default_params, default_u0s, MTK_system_dicts)
-#! test
+connection_MTKs, connection_equations = PlantModules.get_connection_info(node, graphnr, nb_nodes, nb_node_graphnrs, connecting_modules, get_connection_eqs, default_params, default_u0s, MTK_system_dicts)
+@test connection_MTKs isa Vector{ODESystem}
+@test connection_equations isa Vector{Equation}
 
 ## getnodeu0s
 node = node4
 structmodule = :Forest
 func_module = lotka_volterra
-nodeu0s = PlantModules.getnodeu0s(node, structmodule, func_module, module_defaults, model_defaults, default_u0s)
+nodeu0s = PlantModules.getnodeu0s(node, structmodule, func_module, module_defaults, default_u0s)
 @test issetequal(nodeu0s, [:P => 0, :N => 5])
 
 node = PlantModules.nodes(graph2)[1]
 structmodule = :Cave
 func_module = fountain_of_rabbits
-nodeu0s = PlantModules.getnodeu0s(node, structmodule, func_module, module_defaults, model_defaults, default_u0s)
+nodeu0s = PlantModules.getnodeu0s(node, structmodule, func_module, module_defaults, default_u0s)
 @test issetequal(nodeu0s, [:P => 0, :N => 1])
 
 ## generate_system
-sys = PlantModules.generate_system(model_defaults, module_defaults, module_coupling, struct_connections, func_connections,
-    default_params = default_params, default_u0s = default_u0s
-)
+sys = PlantModules.generate_system(default_params, default_u0s, module_defaults, module_coupling, struct_connections, func_connections)
 
 sys_simpl = structural_simplify(sys);
 

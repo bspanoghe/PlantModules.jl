@@ -1,20 +1,20 @@
 """
-	generate_system(module_defaults,	module_coupling,
-	struct_connections, func_connections; checkunits = true)
+	generate_system(default_params::NamedTuple, default_u0s::NamedTuple, module_defaults::NamedTuple,
+		module_coupling::Vector, struct_connections::Vector, func_connections::Vector; checkunits::Bool)
 
 Creates a MTK system based on a set of structural and functional modules and how those are connected.
 
 # Arguments
 - `default_params`: Model-wide default parameter values.
 - `default_u0s`: Model-wide default initial values.
-- `module_defaults`: Module-specific default parameters.
+- `module_defaults`: Module-specific default values of both parameters and initial values.
 - `module_coupling`: Coupling between functional and structural modules.
 - `struct_connections`: One or more graphs specifying how the structural modules are connected, alongside the connections between graphs.
 - `func_connections`: Additional functional information about the connections between structural modules.
 - `checkunits`: Should the model check the units of the given equations? Defaults to `true`.
 """
-function generate_system(default_params, default_u0s, module_defaults,
-	module_coupling, struct_connections, func_connections; checkunits = true
+function generate_system(default_params::NamedTuple, default_u0s::NamedTuple, module_defaults::NamedTuple,
+	module_coupling::Vector, struct_connections::Vector, func_connections::Vector; checkunits::Bool = true
 	)
 
 	graphs, intergraph_connections = struct_connections

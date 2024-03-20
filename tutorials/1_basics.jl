@@ -11,7 +11,7 @@ using Pkg; Pkg.activate(".")
 using PlantModules
 
 # ╔═╡ 65f88593-1180-447a-900f-49aef4647cd1
-using PlantGraphs, ModelingToolkit, DifferentialEquations, Plots, Unitful
+using PlantGraphs, ModelingToolkit, DifferentialEquations, Plots
 
 # ╔═╡ 56c3527f-d8df-4f5c-9075-77c34d5c7204
 md"""
@@ -43,6 +43,16 @@ Our recently sprouted pepper seedlings are growing on the windowsill indoors. We
 ![plantfigu](https://www.almanac.com/sites/default/files/users/The%20Editors/pepper-seedlings_full_width.jpg)
 """
 #! replace picture with something royalty free. a drawing?
+
+# ╔═╡ bc44fae7-6c4a-4f27-be51-dbabf4037601
+md"""
+### Loading the necessary packages
+
+Before we can get started, we need to do some basic setup: activating our project and loading in the required packages.
+"""
+
+# ╔═╡ c2970976-cd1d-4e89-9df2-83932f934f2d
+import GLMakie.draw
 
 # ╔═╡ aa3b75e4-1868-4c84-8dc8-f9b54d560b3a
 md"""
@@ -83,17 +93,9 @@ md"""
 PlantModules uses **graphs** to define the relationships between modules. As such, structural modules need to be implemented as graph nodes of some sort. We'll be using the graph implementation from [the PlantGraphs](https://virtualplantlab.com/stable/manual/Graphs/) package for this tutorial, though [any graph implementation can be used](nothinghere).
 """
 
-# ╔═╡ e232199f-ee2f-4294-8762-f41b37883d26
-md"""
-As any good package tutorial, we start by loading in the required packages.
-"""
-
-# ╔═╡ 018463a2-c562-44d7-892e-b90dad29081e
-import GLMakie.draw
-
 # ╔═╡ 0cc02e82-4fe8-4f27-a2d2-eb4bfba6b291
 md"""
-Then we can define the functional modules of our plant. For our example, there are only three.
+Then we can define the structural modules of our plant. For our example, we will define three structural modules on the organ scale of the plant.
 """
 
 # ╔═╡ e920f6aa-4c7b-4fd1-9dca-d9e3d4155ec2
@@ -180,15 +182,26 @@ PlantModules.default_u0s |> print # Initial values
 
 # ╔═╡ fbe00b62-6ca7-4c90-9050-081312911c74
 md"""
-Now imagine we have some data on our plant in question and it calls for different default values. This is done by specifying the name of the parameter or variable together with its desired value as a NamedTuple:
+Now imagine we have some data on our plant in question and it calls for different default values. We could manually rewrite the defaults from scratch, but using the `alter_defaults` function is a lot faster: 
 """
 
 # ╔═╡ 271d48a7-7022-4766-83d9-a70fab92515e
-model_defaults = (Γ = 0.4, P = 0.2, T = 293.15) # will be changed to function giving altered version of default_params / default_u0s
+default_changes = (Γ = 0.4, P = 0.2, T = 293.15)
+
+# ╔═╡ 2c516ca9-e169-43aa-b41b-b5f91ee80588
+default_params, default_u0s = alter_defaults(default_changes)
+
+# ╔═╡ e60a5281-18ce-4e88-b76b-b8279af7dc65
+md"""
+This changes the parameter- and initial values to the specified new value in every functional module:
+"""
+
+# ╔═╡ 8f5b2fb2-7409-4a25-b74f-bcfb247ae647
+default_params |> print
 
 # ╔═╡ 3c13c600-5135-44ea-8fc2-a1e11f72d0c5
 md"""
-Some of the information we have requires different default values specifically for certain structural modules. We can specify this as shown below.
+Next to changing functional values over the entire model, some of the information we have may require different default values specifically for certain structural modules. We can specify this as shown below.
 """
 
 # ╔═╡ 5f21a4b0-f663-4777-94f3-d00acba109b3
@@ -200,6 +213,11 @@ module_defaults = (
 	Air = ()
 )
 
+# ╔═╡ e0e5e7f7-d2f5-404b-a6c6-6848c318eccb
+md"""
+As you can see, we changed the default $shape$ between the root, stem and leaf modules, as well as their initial dimensions $D$ and metabolite concentration $M$. For our soil module, we changed the maximum water content and temperature. For a detailed explanation of the parameters and initial values here, we again refer to the [theoretical overview](nothinghere).
+"""
+
 # ╔═╡ 930e7ed8-0bfe-4e5a-8890-a1d1ce155881
 md"""
 ### Coupling functional and structural modules
@@ -207,11 +225,11 @@ md"""
 
 # ╔═╡ 4cedbd9d-84ed-46f3-9a10-6cb993643f87
 md"""
-Our model needs to know which structural modules make use of which functional modules. As perhaps the simplest part of our modeling workflow, we can define this using a Vector of Pairs.
+Our model needs to know which structural modules make use of which functional modules. As perhaps the simplest part of our modeling workflow, we can define this using a `Vector` of `Pairs`.
 """
 
 # ╔═╡ d54705b3-d8f4-4cc2-a780-369343749113
-module_coupling = [ #! switch around?
+module_coupling = [
 	PlantModules.hydraulic_module => [:Root, :Stem, :Leaf],
 	PlantModules.constant_carbon_module => [:Root, :Stem, :Leaf],
 	PlantModules.environmental_module => [:Soil, :Air],
@@ -337,7 +355,7 @@ Now that we have all parts of our model defined, all that's left to do is puttin
 """
 
 # ╔═╡ a3c5dba8-8acc-424a-87bc-d1c6a263578c
-system = PlantModules.generate_system(model_defaults, module_defaults, module_coupling, struct_connections, func_connections);
+system = PlantModules.generate_system(default_params, default_u0s, module_defaults, module_coupling, struct_connections, func_connections);
 
 # ╔═╡ d51795b2-32d3-455c-b785-5e501cfbdd08
 md"""
@@ -393,16 +411,16 @@ md"""
 # ╟─56c3527f-d8df-4f5c-9075-77c34d5c7204
 # ╟─6ab177fd-ed5b-4ae4-a2b5-f7f4eb8e4d0d
 # ╟─1144887a-a4c7-46f6-9cf8-cba50cf873d0
+# ╟─bc44fae7-6c4a-4f27-be51-dbabf4037601
+# ╠═57b8dcb8-9baa-4ddf-9368-431b1be5850e
+# ╠═662c0476-70aa-4a60-a81c-d7db2248b728
+# ╠═65f88593-1180-447a-900f-49aef4647cd1
+# ╠═c2970976-cd1d-4e89-9df2-83932f934f2d
 # ╟─aa3b75e4-1868-4c84-8dc8-f9b54d560b3a
 # ╟─6ef5c63a-b753-43ae-baee-f6c24313a385
 # ╟─b6eb66b5-a2d7-4baf-b6a6-87e819309a2d
 # ╟─aec7bcd6-6f27-4cf5-a955-f4d59e778fd3
 # ╟─659e911c-8af2-4a66-855a-e333c41120c1
-# ╟─e232199f-ee2f-4294-8762-f41b37883d26
-# ╠═57b8dcb8-9baa-4ddf-9368-431b1be5850e
-# ╠═662c0476-70aa-4a60-a81c-d7db2248b728
-# ╠═65f88593-1180-447a-900f-49aef4647cd1
-# ╠═018463a2-c562-44d7-892e-b90dad29081e
 # ╟─0cc02e82-4fe8-4f27-a2d2-eb4bfba6b291
 # ╠═e920f6aa-4c7b-4fd1-9dca-d9e3d4155ec2
 # ╠═6b7ebc68-f4a1-4ed6-b12b-e4ac5ee9b00a
@@ -413,7 +431,7 @@ md"""
 # ╠═dac02191-b640-40f5-a7d6-e6b06b946c23
 # ╟─43211f69-6bfe-4fd1-b474-65d0601558de
 # ╟─c04564c4-4fb5-47bf-bc14-77aaebdece15
-# ╟─1e2eaa86-d6e0-4749-bc92-04c64fe9f47d
+# ╠═1e2eaa86-d6e0-4749-bc92-04c64fe9f47d
 # ╟─4d17b269-06b8-4293-b2cb-b6bd9fa0ccc8
 # ╟─3035b6d0-bca0-4803-b32a-da1459bdd880
 # ╟─df4cd3de-d2b2-4f11-b755-a36e640fd2d5
@@ -421,8 +439,12 @@ md"""
 # ╠═ae8b0cb6-6f0f-4c18-b05f-01aec542037c
 # ╟─fbe00b62-6ca7-4c90-9050-081312911c74
 # ╠═271d48a7-7022-4766-83d9-a70fab92515e
+# ╠═2c516ca9-e169-43aa-b41b-b5f91ee80588
+# ╟─e60a5281-18ce-4e88-b76b-b8279af7dc65
+# ╠═8f5b2fb2-7409-4a25-b74f-bcfb247ae647
 # ╟─3c13c600-5135-44ea-8fc2-a1e11f72d0c5
 # ╠═5f21a4b0-f663-4777-94f3-d00acba109b3
+# ╟─e0e5e7f7-d2f5-404b-a6c6-6848c318eccb
 # ╟─930e7ed8-0bfe-4e5a-8890-a1d1ce155881
 # ╟─4cedbd9d-84ed-46f3-9a10-6cb993643f87
 # ╠═d54705b3-d8f4-4cc2-a780-369343749113

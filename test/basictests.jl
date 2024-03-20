@@ -33,28 +33,33 @@ func_module = qux
 structmodule = :Foo
 func_connections = [() => snoo]
 module_coupling = [qux => [:Foo]]
-default_params = (qux = (bar = 100, baz = 100, quux = 100, corge = 100), snoo = (snee = 100,))
+default_params = (qux = (bar = 100, baz = 42, quux = 42, corge = 100), snoo = (snee = 100,))
 default_u0s = (qux = (xyzzy = 100,),)
-model_defaults = (baz = 42, quux = 42)
 module_defaults = (Foo = (baz = 10, xyzzy = 10),)
 
+## alter_defaults
+
+default_changes = (baz = 100, quux = 100, xyzzy = 500)
+altered_params, altered_u0s = alter_defaults(default_changes, default_params = default_params, default_u0s = default_u0s)
+@test altered_params == (qux = (bar = 100, baz = 100, quux = 100, corge = 100), snoo = (snee = 100,))
+@test altered_u0s == (qux = (xyzzy = 500,),)
 
 ## getnodeparams
 
 node = Foo(1)
 
-@test PlantModules.getnodeparams(node, structmodule, func_module, module_defaults, model_defaults, default_params) ==
+@test PlantModules.getnodeparams(node, structmodule, func_module, module_defaults, default_params) ==
     Dict([:bar => 1, :baz => 10, :quux => 42, :corge => 100])
 
 ## getnodeu0s
 
-@test PlantModules.getnodeu0s(node, structmodule, func_module, module_defaults, model_defaults, default_u0s) ==
+@test PlantModules.getnodeu0s(node, structmodule, func_module, module_defaults, default_u0s) ==
     Dict([:xyzzy => 10])
 
 ## getMTKsystem
 
 node = Foo(1)
-testsystem = PlantModules.getMTKsystem(node, module_coupling, module_defaults, model_defaults, default_params, default_u0s)
+testsystem = PlantModules.getMTKsystem(node, module_coupling, module_defaults, default_params, default_u0s)
 @test get_name(testsystem) == :(Foo1)
 @test sort(Symbol.(keys(get_defaults(testsystem)))) == sort(collect(keys(Dict([:bar => 1, :baz => 10, :quux => 42, :corge => 100, Symbol("xyzzy(t)") => 10]))))
 @test sort(collect(values(get_defaults(testsystem)))) == sort(collect(values(Dict([:bar => 1, :baz => 10, :quux => 42, :corge => 100, Symbol("xyzzy(t)") => 10]))))

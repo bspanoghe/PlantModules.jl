@@ -1771,7 +1771,7 @@ uuid = "615ad455-9aac-4340-9247-71ef610f781a"
 version = "0.0.2"
 
 [[deps.PlantModules]]
-deps = ["BenchmarkTools", "DifferentialEquations", "ModelingToolkit", "PlantGraphs", "Plots", "Unitful"]
+deps = ["BenchmarkTools", "DifferentialEquations", "ModelingToolkit", "PlantGraphs", "Plots", "Test", "Unitful"]
 path = ".."
 uuid = "c420d4a8-207b-40ca-9fc4-c574d258dc7a"
 version = "0.1.0"
