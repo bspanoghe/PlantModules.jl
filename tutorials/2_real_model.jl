@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.19.36
+# v0.19.40
 
 using Markdown
 using InteractiveUtils
@@ -195,6 +195,9 @@ C_leaf = 3 # And here!
 # ╔═╡ 68fbfd88-b1a6-4d52-aee4-37e76b191fe4
 Ψ_soil_func(W_r) = -(1/(100*W_r) + 1) * exp((39.8 - 100*W_r) / 19) # An empirical relationship between the soil water potential and relative water content
 
+# ╔═╡ b69ee1cb-6506-4152-9ef0-b02a43a90990
+Ψ_air_func(T, W_r) = R * T / V_w * log(W_r) #! What's this equation called again? (Ask Jeroen)
+
 # ╔═╡ 10ac5d18-8527-4bb8-aa5d-0da752c9a808
 md"""
 The function for the air water potential uses two constants not yet described in the system: the ideal gas constant *R* and the molar volume of water *V_w*. We will define these in the global scope using the standard ModelingToolkit.jl syntax. 
@@ -202,9 +205,6 @@ The function for the air water potential uses two constants not yet described in
 
 # ╔═╡ 137a367e-7b0e-4ef2-8068-628158f3a45d
 @constants R = 8.314 V_w = 18e-6
-
-# ╔═╡ b69ee1cb-6506-4152-9ef0-b02a43a90990
-Ψ_air_func(T, W_r) = R * T / V_w * log(W_r) #! What's this equation called again? (Ask Jeroen)
 
 # ╔═╡ 4d17b269-06b8-4293-b2cb-b6bd9fa0ccc8
 md"""

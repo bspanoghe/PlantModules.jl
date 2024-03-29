@@ -14,6 +14,6 @@ include("generate_system.jl")
 include("shapes.jl")
 include("func_modules.jl")
 include("plotting.jl")
-include("userfriendliness.jl")
+include("qualityoflife.jl")
 
 end # module

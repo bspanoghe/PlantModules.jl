@@ -306,3 +306,28 @@ default_u0s = (
     hydraulic_connection = (
     )
 )
+
+
+
+
+
+
+
+
+
+
+function constant_carbon_module(; name, M, shape::Shape, D)
+    @parameters ( #! change input to M and calculate corresponding M_amount?
+        M_amount = M * PlantModules.volume(shape, D), [description = "Amount of osmotically active metabolite content", unit = u"mol"],
+    )
+
+    @variables (
+        M(t), [description = "Osmotically active metabolite content", unit = u"mol / m^3"], # m^3 so units match in second equation (Pa = J/m^3) #! extend validation function so L is ok?
+        V(t), [description = "Volume of compartment", unit = u"m^3"],
+    )
+
+    eqs = [
+        M ~ M_amount/V
+    ]
+    return ODESystem(eqs, t; name)
+end

@@ -69,7 +69,7 @@ struct Cuboid{T}<:Shape
     end
 end
 
-volume(s::Shape, D::AbstractArray) = error("Function volume is not defined for shape $s")
+volume(s::Shape, ::AbstractArray) = error("Function volume is not defined for shape $s")
 volume(::Sphere, D::AbstractArray) = 4/3 * pi * D[1]^3 # Write dimensions in the order: radius
 volume(::Cilinder, D::AbstractArray) = D[1]^2 * pi * D[2] # Write dimensions in the order: radius - length
 volume(::Cuboid, D::AbstractArray) = D[1] * D[2] * D[3] # Write dimensions in the order: length - width - height

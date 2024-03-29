@@ -1,5 +1,8 @@
 #! Add Plots kwargs and maybe add RecipesBase.jl (get rid of Plots dependency)?
 
+# Get the symbol representation of a MTK unknown (variable)
+get_MTKunknown_symbol(s::SymbolicUtils.Symbolic) = s.metadata[ModelingToolkit.VariableSource][2]
+
 function getnodesystem(sol::ODESolution, node)
     system = getfield(sol.prob.f, :sys)
     nodename = string(PlantModules.structmod(node)) * string(PlantModules.id(node))
@@ -59,7 +62,7 @@ function plotnode(sol::ODESolution, node; func_varname::Symbol = Symbol(""))
     nodesystem = getnodesystem(sol, node)
 
     if func_varname == Symbol("") # No functional variable name given => show all
-        func_varnames = [unknown.metadata[ModelingToolkit.VariableSource][2] for unknown in get_unknowns(nodesystem)] |> unique
+        func_varnames = [get_MTKunknown_symbol(unknown) for unknown in get_unknowns(nodesystem)] |> unique
 
         plots = [getplot(sol, nodesystem, func_varname) for func_varname in func_varnames]
         return plots
@@ -79,7 +82,7 @@ function plotgraph(sol::ODESolution, graph; struct_module::Symbol = Symbol(""), 
     if struct_module == Symbol("") && func_varname == Symbol("") # Ya get nothin'
         struct_modules = PlantModules.nodes(graph) .|> PlantModules.structmod |> unique
         nodesystems_by_structmod = [getnodesystems(sol, graph, struct_module) for struct_module in struct_modules]
-        func_varnames = [[unknown.metadata[ModelingToolkit.VariableSource][2] for unknown in get_unknowns(nodesystems[1])]
+        func_varnames = [[get_MTKunknown_symbol(unknown) for unknown in get_unknowns(nodesystems[1])]
             for nodesystems in nodesystems_by_structmod
         ]  |> x -> reduce(vcat, x) |> unique
         nodesystems = reduce(vcat, nodesystems_by_structmod)
@@ -89,7 +92,7 @@ function plotgraph(sol::ODESolution, graph; struct_module::Symbol = Symbol(""), 
         for func_varname in func_varnames
             myplot = Plots.plot();
             for nodesystem in nodesystems #! oh the inefficiency
-                if func_varname in [unknown.metadata[ModelingToolkit.VariableSource][2] for unknown in get_unknowns(nodesystem)]
+                if func_varname in [get_MTKunknown_symbol(unknown) for unknown in get_unknowns(nodesystem)]
                     getplot!(sol, nodesystem, func_varname);
                 end
             end
@@ -100,7 +103,7 @@ function plotgraph(sol::ODESolution, graph; struct_module::Symbol = Symbol(""), 
     elseif func_varname == Symbol("") # Only structural module provided
         nodesystems = getnodesystems(sol, graph, struct_module)
 
-        func_varnames = [unknown.metadata[ModelingToolkit.VariableSource][2] for unknown in get_unknowns(nodesystems[1])] |> unique
+        func_varnames = [get_MTKunknown_symbol(unknown) for unknown in get_unknowns(nodesystems[1])] |> unique
     
         plots = []
         for func_varname in func_varnames
@@ -116,14 +119,18 @@ function plotgraph(sol::ODESolution, graph; struct_module::Symbol = Symbol(""), 
         nodesystems = [getnodesystems(sol, graph, struct_module) for struct_module in struct_modules] |> x -> reduce(vcat, x)
         myplot = Plots.plot();
         for nodesystem in nodesystems
-            getplot!(sol, nodesystem, func_varname);
+            if func_varname in get_MTKunknown_symbol.(get_unknowns(nodesystem))
+                getplot!(sol, nodesystem, func_varname);
+            end
         end
         return(myplot)
     else # Everything provided
         nodesystems = getnodesystems(sol, graph, struct_module)
         myplot = Plots.plot();
         for nodesystem in nodesystems
-            getplot!(sol, nodesystem, func_varname);
+            if func_varname in get_MTKunknown_symbol.(get_unknowns(nodesystem))
+                getplot!(sol, nodesystem, func_varname);
+            end
         end
         return(myplot)
     end
@@ -138,7 +145,7 @@ function plotgraph(sol::ODESolution, graphs::Vector; struct_module::Symbol = Sym
             append!(nodesystems_by_structmod, [getnodesystems(sol, graph, struct_module) for struct_module in struct_modules])
         end
 
-        func_varnames = [[unknown.metadata[ModelingToolkit.VariableSource][2] for unknown in get_unknowns(nodesystems[1])]
+        func_varnames = [[get_MTKunknown_symbol(unknown) for unknown in get_unknowns(nodesystems[1])]
             for nodesystems in nodesystems_by_structmod
         ]  |> x -> reduce(vcat, x) |> unique
         nodesystems = reduce(vcat, nodesystems_by_structmod)
@@ -147,7 +154,7 @@ function plotgraph(sol::ODESolution, graphs::Vector; struct_module::Symbol = Sym
         for func_varname in func_varnames
             myplot = Plots.plot();
             for nodesystem in nodesystems #! oh the inefficiency
-                if func_varname in [unknown.metadata[ModelingToolkit.VariableSource][2] for unknown in get_unknowns(nodesystem)]
+                if func_varname in [get_MTKunknown_symbol(unknown) for unknown in get_unknowns(nodesystem)]
                     getplot!(sol, nodesystem, func_varname);
                 end
             end
@@ -158,7 +165,7 @@ function plotgraph(sol::ODESolution, graphs::Vector; struct_module::Symbol = Sym
     elseif func_varname == Symbol("") # Only structural module provided
         nodesystems = [getnodesystems(sol, graph, struct_module) for graph in graphs] |> x -> reduce(vcat, x)
 
-        func_varnames = [unknown.metadata[ModelingToolkit.VariableSource][2] for unknown in get_unknowns(nodesystems[1])] |> unique
+        func_varnames = [get_MTKunknown_symbol(unknown) for unknown in get_unknowns(nodesystems[1])] |> unique
     
         plots = []
         for func_varname in func_varnames
@@ -178,14 +185,18 @@ function plotgraph(sol::ODESolution, graphs::Vector; struct_module::Symbol = Sym
 
         myplot = Plots.plot();
         for nodesystem in nodesystems
-            getplot!(sol, nodesystem, func_varname);
+            if func_varname in get_MTKunknown_symbol.(get_unknowns(nodesystem))
+                getplot!(sol, nodesystem, func_varname);
+            end
         end
         return(myplot)
     else # Everything provided
         nodesystems = [getnodesystems(sol, graph, struct_module) for graph in graphs] |> x -> reduce(vcat, x)
         myplot = Plots.plot();
         for nodesystem in nodesystems
-            getplot!(sol, nodesystem, func_varname);
+            if func_varname in get_MTKunknown_symbol.(get_unknowns(nodesystem))
+                getplot!(sol, nodesystem, func_varname);
+            end
         end
         return(myplot)
     end

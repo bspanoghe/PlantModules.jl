@@ -1,17 +1,15 @@
 using Pkg; Pkg.activate(".")
-include("../PlantModules.jl")
-using PlantGraphs, ModelingToolkit, DifferentialEquations, Unitful, Plots #! MTK imports etc. should not be necessary when package is done
-# import GLMakie.draw
-# using BenchmarkTools
-
-#! for testing
-function showme(x)
-	[println(xi) for xi in sort(collect(string.(x)))]
-	return nothing
-end
+using PlantModules
+using PlantGraphs, ModelingToolkit, DifferentialEquations, Unitful, Plots
 
 mutable struct Root <: Node end
-mutable struct Stem <: Node end
+
+mutable struct PNode <: Node end
+mutable struct Internode <: Node end
+mutable struct Meristem <: Node
+	G
+end
+
 mutable struct Leaf <: Node
 	D::Vector
 end
@@ -24,18 +22,13 @@ C_stem = 300 # Idem here
 C_leaf = 330 # And here!
 # loosely based on https://www.researchgate.net/figure/Total-soluble-sugar-content-in-the-leaf-a-and-root-tissues-b-of-Homjan-HJ_fig3_226164026
 
-PlantModules.default_params
-PlantModules.default_u0s
-
-default_changes = (Γ = 0.4, P = 0.2, T = 293.15)
-
-default_params, default_u0s = PlantModules.alter_defaults(default_changes)
-
 module_defaults = (
-	Root = (shape = PlantModules.Cuboid(ϵ_D = [5.0, 0.3, 0.2], ϕ_D = [0.7, 0.1, 0.05]), D = [0.3, 0.03, 0.01], M = C_root), #! changed C to M_const #! include check whether module_defaults variabkle names correspond with default_params / default_u0s ?
-	Stem = (shape = PlantModules.Cilinder(ϵ_D = [6.0, 0.15], ϕ_D = [0.8, 0.03]), D = [0.015, 0.1], M = C_stem),
+	Root = (shape = PlantModules.Cuboid(ϵ_D = [5.0, 0.3, 0.2], ϕ_D = [0.7, 0.1, 0.05]), D = [0.3, 0.03, 0.01], M = C_root),
+	Pnode = (), #! it just aint right
+    Internode = (shape = PlantModules.Cilinder(ϵ_D = [6.0, 0.15], ϕ_D = [0.8, 0.03]), D = [0.015, 0.1], M = C_stem),
+    Meristem = (),
 	Leaf = (shape = PlantModules.Sphere(ϵ_D = [3.0], ϕ_D = [0.45]), M = C_leaf),
-	Soil = (W_max = 500.0, T = 288.15),
+	Soil = (W_max = 2000.0, T = 288.15),
 	Air = ()
 )
 
@@ -47,11 +40,10 @@ module_coupling = [
 	PlantModules.Ψ_air_module => [:Air]
 ]
 
-if !isdefined(Main, :plant_graph) # for debugging mostly
-	plant_graph = Root() + Stem() + (Leaf([0.02]), Leaf([0.025]))
-end
-
-# draw(plant_graph, resolution = (500, 400))
+axiom = PNode() + Internode() + Meristem(10)
+growth_rule = Rule(Meristem, rhs = meristem -> PNode() + Meristem(0.1 * graph_data(meristem).G) + Leaf() + (Internode() + Meristem(0.9 * graph_data(meristem).G)))
+plant_graph = Graph(axiom = axiom, rules = (growth_rule,))
+rewrite!(plant_graph)
 
 soil_graph = Soil()
 air_graph = Air()

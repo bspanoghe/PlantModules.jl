@@ -53,20 +53,15 @@ end
 """
     constant_carbon_module(; name, C)
 
-Returns a ModelingToolkit ODESystem describing a constant amount of osmotically active metabolite content.
+Returns a ModelingToolkit ODESystem describing a constant concentration of osmotically active metabolite content.
 """
-function constant_carbon_module(; name, M, shape::Shape, D)
-    @parameters ( #! change input to M and calculate corresponding M_amount?
-        M_amount = M * PlantModules.volume(shape, D), [description = "Amount of osmotically active metabolite content", unit = u"mol"],
-    )
-
+function constant_carbon_module(; name, M)
     @variables (
-        M(t), [description = "Osmotically active metabolite content", unit = u"mol / m^3"], # m^3 so units match in second equation (Pa = J/m^3) #! extend validation function so L is ok?
-        V(t), [description = "Volume of compartment", unit = u"m^3"],
+        M(t) = M, [description = "Osmotically active metabolite content", unit = u"mol / m^3"], # m^3 so units match in second equation (Pa = J/m^3) #! extend validation function so L is ok?
     )
 
     eqs = [
-        M ~ M_amount/V
+        d(M) ~ 0
     ]
     return ODESystem(eqs, t; name)
 end
@@ -200,7 +195,6 @@ default_params = (
         T = 298.15, shape = Sphere(ϵ_D = [1.0], ϕ_D = [1.0]), Γ = 0.3
     ),
     constant_carbon_module = (
-        shape = Sphere(ϵ_D = [1.0], ϕ_D = [1.0]),
     ),
     environmental_module = (
         T = 298.15, W_max = 1e6
@@ -220,7 +214,7 @@ default_u0s = (
         P = 0.1, D = [0.15],
     ),
     constant_carbon_module = (
-        M = 25, D = [0.15]
+        M = 25,
     ),
     environmental_module = (
         W_r = 0.8,
