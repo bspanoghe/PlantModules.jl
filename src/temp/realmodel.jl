@@ -1,21 +1,51 @@
 using Pkg; Pkg.activate(".")
 using PlantModules
 using PlantGraphs, ModelingToolkit, DifferentialEquations, Unitful, Plots
+import GLMakie.draw
 
-mutable struct Root <: Node end
+# Creating plant #
 
-mutable struct PNode <: Node end
-mutable struct Internode <: Node end
+mutable struct Root <: Node 
+	D::Vector
+end
+
+mutable struct PNode <: Node
+end
+mutable struct Internode <: Node
+	D::Vector
+end
 mutable struct Meristem <: Node
 	G
 end
-
 mutable struct Leaf <: Node
 	D::Vector
 end
 
 struct Soil <: Node end
 struct Air <: Node end
+
+## parameters
+branching_prob = 0.1
+G_th = 5
+G0 = 10
+rootsize0 = [0.05, 0.5]
+internodesize0 = [0.05, 0.5]
+leafsize0 = [0.5, 0.2, 0.01]
+
+## rules
+
+shoot_rule = Rule(Meristem, lhs = meristem -> rand() < data(meristem).G, rhs = meristem -> PNode() + (Meristem(branching_prob) + Leaf(leafsize0), Internode(internodesize0) + Meristem(1)))
+# root_rule = Rule(Meristem, lhs = meristem -> rand() < data(meristem).G, rhs = meristem -> Root(rootsize0) + Meristem(branching_prob), Root(rootsize0) + Meristem(branching_prob), Root(rootsize0) + Meristem(branching_prob))
+
+## grow 'em
+axiom = PNode() + Internode(internodesize0) + Meristem(G0)
+
+plant_graph = Graph(axiom = axiom, rules = (shoot_rule,))
+[rewrite!(plant_graph) for _ in 1:10]
+draw(plant_graph)
+
+
+# E #
 
 C_root = 250 # (mol/m^3) We'll assume the soluble carbon content remains constant over the simulated time
 C_stem = 300 # Idem here
@@ -40,10 +70,7 @@ module_coupling = [
 	PlantModules.Ψ_air_module => [:Air]
 ]
 
-axiom = PNode() + Internode() + Meristem(10)
-growth_rule = Rule(Meristem, rhs = meristem -> PNode() + Meristem(0.1 * graph_data(meristem).G) + Leaf() + (Internode() + Meristem(0.9 * graph_data(meristem).G)))
-plant_graph = Graph(axiom = axiom, rules = (growth_rule,))
-rewrite!(plant_graph)
+
 
 soil_graph = Soil()
 air_graph = Air()
