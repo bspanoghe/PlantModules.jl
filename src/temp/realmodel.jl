@@ -1,6 +1,6 @@
 using Pkg; Pkg.activate(".")
-using PlantModules
-using PlantGraphs, ModelingToolkit, DifferentialEquations, Unitful, Plots
+include("../PlantModules.jl")
+using PlantGraphs, ModelingToolkit, DifferentialEquations, Unitful, Plots, MultiScaleTreeGraph
 import GLMakie.draw
 
 # Creating plant #

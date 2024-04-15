@@ -1,0 +1,1 @@
+exported from groIMPs beech model, see https://groimp.wordpress.com/fspm/
