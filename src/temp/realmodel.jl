@@ -5,6 +5,49 @@ import GLMakie.draw
 
 # Creating plant #
 
+lines = readlines("./src/temp/structures/beech.xeg")
+htmlmatch(element, line) = match(Regex("(?<=$(element)=\").+?(?=\")"), line).match
+
+newgraph = Dict{Int, Dict}()
+
+curr_id = 0
+
+for line in lines
+	line_element = split(line)[1]
+	if line_element == "<node"
+		id = htmlmatch("id", line) |> x -> parse(Int, x)
+		structmod = htmlmatch("type", line)
+
+		newgraph[id] = Dict(:nb => Int[], :at => Dict{Symbol, Any}(), :sm => structmod)
+		curr_id = id
+	elseif line_element == "<edge" 
+		id = htmlmatch("src_id", line) |> x -> parse(Int, x)
+		nb_id = htmlmatch("dest_id", line) |> x -> parse(Int, x)
+		push!(newgraph[id][:nb], nb_id)
+	elseif line_element == "<property" && occursin("value=", line)
+		name = htmlmatch("name", line)
+		val = htmlmatch("value", line)
+		if !isnothing(match(r"^[0-9]+$", val))
+			val = parse(Int, val)
+		elseif !isnothing(match(r"^-?[0-9]*\.[0-9]+(E-[0-9]+)?$", val))
+			val = parse(Float64, val)
+		end
+		newgraph[curr_id][:at][Symbol(name)] = val
+	end
+end
+
+nodes(graph::Dict) = collect(graph)
+neighbours(node::Pair, graph::Dict) = [graph[nbidx] for nbidx in node.second[:nb]]
+attributes(node::Pair) = node.second[:at]
+structmod(node::Pair) = node.second[:sm]
+id(node::Pair) = node.first
+
+newnode = nodes(newgraph)[11]
+neighbours(newnode, newgraph)
+attributes(newnode)
+structmod(newnode)
+id(newnode)
+
 mutable struct Root <: Node 
 	D::Vector
 end
