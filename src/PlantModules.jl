@@ -1,6 +1,6 @@
 module PlantModules
 
-export generate_system, alter_defaults, plotgraph, plotnode
+export generate_system, alter_defaults, plotgraph, plotnode, readXEG
 
 using ModelingToolkit
 import ModelingToolkit: get_eqs, get_systems, get_unknowns, get_defaults, get_name, get_iv
@@ -15,5 +15,6 @@ include("shapes.jl")
 include("func_modules.jl")
 include("plotting.jl")
 include("qualityoflife.jl")
+include("readgraphs.jl")
 
 end # module

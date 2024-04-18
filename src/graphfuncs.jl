@@ -33,6 +33,14 @@ Returns the id of the node as an `Int`.
 """
 id(node) = error("Function not yet defined for input type $(typeof(node)).")
 
+# Implementation for Base Julia representation as Dicts #
+
+nodes(graph::Dict) = collect(values(graph))
+neighbours(node::Dict, graph::Dict) = [graph[nbidx] for nbidx in node[:nb]]
+attributes(node::Dict) = node[:at]
+structmod(node::Dict) = node[:sm]
+id(node::Dict) = node[:id]
+
 # Implementation for PlantGraphs #
 
 nodes(graph::PlantGraphs.StaticGraph) = graph.nodes.vals

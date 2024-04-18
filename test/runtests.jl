@@ -9,3 +9,8 @@ module tests2
     import ModelingToolkit: get_eqs, get_systems, get_unknowns, get_defaults, get_name, get_iv
     @testset "Basic functionality and plotting" include("./lotka_volterra_tests.jl")
 end
+
+module tests3
+    using Test, PlantModules
+    @testset "Reading plant structure files" include("test_readgraphs.jl")
+end
