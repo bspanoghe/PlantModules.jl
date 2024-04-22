@@ -5,53 +5,31 @@ import GLMakie.draw
 
 # Creating plant #
 
-plant_graph = readXEG("./src/temp/structures/beech.xeg")
+plant_graph = readXEG("./src/temp/structures/test.xeg") #! change to beech
+mtg = convert_to_MTG(plant_graph)
 
-newnode = nodes(plant_graph)[11]
-neighbours(newnode, newgraph)
-attributes(newnode)
-structmod(newnode)
-id(newnode)
+DataFrame(mtg, [:diameter, :length, :width])
 
-mutable struct Root <: Node 
-	D::Vector
+function combine_dimensions(l, d, w)
+	if all(isnothing.([l, d, w]))
+		return nothing
+	elseif isnothing(w)
+		return [l, d]
+	else
+		return [l, w, 1.5e-4]
+	end
 end
 
-mutable struct PNode <: Node
+transform!(mtg, [:length, :diameter, :width] => combine_dimensions => :D)
+
+DataFrame(mtg, [:D])
+
+me_structmods = [PlantModules.structmod(node) for node in PlantModules.nodes(mtg)] |> unique
+
+for me_structmod in me_structmods
+	num_nodes = length([node for node in PlantModules.nodes(mtg) if PlantModules.structmod(node) == me_structmod])
+	println("There are $num_nodes nodes of type $me_structmod")
 end
-mutable struct Internode <: Node
-	D::Vector
-end
-mutable struct Meristem <: Node
-	G
-end
-mutable struct Leaf <: Node
-	D::Vector
-end
-
-struct Soil <: Node end
-struct Air <: Node end
-
-## parameters
-branching_prob = 0.1
-G_th = 5
-G0 = 10
-rootsize0 = [0.05, 0.5]
-internodesize0 = [0.05, 0.5]
-leafsize0 = [0.5, 0.2, 0.01]
-
-## rules
-
-shoot_rule = Rule(Meristem, lhs = meristem -> rand() < data(meristem).G, rhs = meristem -> PNode() + (Meristem(branching_prob) + Leaf(leafsize0), Internode(internodesize0) + Meristem(1)))
-# root_rule = Rule(Meristem, lhs = meristem -> rand() < data(meristem).G, rhs = meristem -> Root(rootsize0) + Meristem(branching_prob), Root(rootsize0) + Meristem(branching_prob), Root(rootsize0) + Meristem(branching_prob))
-
-## grow 'em
-axiom = PNode() + Internode(internodesize0) + Meristem(G0)
-
-plant_graph = Graph(axiom = axiom, rules = (shoot_rule,))
-[rewrite!(plant_graph) for _ in 1:10]
-draw(plant_graph)
-
 
 # E #
 
