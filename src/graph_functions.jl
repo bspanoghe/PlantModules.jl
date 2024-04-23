@@ -114,3 +114,7 @@ parent(node, graph) = error("Function not yet defined for input types $(typeof(n
 root(graph::Dict) = [node for node in nodes(graph) if node[:parent_id] == -1][1]
 children(node::Dict, graph::Dict) = [graph[child_id] for child_id in node[:child_ids]]
 parent(node::Dict, graph::Dict) = node[:parent_id] == -1 ? nothing : graph[node[:parent_id]]
+
+## Implementation for PlantGraphs.jl
+
+## Implementation for MultiScaleTreeGraph.jl

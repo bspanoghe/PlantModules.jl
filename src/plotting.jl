@@ -1,5 +1,7 @@
 #! Add Plots kwargs and maybe add RecipesBase.jl (get rid of Plots dependency)?
 
+# Plot MTK solutions #
+
 # Get the symbol representation of a MTK unknown (variable)
 get_MTKunknown_symbol(s::SymbolicUtils.Symbolic) = s.metadata[ModelingToolkit.VariableSource][2]
 
@@ -135,7 +137,6 @@ function plotgraph(sol::ODESolution, graph; struct_module::Symbol = Symbol(""), 
         return(myplot)
     end
 end
-
 
 function plotgraph(sol::ODESolution, graphs::Vector; struct_module::Symbol = Symbol(""), func_varname::Symbol = Symbol(""))
     if struct_module == Symbol("") && func_varname == Symbol("") # Ya get nothin'

@@ -1,6 +1,6 @@
 module PlantModules
 
-export generate_system, alter_defaults, plotgraph, plotnode, readXEG, convert_to_MTG
+export generate_system, alter_defaults, plotgraph, plotnode, readXEG, convert_to_MSTG, convert_to_PG
 
 using ModelingToolkit, DifferentialEquations, Unitful # Simulation packages
 import ModelingToolkit: get_eqs, get_systems, get_unknowns, get_defaults, get_name, get_iv

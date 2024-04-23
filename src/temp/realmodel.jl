@@ -3,11 +3,19 @@ include("../PlantModules.jl"); using .PlantModules
 using PlantGraphs, ModelingToolkit, DifferentialEquations, Unitful, Plots, MultiScaleTreeGraph
 import GLMakie.draw
 
-# Creating plant #
 
-plant_graph = readXEG("./src/temp/structures/test.xeg") #! change to beech
-mtg = convert_to_MTG(plant_graph)
+# Structural modules #
 
+graph = readXEG("./src/temp/structures/beech0.xeg") #!
+convert_to_PG(graph) |> draw
+
+## Plant
+plant_graph = readXEG("./src/temp/structures/beech0.xeg") #! change to beech
+plotbranching(plant_graph)
+
+mtg = convert_to_MSTG(plant_graph)
+
+### Setting attributes right
 DataFrame(mtg, [:diameter, :length, :width])
 
 function combine_dimensions(l, d, w)
@@ -21,32 +29,48 @@ function combine_dimensions(l, d, w)
 end
 
 transform!(mtg, [:length, :diameter, :width] => combine_dimensions => :D)
-
 DataFrame(mtg, [:D])
 
+### Inspecting what kind of structural modules are in here
 me_structmods = [PlantModules.structmod(node) for node in PlantModules.nodes(mtg)] |> unique
 
 for me_structmod in me_structmods
-	num_nodes = length([node for node in PlantModules.nodes(mtg) if PlantModules.structmod(node) == me_structmod])
-	println("There are $num_nodes nodes of type $me_structmod")
+	dimensions = [node_attributes(node)[:D] for node in PlantModules.nodes(mtg) if PlantModules.structmod(node) == me_structmod]
+	num_nodes = length(dimensions)
+	println("There are $num_nodes nodes of type $me_structmod $( all(isnothing.(dimensions)) ? "(dimensions undefined)" : "")")
 end
 
-# E #
+traverse!(mtg, node -> symbol!(node, "Shoot"), symbol = "ShortShoot")
 
-C_root = 250 # (mol/m^3) We'll assume the soluble carbon content remains constant over the simulated time
-C_stem = 300 # Idem here
-C_leaf = 330 # And here!
-# loosely based on https://www.researchgate.net/figure/Total-soluble-sugar-content-in-the-leaf-a-and-root-tissues-b-of-Homjan-HJ_fig3_226164026
+descendants(mtg, symbol = "Internode", self = true) |> DataFrame
+descendants(mtg, symbol = "Shoot", self = true) |> DataFrame
+descendants(mtg, symbol = "Leaf", self = true) |> DataFrame
 
-module_defaults = (
-	Root = (shape = PlantModules.Cuboid(ϵ_D = [5.0, 0.3, 0.2], ϕ_D = [0.7, 0.1, 0.05]), D = [0.3, 0.03, 0.01], M = C_root),
-	Pnode = (), #! it just aint right
-    Internode = (shape = PlantModules.Cilinder(ϵ_D = [6.0, 0.15], ϕ_D = [0.8, 0.03]), D = [0.015, 0.1], M = C_stem),
-    Meristem = (),
-	Leaf = (shape = PlantModules.Sphere(ϵ_D = [3.0], ϕ_D = [0.45]), M = C_leaf),
-	Soil = (W_max = 2000.0, T = 288.15),
-	Air = ()
-)
+## Environment
+
+struct Soil <: Node end
+struct Air <: Node end
+
+soil_graph = Soil()
+air_graph = Air()
+
+graphs = [plant_graph, soil_graph, air_graph]
+
+## connections
+
+intergraph_connections = [[1, 2] => (:Root, :Soil), [1, 3] => (:Leaf, :Air), [2, 3] => (:Soil, :Air)] #! order matters now
+struct_connections = [graphs, intergraph_connections]
+
+
+# Functional modules #
+
+## New functional modules
+
+function photosynthesis(x)
+	println("BAGOOL!") #!
+end
+
+## Connect them to structure
 
 module_coupling = [
 	PlantModules.hydraulic_module => [:Root, :Stem, :Leaf],
@@ -56,28 +80,33 @@ module_coupling = [
 	PlantModules.Ψ_air_module => [:Air]
 ]
 
-
-
-soil_graph = Soil()
-air_graph = Air()
-
-graphs = [plant_graph, soil_graph, air_graph]
-
-intergraph_connections = [[1, 2] => (:Root, :Soil), [1, 3] => (:Leaf, :Air), [2, 3] => (:Soil, :Air)] #! order matters now
-
-struct_connections = [graphs, intergraph_connections]
-
 connecting_modules = [
 	() => PlantModules.hydraulic_connection,
 	(:Soil, :Root) => (PlantModules.hydraulic_connection, [:K => 8]),
-	(:Root, :Stem) => (PlantModules.hydraulic_connection, [:K => 4]), # 6*10^-7 kg/s/MPa * 1000 g/kg * 3600 s/h = 2.2 g/h/MPa
-	(:Leaf, :Air) => (PlantModules.hydraulic_connection, [:K => 1e-2]),
-	(:Soil, :Air) => (PlantModules.hydraulic_connection, [:K => 5e-2]) #! check value
+	(:Root, :Internode) => (PlantModules.hydraulic_connection, [:K => 4]), # 6*10^-7 kg/s/MPa * 1000 g/kg * 3600 s/h = 2.2 g/h/MPa
+	(:Internode, :Shoot) => (PlantModules.hydraulic_connection, [:K => 1e-2]),
+	(:Internode, :Leaf) => (PlantModules.hydraulic_connection, [:K => 5e-2]) #! check value
 ] # values based on https://www.mdpi.com/2073-4441/10/8/1036
 
 get_connection_eqs = PlantModules.hydraulic_connection_eqs #!
 
 func_connections = [connecting_modules, get_connection_eqs]
+
+## Tweak parameters
+
+C_stem = 300
+C_shoot = 350
+C_leaf = 400
+
+module_defaults = (
+	Internode = (shape = PlantModules.Cilinder(ϵ_D = [5.0, 0.3], ϕ_D = [0.7, 0.1]), M = C_stem),
+	Shoot = (shape = PlantModules.Cilinder(ϵ_D = [5.0, 0.3], ϕ_D = [0.7, 0.1]), M = C_shoot),
+	Leaf = (shape = PlantModules.Cuboid(ϵ_D = [0.5, 0.5, 0.01], ϕ_D = [0.5, 0.5, 0.01]), M = C_leaf),
+	Soil = (W_max = 2000.0, T = 288.15),
+	Air = ()
+)
+
+# Gettem #
 
 system = PlantModules.generate_system(default_params, default_u0s,
 	module_defaults, module_coupling, struct_connections, func_connections, checkunits = false
