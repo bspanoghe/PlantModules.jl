@@ -69,14 +69,14 @@ function define_nodes!(graph)
 	end
 end
 
-function define_node!(name, fields...) #! add type annotation to fields?
-	expr = quote
-		struct placeholdername <: PlantGraphs.Node
-			placeholderfield
-		end
-	end
-	expr.args[2].args[2].args[1] = name
-	expr.args[2].args[3].args = collect(fields)
-	eval(expr)
-	return nothing
-end
+# function define_node!(name, fields...) #! add type annotation to fields?
+# 	expr = quote
+# 		struct placeholdername <: PlantGraphs.Node
+# 			placeholderfield
+# 		end
+# 	end
+# 	expr.args[2].args[2].args[1] = name
+# 	expr.args[2].args[3].args = collect(fields)
+# 	eval(expr)
+# 	return nothing
+# end

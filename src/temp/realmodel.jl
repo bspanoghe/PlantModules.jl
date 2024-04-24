@@ -3,10 +3,41 @@ include("../PlantModules.jl"); using .PlantModules
 using PlantGraphs, ModelingToolkit, DifferentialEquations, Unitful, Plots, MultiScaleTreeGraph
 import GLMakie.draw
 
+using MutableNamedTuples
+
+struct PMNode
+	structmod::Symbol
+	attributes::MutableNamedTuple
+end
+
+abstract type MyPGNode <: PlantGraphs.Node end
+
+struct Node{T} <: MyPGNode
+	structmod::Symbol
+    attributes::Dict
+end
+
+Node(type::Symbol, attributes) = Node{type, typeof(attributes)}(attributes)
+
+a = Node(:leaf, ["HAH!", "HOOH"])
+b = Node(:shoot, (horses = 3, poseidon = :LORD_POSEIDON))
+
+r = a + b
+
+n = PlantModules.nodes(r)[1]
+PlantModules.id(n)
+
+structmods = [
+	[PlantModules.structmod(node), collect(keys(PlantModules.attributes(node)))...]
+	for node in PlantModules.nodes(me_graph)
+] |> x -> unique(vec -> vec[1], x)
+
+define_node(:moo, :woo)
+@check_inputs(structmods[1])
 
 # Structural modules #
 
-graph = readXEG("./src/temp/structures/beech0.xeg") #!
+me_graph = readXEG("./src/temp/structures/beech0.xeg") #!
 convert_to_PG(graph) |> draw
 
 ## Plant

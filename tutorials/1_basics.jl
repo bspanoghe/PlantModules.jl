@@ -105,8 +105,8 @@ mutable struct Root <: Node end
 mutable struct Stem <: Node end
 
 # ╔═╡ d57718c2-c77d-42a8-924f-ebdfcd51d919
-mutable struct Leaf <: Node
-	D::Vector
+mutable struct Leaf{T} <: Node
+	D::Vector{T}
 end
 
 # ╔═╡ a740d4ab-5ad8-4db4-9a80-aef2625a7d7b
