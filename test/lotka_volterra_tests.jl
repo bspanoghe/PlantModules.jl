@@ -49,18 +49,18 @@ wandering_eqs(node_MTK, nb_node_MTKs, connection_MTKs) = [
     node_MTK.ΣF_P ~ sum([connection_MTK.F_P for connection_MTK in connection_MTKs])
 ]
 
-Base.@kwdef mutable struct Forest <: Node
+Base.@kwdef mutable struct Forest <: PlantGraphs.Node
     N::Int = 20
     P::Int = 10
     δ::Float64 = 1.0
 end
 
-Base.@kwdef mutable struct Grassland <: Node
+Base.@kwdef mutable struct Grassland <: PlantGraphs.Node
     N::Int = 100
     P::Int = 5
 end
 
-Base.@kwdef mutable struct Cave <: Node end
+Base.@kwdef mutable struct Cave <: PlantGraphs.Node end
 
 default_params = (
     lotka_volterra = (α = 1.5, β = 1.9, δ = 1.5, γ = 0.8),
