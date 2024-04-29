@@ -45,12 +45,15 @@ id(node::Dict) = node[:id]
 
 ## Implementation for PlantGraphs.jl
 
+### GraphNode / StaticGraph (nodes combined into graph)
+
 nodes(graph::PlantGraphs.StaticGraph) = graph.nodes.vals
-nodes(node::PlantGraphs.Node) = [node] # Sometimes a graph is just a single node
-
-neighbours(node::PlantGraphs.GraphNode, graph::PlantGraphs.StaticGraph) = [graph[nb_id] for nb_id in (ismissing(node.parent_id) ? node.children_id : vcat(node.children_id.dict.keys, node.parent_id))]
-neighbours(::PlantGraphs.Node, ::PlantGraphs.Node) = [] # node in a graph consisting of one node has no neighbours
-
+neighbours(node::PlantGraphs.GraphNode, graph::PlantGraphs.StaticGraph) = 
+	[
+		graph[nb_id]
+	for nb_id in (ismissing(node.parent_id) ? node.children_id :
+		vcat(node.children_id.dict.keys, node.parent_id))
+]
 function attributes(node::PlantGraphs.GraphNode)
 	fields = fieldnames(typeof(node.data))
 	
@@ -60,7 +63,13 @@ function attributes(node::PlantGraphs.GraphNode)
 
 	return Dict([field => getfield(node.data, field) for field in fields])
 end
+structmod(node::PlantGraphs.GraphNode) = typeof(node.data).name.name
+id(node::PlantGraphs.GraphNode) = node.self_id
 
+### Node (the graph is a single node)
+
+nodes(node::PlantGraphs.Node) = [node]
+neighbours(::PlantGraphs.Node, ::PlantGraphs.Node) = [] # node in a graph consisting of one node has no neighbours
 function attributes(node::PlantGraphs.Node)
 	fields = fieldnames(typeof(node))
 	
@@ -70,12 +79,17 @@ function attributes(node::PlantGraphs.Node)
 
 	return Dict([field => getfield(node, field) for field in fields])
 end
-
-structmod(node::PlantGraphs.GraphNode) = typeof(node.data).name.name
-structmod(node::PlantGraphs.Node) = typeof(node).name.name
-
-id(node::PlantGraphs.GraphNode) = node.self_id
+endstructmod(node::PlantGraphs.Node) = typeof(node).name.name
 id(node::PlantGraphs.Node) = 1 # The entire graph only consists of one node if the input type is Node
+
+### MyPGNode (own implementation acquired by graph conversion)
+
+nodes(node::MyPGNode) = [node]
+neighbours(::MyPGNode, ::MyPGNode) = []
+attributes(node::MyPGNode) = node[:attributes]
+structmod(node::MyPGNode) = typeof(node).parameters[1]
+id(node::MyPGNode) = 1
+
 
 ## Implementation for MultiScaleTreeGraph.jl
 

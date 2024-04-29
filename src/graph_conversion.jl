@@ -1,30 +1,30 @@
-const MSTG = MultiScaleTreeGraph
+const MTG = MultiScaleTreeGraph
 const PM = PlantModules
 
 # MultiScaleTreeGraph.jl #
 
 """
-    convert_to_MSTG(graph)
+    convert_to_MTG(graph)
 
 Convert a graph to MultiScaleTreeGraph.jl format. Requires definition of standard graph functions and tree graph functions (see graph_functions.jl)
 """
-function convert_to_MSTG(graph)
+function convert_to_MTG(graph)
     rootnode = root(graph)
-    MSTGgraph = MSTGify_node(rootnode)
-    add_children!(MSTGgraph, rootnode, graph)
-    return MSTGgraph
+    MTGgraph = MTGify_node(rootnode)
+    add_children!(MTGgraph, rootnode, graph)
+    return MTGgraph
 end
 
-function add_children!(MSTGnode::MultiScaleTreeGraph.Node, node::Dict, graph::Dict)
+function add_children!(MTGnode::MultiScaleTreeGraph.Node, node::Dict, graph::Dict)
     for chnode in PM.children(node, graph)
-        MSTG_chnode = MSTG.Node(MSTGnode, MSTGify_node_MSTG(chnode), MSTGify_node_attributes(chnode))
-        add_children!(MSTG_chnode, chnode, graph)
+        MTG_chnode = MTG.Node(MTGnode, MTGify_node_MTG(chnode), MTGify_node_attributes(chnode))
+        add_children!(MTG_chnode, chnode, graph)
     end
 end
 
-MSTGify_node(node::Dict) = MSTG.Node(MutableNodeMSTG("/", string(PM.structmod(node)), 0, 0), PM.attributes(node))
-MSTGify_node_MSTG(node::Dict) = MutableNodeMSTG("/", string(PM.structmod(node)), 0, 0)
-MSTGify_node_attributes(node::Dict) = PM.attributes(node)
+MTGify_node(node::Dict) = MTG.Node(MutableNodeMTG("/", string(PM.structmod(node)), 0, 0), PM.attributes(node))
+MTGify_node_MTG(node::Dict) = MutableNodeMTG("/", string(PM.structmod(node)), 0, 0)
+MTGify_node_attributes(node::Dict) = PM.attributes(node)
 
 # PlantGraphs.jl #
 
@@ -34,9 +34,7 @@ MSTGify_node_attributes(node::Dict) = PM.attributes(node)
 Convert a graph to PlantGraphs.jl format. Requires definition of standard graph functions and tree graph functions (see graph_functions.jl)
 """
 function convert_to_PG(graph)
-    define_nodes!(graph)
-    
-    rootnode = root(graph)
+    rootnode = PlantModules.root(graph)
     PGgraph = PlantGraphs.StaticGraph(PGify_node(rootnode))
 	add_children!(PGgraph, PGgraph.insertion, rootnode, graph)
     return PGgraph
@@ -50,33 +48,10 @@ function add_children!(PGgraph::PlantGraphs.StaticGraph, node_id::Int, node::Dic
     end
 end
 
-PGify_node(node) = eval(PlantModules.structmod(node))(values(PlantModules.attributes(node))...)
+PGify_node(node) = MyPGNode(PlantModules.structmod(node), PlantModules.attributes(node))
 
 function targeted_append!(g::PlantGraphs.StaticGraph, n::PlantGraphs.Node, id::Int)
     nID = PlantGraphs.append!(g, id, PlantGraphs.GraphNode(n))
     PlantGraphs.update_insertion!(g, nID)
     return g
 end
-
-function define_nodes!(graph)
-	structmods = [
-		[PlantModules.structmod(node), collect(keys(PlantModules.attributes(node)))...]
-		for node in PlantModules.nodes(graph)
-	] |> x -> unique(vec -> vec[1], x)
-
-	for structmod in structmods
-		define_node!(structmod...)
-	end
-end
-
-# function define_node!(name, fields...) #! add type annotation to fields?
-# 	expr = quote
-# 		struct placeholdername <: PlantGraphs.Node
-# 			placeholderfield
-# 		end
-# 	end
-# 	expr.args[2].args[2].args[1] = name
-# 	expr.args[2].args[3].args = collect(fields)
-# 	eval(expr)
-# 	return nothing
-# end

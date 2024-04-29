@@ -3,55 +3,117 @@ include("../PlantModules.jl"); using .PlantModules
 using PlantGraphs, ModelingToolkit, DifferentialEquations, Unitful, Plots, MultiScaleTreeGraph
 import GLMakie.draw
 
-using MutableNamedTuples
-
-struct PMNode
-	structmod::Symbol
-	attributes::MutableNamedTuple
-end
-
-abstract type MyPGNode <: PlantGraphs.Node end
-
-struct Node{T} <: MyPGNode
-	structmod::Symbol
-    attributes::Dict
-end
-
-Node(type::Symbol, attributes) = Node{type, typeof(attributes)}(attributes)
-
-a = Node(:leaf, ["HAH!", "HOOH"])
-b = Node(:shoot, (horses = 3, poseidon = :LORD_POSEIDON))
-
-r = a + b
-
-n = PlantModules.nodes(r)[1]
-PlantModules.id(n)
-
-structmods = [
-	[PlantModules.structmod(node), collect(keys(PlantModules.attributes(node)))...]
-	for node in PlantModules.nodes(me_graph)
-] |> x -> unique(vec -> vec[1], x)
-
-define_node(:moo, :woo)
-@check_inputs(structmods[1])
-
 # Structural modules #
 
-me_graph = readXEG("./src/temp/structures/beech0.xeg") #!
-convert_to_PG(graph) |> draw
+import MultiScaleTreeGraph: delete_nodes!, delete_nodes_!, delete_node!
+
+function delete_nodes!(
+    node;
+    scale=nothing,
+    symbol=nothing,
+    link=nothing,
+    all::Bool=true, # like continue in the R package, but actually the opposite
+    filter_fun=nothing,
+    child_link_fun=new_child_link
+	)
+
+    # Check the filters once, and then compute the descendants recursively using `descendants_`
+    check_filters(node, scale=scale, symbol=symbol, link=link)
+    filtered = is_filtered(node, scale, symbol, link, filter_fun)
+
+    if filtered
+        node = delete_node!(node)
+        # Don't go further if all == false
+        !all && return
+    end
+
+    delete_nodes!_(node, scale, symbol, link, all, filter_fun, child_link_fun)
+
+    return node
+end
+
+
+function delete_nodes!_(node, scale, symbol, link, all, filter_fun, child_link_fun)
+    if !isleaf(node)
+        # First we apply the algorithm recursively on the children:
+        chnodes = children(node)
+        nchildren = length(chnodes)
+        #? Note: we don't use `for chnode in chnodes` because it may delete dynamically during traversal, so we forget to traverse some nodes
+        for chnode in chnodes[1:nchildren]
+            delete_nodes!_(chnode, scale, symbol, link, all, filter_fun, child_link_fun)
+        end
+    end
+
+    # Then we work on the node itself. This ensures that its children will not be deleted
+    # afterwards (the deletion is acropetal, i.e. from leaves to root)
+
+    # Is there any filter happening for the current node? (true is deleted):
+    filtered = is_filtered(node, scale, symbol, link, filter_fun)
+
+    if filtered
+        delete_node!(node, child_link_fun=child_link_fun)
+    end
+end
+
+
+function delete_node!(node::MultiScaleTreeGraph.Node{N,A}; child_link_fun=new_child_link) where {N<:AbstractNodeMTG,A}
+    if isroot(node)
+        if length(children(node)) == 1
+            # If it has only one child, make it the new root:
+            chnode = children(node)[1]
+            # Add to the new root the mandatory root attributes:
+            root_attrs = Dict(
+                :symbols => node[:symbols],
+                :scales => node[:scales],
+                :description => node[:description]
+            )
+
+            append!(chnode, root_attrs)
+
+            link!(chnode, child_link_fun(chnode))
+            reparent!(chnode, nothing)
+
+            node_return = chnode
+        else
+            error("Can't delete the root node if it has several children")
+        end
+    else
+        parent_node = parent(node)
+
+        if !isleaf(node)
+            # We re-parent the children to the parent of the node.
+            for chnode in children(node)
+                # Updating the link of the children:
+                link!(chnode, child_link_fun(chnode))
+                addchild!(parent_node, chnode; force=true)
+            end
+        end
+
+        # Delete the node as child of his parent:
+        deleteat!(children(parent_node), findfirst(x -> node_id(x) == node_id(node), children(parent_node)))
+        node_return = parent_node
+    end
+
+    node = nothing
+
+    return node_return
+end
+
+
+
 
 ## Plant
 plant_graph = readXEG("./src/temp/structures/beech0.xeg") #! change to beech
-plotbranching(plant_graph)
+# convert_to_PG(plant_graph) |> draw
 
-mtg = convert_to_MSTG(plant_graph)
+mtg = convert_to_MTG(plant_graph)
 
 ### Setting attributes right
 DataFrame(mtg, [:diameter, :length, :width])
 
 function combine_dimensions(l, d, w)
 	if all(isnothing.([l, d, w]))
-		return nothing
+		return missing
 	elseif isnothing(w)
 		return [l, d]
 	else
@@ -68,10 +130,13 @@ me_structmods = [PlantModules.structmod(node) for node in PlantModules.nodes(mtg
 for me_structmod in me_structmods
 	dimensions = [node_attributes(node)[:D] for node in PlantModules.nodes(mtg) if PlantModules.structmod(node) == me_structmod]
 	num_nodes = length(dimensions)
-	println("There are $num_nodes nodes of type $me_structmod $( all(isnothing.(dimensions)) ? "(dimensions undefined)" : "")")
+	println("There are $num_nodes nodes of type $me_structmod $( all(ismissing.(dimensions)) ? "(dimensions undefined)" : "")")
 end
 
 traverse!(mtg, node -> symbol!(node, "Shoot"), symbol = "ShortShoot")
+mtg = delete_nodes!(mtg, filter_fun = node -> ismissing(node.D))
+
+mtg |> DataFrame
 
 descendants(mtg, symbol = "Internode", self = true) |> DataFrame
 descendants(mtg, symbol = "Shoot", self = true) |> DataFrame
