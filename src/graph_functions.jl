@@ -79,7 +79,7 @@ function attributes(node::PlantGraphs.Node)
 
 	return Dict([field => getfield(node, field) for field in fields])
 end
-endstructmod(node::PlantGraphs.Node) = typeof(node).name.name
+structmod(node::PlantGraphs.Node) = typeof(node).name.name
 id(node::PlantGraphs.Node) = 1 # The entire graph only consists of one node if the input type is Node
 
 ### MyPGNode (own implementation acquired by graph conversion)
@@ -97,8 +97,8 @@ nodes(graph::MultiScaleTreeGraph.Node) = MultiScaleTreeGraph.descendants(graph, 
 neighbours(node::MultiScaleTreeGraph.Node, _) = isnothing(MultiScaleTreeGraph.parent(node)) ?
 	MultiScaleTreeGraph.children(node) : vcat(MultiScaleTreeGraph.parent(node), MultiScaleTreeGraph.children(node))
 attributes(node::MultiScaleTreeGraph.Node) = MultiScaleTreeGraph.node_attributes(node)
-structmod(node::MultiScaleTreeGraph.Node) = MultiScaleTreeGraph.node_mtg(node).symbol
-id(node::MultiScaleTreeGraph.Node) = MultiScaleTreeGraph.id(node)
+structmod(node::MultiScaleTreeGraph.Node) = MultiScaleTreeGraph.node_mtg(node).symbol |> Symbol
+id(node::MultiScaleTreeGraph.Node) = MultiScaleTreeGraph.node_id(node)
 
 # Functions for Tree Graphs #
 

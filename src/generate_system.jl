@@ -184,25 +184,61 @@ function get_nb_nodes(node, graphs, graphnr, intergraph_connections)
 	return nb_nodes, nb_node_graphnrs
 end
 
-function get_intergraph_neighbours(node, node_graphnr, graphs, intergraph_connections)
-	nb_nodes = []
-	nb_node_graphnrs = []
-	
+# get neighbouring nodes from different graphs
+## go over all intergraph connections
+function get_intergraph_neighbours(node, node_graphnr, graphs, intergraph_connections::Vector)
+
+	# Get intergraph connections involving the graph `node` belongs to
 	node_intergraph_connections_plus_igidxs = [(intergraph_connection, findfirst(node_graphnr .== intergraph_connection[1]))
 		for intergraph_connection in intergraph_connections 
 		if node_graphnr in intergraph_connection[1]
 	] # igidx is index of the node's graph in the intergraph connection
 
+	nb_nodes = []
+	nb_node_graphnrs = []
+	
+	# Go over all connected graphs and add nodes to neighbouring nodes if the specified condition is met
 	for (node_intergraph_connection, igidx) in node_intergraph_connections_plus_igidxs
-		if PlantModules.structmod(node) == node_intergraph_connection[2][igidx]
-			nb_igidx = 3-igidx # 2 if igidx == 1 and 1 if igidx == 2
-			nb_graphnr = node_intergraph_connection[1][nb_igidx]
-			nb_graph = graphs[nb_graphnr]
-			connection_nb_nodes = [nb_node for nb_node in PlantModules.nodes(nb_graph) if PlantModules.structmod(nb_node) == node_intergraph_connection[2][nb_igidx]]
-			append!(nb_nodes, connection_nb_nodes)
-			append!(nb_node_graphnrs, repeat([nb_graphnr], length(connection_nb_nodes)))
+		nb_igidx = 3-igidx # 2 if igidx == 1 and 1 if igidx == 2
+		nb_graphnr = node_intergraph_connection[1][nb_igidx]
+		nb_graph = graphs[nb_graphnr]
+		connection = node_intergraph_connection[2]
+		if connection isa Tuple
+			_nb_nodes = _get_intergraph_neighbours(node, nb_graph, connection[igidx], connection[nb_igidx])
+		else
+			nb_first = nb_igidx == 1
+			_nb_nodes = _get_intergraph_neighbours(node, nb_graph, connection, nb_first)
 		end
+		
+		append!(nb_nodes, _nb_nodes)
+		append!(nb_node_graphnrs, repeat([nb_graphnr], length(_nb_nodes)))
 	end
 
 	return nb_nodes, nb_node_graphnrs
+end
+
+## For a connection where the structural module or specific nodes are specified
+function _get_intergraph_neighbours(node, nb_graph, node_connection, nb_connection)
+	if connection_check(node, node_connection)
+		nb_nodes = [nb_node for nb_node in PlantModules.nodes(nb_graph) if connection_check(nb_node, nb_connection)]
+	else
+		nb_nodes = []
+	end
+
+	return nb_nodes
+end
+
+connection_check(node, connection) = node == connection # connection is a node
+connection_check(node, connection::Symbol) = PlantModules.structmod(node) == connection # connection is a structural module
+connection_check(node, connection::Vector) = node in connection # connection is a collection of nodes
+
+## For a connection with a user-defined filter function
+function _get_intergraph_neighbours(node, nb_graph, connection_func::Function, nb_first::Bool)
+	if nb_first
+		nb_nodes = [nb_node for nb_node in PlantModules.nodes(nb_graph) if connection_func(nb_node, node)]
+	else
+		nb_nodes = [nb_node for nb_node in PlantModules.nodes(nb_graph) if connection_func(node, nb_node)]
+	end
+
+	return nb_nodes
 end

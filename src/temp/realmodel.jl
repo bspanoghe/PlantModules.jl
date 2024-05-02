@@ -21,8 +21,10 @@ function delete_nodes!(
     check_filters(node, scale=scale, symbol=symbol, link=link)
     filtered = is_filtered(node, scale, symbol, link, filter_fun)
 
-    if filtered
+    while filtered
         node = delete_node!(node)
+        filtered = is_filtered(node, scale, symbol, link, filter_fun)
+
         # Don't go further if all == false
         !all && return
     end
@@ -103,7 +105,7 @@ end
 
 
 ## Plant
-plant_graph = readXEG("./src/temp/structures/beech0.xeg") #! change to beech
+plant_graph = readXEG("./src/temp/structures/beech3.xeg") #! change to beech
 # convert_to_PG(plant_graph) |> draw
 
 mtg = convert_to_MTG(plant_graph)
@@ -144,19 +146,18 @@ descendants(mtg, symbol = "Leaf", self = true) |> DataFrame
 
 ## Environment
 
-struct Soil <: Node end
-struct Air <: Node end
+struct Soil <: PlantGraphs.Node end
+struct Air <: PlantGraphs.Node end
 
 soil_graph = Soil()
 air_graph = Air()
 
-graphs = [plant_graph, soil_graph, air_graph]
+graphs = [mtg, soil_graph, air_graph]
 
 ## connections
 
-intergraph_connections = [[1, 2] => (:Root, :Soil), [1, 3] => (:Leaf, :Air), [2, 3] => (:Soil, :Air)] #! order matters now
+intergraph_connections = [[1, 2] => (mtg, :Soil), [1, 3] => (:Leaf, :Air), [2, 3] => (:Soil, :Air)]
 struct_connections = [graphs, intergraph_connections]
-
 
 # Functional modules #
 
@@ -169,8 +170,8 @@ end
 ## Connect them to structure
 
 module_coupling = [
-	PlantModules.hydraulic_module => [:Root, :Stem, :Leaf],
-	PlantModules.constant_carbon_module => [:Root, :Stem, :Leaf],
+	PlantModules.hydraulic_module => [:Internode, :Shoot, :Leaf],
+	PlantModules.constant_carbon_module => [:Internode, :Shoot, :Leaf],
 	PlantModules.environmental_module => [:Soil, :Air],
 	PlantModules.Ψ_soil_module => [:Soil],
 	PlantModules.Ψ_air_module => [:Air]
@@ -178,11 +179,11 @@ module_coupling = [
 
 connecting_modules = [
 	() => PlantModules.hydraulic_connection,
-	(:Soil, :Root) => (PlantModules.hydraulic_connection, [:K => 8]),
-	(:Root, :Internode) => (PlantModules.hydraulic_connection, [:K => 4]), # 6*10^-7 kg/s/MPa * 1000 g/kg * 3600 s/h = 2.2 g/h/MPa
+	(:Soil, :Internode) => (PlantModules.hydraulic_connection, [:K => 10]),
+    (:Internode, :Internode) => (PlantModules.hydraulic_connection, [:K => 1e-1]),
 	(:Internode, :Shoot) => (PlantModules.hydraulic_connection, [:K => 1e-2]),
-	(:Internode, :Leaf) => (PlantModules.hydraulic_connection, [:K => 5e-2]) #! check value
-] # values based on https://www.mdpi.com/2073-4441/10/8/1036
+	(:Internode, :Leaf) => (PlantModules.hydraulic_connection, [:K => 5e-2])
+]
 
 get_connection_eqs = PlantModules.hydraulic_connection_eqs #!
 
@@ -204,7 +205,7 @@ module_defaults = (
 
 # Gettem #
 
-system = PlantModules.generate_system(default_params, default_u0s,
+system = PlantModules.generate_system(PlantModules.default_params, PlantModules.default_u0s,
 	module_defaults, module_coupling, struct_connections, func_connections, checkunits = false
 )
 

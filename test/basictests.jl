@@ -124,6 +124,22 @@ ig_neighbours, ig_neighbour_graphnrs = PlantModules.get_intergraph_neighbours(no
 @test ig_neighbours == PlantModules.nodes(graphs[1])[2:4]
 @test ig_neighbour_graphnrs == [1, 1, 1]
 
+### 4
+
+node2 = PlantModules.nodes(graphs[1])[2]
+node3 = PlantModules.nodes(graphs[1])[3]
+intergraph_connections = [[1, 2] => ([node2, node3], [node])]
+ig_neighbours, ig_neighbour_graphnrs = PlantModules.get_intergraph_neighbours(node, 2, graphs, intergraph_connections)
+@test issetequal(ig_neighbours, [node2, node3])
+@test ig_neighbour_graphnrs == [1, 1]
+
+### 5
+
+intergraph_connections = [[1, 2] => (node1, node2) -> structmod(node1) == :Foo && attributes(node1)[:bar] in [2, 3] && structmod(node2) == :Oof]
+ig_neighbours, ig_neighbour_graphnrs = PlantModules.get_intergraph_neighbours(node, 2, graphs, intergraph_connections)
+@test issetequal(ig_neighbours, [node2, node3])
+@test ig_neighbour_graphnrs == [1, 1]
+
 ## get_nb_nodes
 graphs = [Oof("1") + (Foo(2), Foo(3), Foo(4)), Foo(90)]
 graphnr = 1
