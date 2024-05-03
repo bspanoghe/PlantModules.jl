@@ -180,9 +180,10 @@ module_coupling = [
 connecting_modules = [
 	() => PlantModules.hydraulic_connection,
 	(:Soil, :Internode) => (PlantModules.hydraulic_connection, [:K => 10]),
-    (:Internode, :Internode) => (PlantModules.hydraulic_connection, [:K => 1e-1]),
-	(:Internode, :Shoot) => (PlantModules.hydraulic_connection, [:K => 1e-2]),
-	(:Internode, :Leaf) => (PlantModules.hydraulic_connection, [:K => 5e-2])
+    (:Internode, :Internode) => (PlantModules.hydraulic_connection, [:K => 3]),
+	(:Internode, :Shoot) => (PlantModules.hydraulic_connection, [:K => 2]),
+	(:Internode, :Leaf) => (PlantModules.hydraulic_connection, [:K => 2]),
+    (:Leaf, :Air) => (PlantModules.hydraulic_connection, [:K => 1e-8])
 ]
 
 get_connection_eqs = PlantModules.hydraulic_connection_eqs #!
@@ -199,7 +200,7 @@ module_defaults = (
 	Internode = (shape = PlantModules.Cilinder(ϵ_D = [5.0, 0.3], ϕ_D = [0.7, 0.1]), M = C_stem),
 	Shoot = (shape = PlantModules.Cilinder(ϵ_D = [5.0, 0.3], ϕ_D = [0.7, 0.1]), M = C_shoot),
 	Leaf = (shape = PlantModules.Cuboid(ϵ_D = [0.5, 0.5, 0.01], ϕ_D = [0.5, 0.5, 0.01]), M = C_leaf),
-	Soil = (W_max = 2000.0, T = 288.15),
+	Soil = (W_max = 100000.0, T = 288.15),
 	Air = ()
 )
 
@@ -209,10 +210,9 @@ system = PlantModules.generate_system(PlantModules.default_params, PlantModules.
 	module_defaults, module_coupling, struct_connections, func_connections, checkunits = false
 )
 
-sys_simpl = structural_simplify(system);
+sys_simpl = structural_simplify(system)
 prob = ODEProblem(sys_simpl, ModelingToolkit.missing_variable_defaults(sys_simpl), (0.0, 5*24))	 #! Generate warning for missing variable defaults that aren't dummies
 sol = solve(prob)
 
-PlantModules.plotgraph(sol, graphs[1]) .|> display
-PlantModules.plotgraph(sol, graphs[2]) .|> display
-PlantModules.plotgraph(sol, graphs[3]) .|> display
+PlantModules.plotgraph(sol, graphs[1:2], func_varname = :W)
+PlantModules.plotgraph(sol, graphs[1], func_varname = :Ψ)
