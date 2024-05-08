@@ -58,54 +58,8 @@ function delete_nodes!_(node, scale, symbol, link, all, filter_fun, child_link_f
 end
 
 
-function delete_node!(node::MultiScaleTreeGraph.Node{N,A}; child_link_fun=new_child_link) where {N<:AbstractNodeMTG,A}
-    if isroot(node)
-        if length(children(node)) == 1
-            # If it has only one child, make it the new root:
-            chnode = children(node)[1]
-            # Add to the new root the mandatory root attributes:
-            root_attrs = Dict(
-                :symbols => node[:symbols],
-                :scales => node[:scales],
-                :description => node[:description]
-            )
-
-            append!(chnode, root_attrs)
-
-            link!(chnode, child_link_fun(chnode))
-            reparent!(chnode, nothing)
-
-            node_return = chnode
-        else
-            error("Can't delete the root node if it has several children")
-        end
-    else
-        parent_node = parent(node)
-
-        if !isleaf(node)
-            # We re-parent the children to the parent of the node.
-            for chnode in children(node)
-                # Updating the link of the children:
-                link!(chnode, child_link_fun(chnode))
-                addchild!(parent_node, chnode; force=true)
-            end
-        end
-
-        # Delete the node as child of his parent:
-        deleteat!(children(parent_node), findfirst(x -> node_id(x) == node_id(node), children(parent_node)))
-        node_return = parent_node
-    end
-
-    node = nothing
-
-    return node_return
-end
-
-
-
-
 ## Plant
-plant_graph = readXEG("./src/temp/structures/beech3.xeg") #! change to beech
+plant_graph = readXEG("./src/temp/structures/beech0.xeg") #! change to beech
 # convert_to_PG(plant_graph) |> draw
 
 mtg = convert_to_MTG(plant_graph)
@@ -115,7 +69,7 @@ DataFrame(mtg, [:diameter, :length, :width])
 
 function combine_dimensions(l, d, w)
 	if all(isnothing.([l, d, w]))
-		return missing
+		return nothing
 	elseif isnothing(w)
 		return [l, d]
 	else
@@ -136,7 +90,7 @@ for me_structmod in me_structmods
 end
 
 traverse!(mtg, node -> symbol!(node, "Shoot"), symbol = "ShortShoot")
-mtg = delete_nodes!(mtg, filter_fun = node -> ismissing(node.D))
+mtg = delete_nodes!(mtg, filter_fun = node -> isnothing(node.D))
 
 mtg |> DataFrame
 
@@ -179,11 +133,11 @@ module_coupling = [
 
 connecting_modules = [
 	() => PlantModules.hydraulic_connection,
-	(:Soil, :Internode) => (PlantModules.hydraulic_connection, [:K => 10]),
+	(:Soil, :Internode) => (PlantModules.hydraulic_connection, [:K => 100]),
     (:Internode, :Internode) => (PlantModules.hydraulic_connection, [:K => 3]),
 	(:Internode, :Shoot) => (PlantModules.hydraulic_connection, [:K => 2]),
 	(:Internode, :Leaf) => (PlantModules.hydraulic_connection, [:K => 2]),
-    (:Leaf, :Air) => (PlantModules.hydraulic_connection, [:K => 1e-8])
+    (:Leaf, :Air) => (PlantModules.hydraulic_connection, [:K => 0])
 ]
 
 get_connection_eqs = PlantModules.hydraulic_connection_eqs #!
@@ -211,8 +165,33 @@ system = PlantModules.generate_system(PlantModules.default_params, PlantModules.
 )
 
 sys_simpl = structural_simplify(system)
-prob = ODEProblem(sys_simpl, ModelingToolkit.missing_variable_defaults(sys_simpl), (0.0, 5*24))	 #! Generate warning for missing variable defaults that aren't dummies
+prob = ODEProblem(sys_simpl, ModelingToolkit.missing_variable_defaults(sys_simpl), (0.0, 5*24))
 sol = solve(prob)
 
-PlantModules.plotgraph(sol, graphs[1:2], func_varname = :W)
+PlantModules.plotgraph(sol, graphs[1], func_varname = :W)
+PlantModules.plotgraph(sol, graphs[2], func_varname = :W)
 PlantModules.plotgraph(sol, graphs[1], func_varname = :Ψ)
+
+# plotspeed
+
+xs = [rand(100) for _ in 1:1000]
+ys = [rand(100) for _ in 1:1000]
+
+function plot1(xs, ys)
+    plt = plot()
+    for (x, y) in zip(xs, ys)
+        plot!(plt, x, y)
+    end
+    plt
+end
+
+function plot2(xs, ys)
+    plot(reduce(vcat, xs), reduce(vcat, ys))
+end
+
+@btime plot1($xs, $ys) ; # 431.335 ms (2231129 allocations: 121.87 MiB)
+@btime plot2($xs, $ys) ; # 2.844 ms (2530 allocations: 3.20 MiB)
+
+xs = [i%2 == 0 ? NaN : 1:10 for i in 1:6]
+ys = [i%2 == 0 ? NaN : rand(10) for i in 1:6]
+plot2(xs, ys)
