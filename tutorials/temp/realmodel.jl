@@ -1,11 +1,54 @@
-using Pkg; Pkg.activate(".")
-include("../PlantModules.jl"); using .PlantModules
+using Pkg; Pkg.activate("./tutorials")
+include("../../src/PlantModules.jl"); using .PlantModules
 using PlantGraphs, ModelingToolkit, DifferentialEquations, Unitful, Plots, MultiScaleTreeGraph
 import GLMakie.draw
 
 # Structural modules #
 
-import MultiScaleTreeGraph: delete_nodes!, delete_nodes_!, delete_node!
+import MultiScaleTreeGraph: delete_nodes!, delete_nodes_!
+
+# function delete_node!(node::Node{N,A}; child_link_fun=new_child_link) where {N<:AbstractNodeMTG,A}
+#     if isroot(node)
+#         if length(children(node)) == 1
+#             # If it has only one child, make it the new root:
+#             chnode = children(node)[1]
+#             # Add to the new root the mandatory root attributes:
+#             root_attrs = Dict(
+#                 :symbols => node[:symbols],
+#                 :scales => node[:scales],
+#                 :description => node[:description]
+#             )
+
+#             append!(chnode, root_attrs)
+
+#             link!(chnode, child_link_fun(chnode))
+#             reparent!(chnode, nothing)
+
+#             node_return = chnode
+#         else
+#             error("Can't delete the root node if it has several children")
+#         end
+#     else
+#         parent_node = parent(node)
+
+#         if !isleaf(node)
+#             # We re-parent the children to the parent of the node.
+#             for chnode in children(node)
+#                 # Updating the link of the children:
+#                 link!(chnode, child_link_fun(chnode))
+#                 addchild!(parent_node, chnode; force=true)
+#             end
+#         end
+
+#         # Delete the node as child of his parent:
+#         deleteat!(children(parent_node), findfirst(x -> node_id(x) == node_id(node), children(parent_node)))
+#         node_return = parent_node
+#     end
+
+#     node = nothing
+
+#     return node_return
+# end
 
 function delete_nodes!(
     node;
@@ -34,7 +77,6 @@ function delete_nodes!(
     return node
 end
 
-
 function delete_nodes!_(node, scale, symbol, link, all, filter_fun, child_link_fun)
     if !isleaf(node)
         # First we apply the algorithm recursively on the children:
@@ -59,7 +101,7 @@ end
 
 
 ## Plant
-plant_graph = readXEG("./src/temp/structures/beech0.xeg") #! change to beech
+plant_graph = readXEG("tutorials/temp/structures/beech3.xeg") #! change to beech
 # convert_to_PG(plant_graph) |> draw
 
 mtg = convert_to_MTG(plant_graph)
@@ -151,9 +193,9 @@ C_shoot = 350
 C_leaf = 400
 
 module_defaults = (
-	Internode = (shape = PlantModules.Cilinder(ϵ_D = [5.0, 0.3], ϕ_D = [0.7, 0.1]), M = C_stem),
-	Shoot = (shape = PlantModules.Cilinder(ϵ_D = [5.0, 0.3], ϕ_D = [0.7, 0.1]), M = C_shoot),
-	Leaf = (shape = PlantModules.Cuboid(ϵ_D = [0.5, 0.5, 0.01], ϕ_D = [0.5, 0.5, 0.01]), M = C_leaf),
+	Internode = (shape = PlantModules.Cilinder(ϵ_D = [5.0, 0.3], ϕ_D = [0.1, 0.01]), M = C_stem),
+	Shoot = (shape = PlantModules.Cilinder(ϵ_D = [5.0, 0.3], ϕ_D = [0.1, 0.01]), M = C_shoot),
+	Leaf = (shape = PlantModules.Cuboid(ϵ_D = [0.5, 0.5, 0.01], ϕ_D = [0.1, 0.1, 0.01]), M = C_leaf),
 	Soil = (W_max = 100000.0, T = 288.15),
 	Air = ()
 )

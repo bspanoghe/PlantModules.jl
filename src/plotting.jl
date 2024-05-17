@@ -5,6 +5,7 @@
 # Get the symbol representation of a MTK unknown (variable)
 get_MTKunknown_symbol(s::SymbolicUtils.Symbolic) = s.metadata[ModelingToolkit.VariableSource][2]
 
+# Pry the ODE system corresponding with given node out of the ODE solution
 function getnodesystem(sol::ODESolution, node)
     system = getfield(sol.prob.f, :sys)
     nodename = string(PlantModules.structmod(node)) * string(PlantModules.id(node))
@@ -12,6 +13,7 @@ function getnodesystem(sol::ODESolution, node)
     return nodesystem
 end
 
+# Get all ODE systems corresponding with nodes off a certain structural module from an ODE solution
 function getnodesystems(sol::ODESolution, graph, struct_module::Symbol)
     matching_nodes = [node for node in PlantModules.nodes(graph) if PlantModules.structmod(node) == struct_module]
     if isempty(matching_nodes)
@@ -20,17 +22,13 @@ function getnodesystems(sol::ODESolution, graph, struct_module::Symbol)
     return [getnodesystem(sol, node) for node in matching_nodes]
 end
 
-function getplot(sol::ODESolution, nodesystem, func_varname::Symbol)
-    func_var = getproperty(nodesystem, func_varname)
-    myplot = getplot(sol, func_var)
-    return myplot
-end
-
+# Plot some functional variable from an ODE solution
 function getplot(sol::ODESolution, func_var::Num)
     myplot = Plots.plot(sol, idxs = func_var);
     return myplot
 end
 
+# Plot an array of functional variables from an ODE solution
 function getplot(sol::ODESolution, func_var::Symbolics.Arr)
     myplot = Plots.plot();
     for sub_func_var in func_var
@@ -39,11 +37,14 @@ function getplot(sol::ODESolution, func_var::Symbolics.Arr)
     return myplot
 end
 
-function getplot!(sol::ODESolution, nodesystem, func_varname::Symbol)
+# Plot the functional variable with the given name and node ODE system from an ODE solution
+function getplot(sol::ODESolution, nodesystem, func_varname::Symbol)
     func_var = getproperty(nodesystem, func_varname)
-    getplot!(sol, func_var)
+    myplot = getplot(sol, func_var)
+    return myplot
 end
 
+# Same as above 3 but now add to an existing plot
 function getplot!(sol::ODESolution, func_var::Num)
     Plots.plot!(sol, idxs = func_var);
 end
@@ -52,6 +53,11 @@ function getplot!(sol::ODESolution, func_var::Symbolics.Arr)
     for sub_func_var in func_var
         Plots.plot!(sol, idxs = sub_func_var, label = "$sub_func_var");
     end
+end
+
+function getplot!(sol::ODESolution, nodesystem, func_varname::Symbol)
+    func_var = getproperty(nodesystem, func_varname)
+    getplot!(sol, func_var)
 end
 
 """
@@ -84,7 +90,9 @@ function plotgraph(sol::ODESolution, graph; struct_module::Symbol = Symbol(""), 
     if struct_module == Symbol("") && func_varname == Symbol("") # Ya get nothin'
         struct_modules = PlantModules.nodes(graph) .|> PlantModules.structmod |> unique
         nodesystems_by_structmod = [getnodesystems(sol, graph, struct_module) for struct_module in struct_modules]
-        func_varnames = [[get_MTKunknown_symbol(unknown) for unknown in get_unknowns(nodesystems[1])]
+        
+        func_varnames = [
+            [get_MTKunknown_symbol(unknown) for unknown in get_unknowns(nodesystems[1])]
             for nodesystems in nodesystems_by_structmod
         ]  |> x -> reduce(vcat, x) |> unique
         nodesystems = reduce(vcat, nodesystems_by_structmod)
