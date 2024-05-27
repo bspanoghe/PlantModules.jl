@@ -5,7 +5,7 @@ import GLMakie.draw
 
 # Structural modules #
 
-import MultiScaleTreeGraph: delete_nodes!, delete_nodes_!
+# import MultiScaleTreeGraph: delete_nodes!, delete_nodes_!
 
 # function delete_node!(node::Node{N,A}; child_link_fun=new_child_link) where {N<:AbstractNodeMTG,A}
 #     if isroot(node)
@@ -50,58 +50,58 @@ import MultiScaleTreeGraph: delete_nodes!, delete_nodes_!
 #     return node_return
 # end
 
-function delete_nodes!(
-    node;
-    scale=nothing,
-    symbol=nothing,
-    link=nothing,
-    all::Bool=true, # like continue in the R package, but actually the opposite
-    filter_fun=nothing,
-    child_link_fun=new_child_link
-	)
+# function delete_nodes!(
+#     node;
+#     scale=nothing,
+#     symbol=nothing,
+#     link=nothing,
+#     all::Bool=true, # like continue in the R package, but actually the opposite
+#     filter_fun=nothing,
+#     child_link_fun=new_child_link
+# 	)
 
-    # Check the filters once, and then compute the descendants recursively using `descendants_`
-    check_filters(node, scale=scale, symbol=symbol, link=link)
-    filtered = is_filtered(node, scale, symbol, link, filter_fun)
+#     # Check the filters once, and then compute the descendants recursively using `descendants_`
+#     check_filters(node, scale=scale, symbol=symbol, link=link)
+#     filtered = is_filtered(node, scale, symbol, link, filter_fun)
 
-    while filtered
-        node = delete_node!(node)
-        filtered = is_filtered(node, scale, symbol, link, filter_fun)
+#     while filtered
+#         node = delete_node!(node)
+#         filtered = is_filtered(node, scale, symbol, link, filter_fun)
 
-        # Don't go further if all == false
-        !all && return
-    end
+#         # Don't go further if all == false
+#         !all && return
+#     end
 
-    delete_nodes!_(node, scale, symbol, link, all, filter_fun, child_link_fun)
+#     delete_nodes!_(node, scale, symbol, link, all, filter_fun, child_link_fun)
 
-    return node
-end
+#     return node
+# end
 
-function delete_nodes!_(node, scale, symbol, link, all, filter_fun, child_link_fun)
-    if !isleaf(node)
-        # First we apply the algorithm recursively on the children:
-        chnodes = children(node)
-        nchildren = length(chnodes)
-        #? Note: we don't use `for chnode in chnodes` because it may delete dynamically during traversal, so we forget to traverse some nodes
-        for chnode in chnodes[1:nchildren]
-            delete_nodes!_(chnode, scale, symbol, link, all, filter_fun, child_link_fun)
-        end
-    end
+# function delete_nodes!_(node, scale, symbol, link, all, filter_fun, child_link_fun)
+#     if !isleaf(node)
+#         # First we apply the algorithm recursively on the children:
+#         chnodes = children(node)
+#         nchildren = length(chnodes)
+#         #? Note: we don't use `for chnode in chnodes` because it may delete dynamically during traversal, so we forget to traverse some nodes
+#         for chnode in chnodes[1:nchildren]
+#             delete_nodes!_(chnode, scale, symbol, link, all, filter_fun, child_link_fun)
+#         end
+#     end
 
-    # Then we work on the node itself. This ensures that its children will not be deleted
-    # afterwards (the deletion is acropetal, i.e. from leaves to root)
+#     # Then we work on the node itself. This ensures that its children will not be deleted
+#     # afterwards (the deletion is acropetal, i.e. from leaves to root)
 
-    # Is there any filter happening for the current node? (true is deleted):
-    filtered = is_filtered(node, scale, symbol, link, filter_fun)
+#     # Is there any filter happening for the current node? (true is deleted):
+#     filtered = is_filtered(node, scale, symbol, link, filter_fun)
 
-    if filtered
-        delete_node!(node, child_link_fun=child_link_fun)
-    end
-end
+#     if filtered
+#         delete_node!(node, child_link_fun=child_link_fun)
+#     end
+# end
 
 
 ## Plant
-plant_graph = readXEG("tutorials/temp/structures/beech3.xeg") #! change to beech
+plant_graph = readXEG("tutorials/temp/structures/beech0.xeg") #! change to beech
 # convert_to_PG(plant_graph) |> draw
 
 mtg = convert_to_MTG(plant_graph)
