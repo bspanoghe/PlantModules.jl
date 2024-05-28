@@ -1,7 +1,10 @@
 using Pkg; Pkg.activate("./tutorials")
 include("../../src/PlantModules.jl"); using .PlantModules
-using PlantGraphs, ModelingToolkit, DifferentialEquations, Unitful, Plots, MultiScaleTreeGraph
-import GLMakie.draw
+using PlantGraphs, MultiScaleTreeGraph
+using ModelingToolkit, DifferentialEquations, Unitful
+using PlantBiophysics, PlantBiophysics.PlantMeteo, PlantSimEngine
+using Plots; import GLMakie.draw
+using BenchmarkTools
 
 # Structural modules #
 
@@ -159,8 +162,26 @@ struct_connections = [graphs, intergraph_connections]
 
 ## New functional modules
 
+function get_assimilation_rate(T)
+	meteo = Atmosphere(T = T, Wind = 1.0, P = 101.3, Rh = 0.65)
+	m = ModelList(
+		Fvcb(),
+		Medlyn(0.03, 0.92), # see https://onlinelibrary.wiley.com/doi/epdf/10.1111/j.1365-2486.2010.02375.x
+		status = (Tₗ = meteo.T, aPPFD = 1000.0, Cₛ = meteo.Cₐ, Dₗ = meteo.VPD)
+	)
+	run!(m, meteo)
+	return m[:A]
+end
+
 function photosynthesis(x)
-	println("BAGOOL!") #!
+	@variables (
+        M(t) = M, [description = "Osmotically active metabolite content", unit = u"mol / m^3"], # m^3 so units match in second equation (Pa = J/m^3) #! extend validation function so L is ok?
+    )
+
+    eqs = [
+        d(M) ~ get_assimilation_rate()
+    ]
+    return ODESystem(eqs, t; name)
 end
 
 ## Connect them to structure
