@@ -162,24 +162,47 @@ struct_connections = [graphs, intergraph_connections]
 
 ## New functional modules
 
-function get_assimilation_rate(T)
-	meteo = Atmosphere(T = T, Wind = 1.0, P = 101.3, Rh = 0.65)
+function get_assimilation_rate(PAR_flux, T, LAI, k)
+	Kelvin_to_C = -273.15
+	meteo = Atmosphere(T = T + Kelvin_to_C, Wind = 1.0, P = 101.3, Rh = 0.65, Ri_PAR_f = PAR_flux)
 	m = ModelList(
-		Fvcb(),
-		Medlyn(0.03, 0.92), # see https://onlinelibrary.wiley.com/doi/epdf/10.1111/j.1365-2486.2010.02375.x
-		status = (Tₗ = meteo.T, aPPFD = 1000.0, Cₛ = meteo.Cₐ, Dₗ = meteo.VPD)
+		Fvcb(), # calculate CO2 assimilation rate
+		Medlyn(0.03, 0.92), # calculate stomatal conductance, see https://onlinelibrary.wiley.com/doi/epdf/10.1111/j.1365-2486.2010.02375.x
+		Beer(k), # calculate amount of light intercepted
+		status = (Tₗ = meteo[:T], LAI = LAI, Cₛ = meteo[:Cₐ], Dₗ = meteo[:VPD], RI_PAR_f = meteo[:Ri_PAR_f])
 	)
 	run!(m, meteo)
-	return m[:A]
+	return only(m[:A]) # extract result of the first (and only) timestep
 end
 
-function photosynthesis(x)
+@register_symbolic get_assimilation_rate(PAR_flux, T, LAI, k)
+
+get_PAR_flux(t) = max(0, 400 * sin(t/24*2*pi - 8))
+# plot(get_PAR_flux, xlims = (0, 48))
+
+@register_symbolic get_PAR_flux(t)
+
+leafarea(::Cuboid, D::AbstractArray) = D[1] * D[2]
+
+descendants(mtg, symbol = "Leaf")[1] |> leafarea
+
+function photosynthesis(; name, T, M)
+	@parameters (
+		T = T, [description = "Temperature", unit = u"K"],
+		LAI = 2.0, [description = "Leaf Area Index", unit = u"m^2 / m^2"],
+		k = 0.5, [description = "Light extinction coefficient", unit = u"N/N"],
+	)
+
 	@variables (
         M(t) = M, [description = "Osmotically active metabolite content", unit = u"mol / m^3"], # m^3 so units match in second equation (Pa = J/m^3) #! extend validation function so L is ok?
+		PF(t), [description = "Incoming PAR flux", unit = u"J / s / m^2"], #! make sure not to use variable name from other func mod used in same struct mod
+		A(t), [description = "Carbon assimilation rate", unit = u"µmol / m^2 / s"],
     )
 
     eqs = [
-        d(M) ~ get_assimilation_rate()
+		PF ~ get_PAR_flux(t)
+		A ~ get_assimilation_rate(PF, T, LAI, 0.5)
+        d(M) ~ 10^-6 * 60^2 * A # convert µmol => mol and s^-1 => hr^-1
     ]
     return ODESystem(eqs, t; name)
 end
@@ -187,11 +210,12 @@ end
 ## Connect them to structure
 
 module_coupling = [
+	photosynthesis => [:Leaf],
 	PlantModules.hydraulic_module => [:Internode, :Shoot, :Leaf],
 	PlantModules.constant_carbon_module => [:Internode, :Shoot, :Leaf],
 	PlantModules.environmental_module => [:Soil, :Air],
 	PlantModules.Ψ_soil_module => [:Soil],
-	PlantModules.Ψ_air_module => [:Air]
+	PlantModules.Ψ_air_module => [:Air],
 ]
 
 connecting_modules = [

@@ -1,5 +1,6 @@
 module PlantModules
 
+export Shape, Sphere, Cilinder, Cuboid
 export generate_system, alter_defaults, plotgraph, plotnode, readXEG, convert_to_MTG, convert_to_PG
 
 using ModelingToolkit, DifferentialEquations, Unitful # Simulation packages
