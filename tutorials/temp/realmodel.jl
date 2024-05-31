@@ -125,6 +125,18 @@ end
 transform!(mtg, [:length, :diameter, :width] => combine_dimensions => :D)
 DataFrame(mtg, [:D])
 
+function get_shape(D)
+	if isnothing(D)
+		return nothing
+	elseif length(D) == 2
+		return PlantModules.Cilinder(ϵ_D = [6.0, 0.15], ϕ_D = [0.8, 0.03])
+	else
+		PlantModules.Cuboid(ϵ_D = [5.0, 0.3, 0.2], ϕ_D = [0.7, 0.1, 0.05])
+	end
+end
+transform!(mtg, :D => get_shape => :shape)
+DataFrame(mtg, [:shape])
+
 ### Inspecting what kind of structural modules are in here
 me_structmods = [PlantModules.structmod(node) for node in PlantModules.nodes(mtg)] |> unique
 
@@ -184,9 +196,9 @@ get_PAR_flux(t) = max(0, 400 * sin(t/24*2*pi - 8))
 
 leafarea(::Cuboid, D::AbstractArray) = D[1] * D[2]
 
-descendants(mtg, symbol = "Leaf")[1] |> leafarea
+descendants(mtg, symbol = "Leaf")[1] |> x -> leafarea(x.shape, x.D)
 
-function photosynthesis(; name, T, M)
+function photosynthesis_module(; name, T, M, shape, D)
 	@parameters (
 		T = T, [description = "Temperature", unit = u"K"],
 		LAI = 2.0, [description = "Leaf Area Index", unit = u"m^2 / m^2"],
@@ -201,8 +213,8 @@ function photosynthesis(; name, T, M)
 
     eqs = [
 		PF ~ get_PAR_flux(t)
-		A ~ get_assimilation_rate(PF, T, LAI, 0.5)
-        d(M) ~ 10^-6 * 60^2 * A # convert µmol => mol and s^-1 => hr^-1
+		A ~ get_assimilation_rate(PF, T, LAI, k)
+        d(M) ~ (10^-6 * 60^2) * leafarea(shape, D) * A / volume(shape, D) # convert µmol => mol and s^-1 => hr^-1
     ]
     return ODESystem(eqs, t; name)
 end
@@ -210,7 +222,7 @@ end
 ## Connect them to structure
 
 module_coupling = [
-	photosynthesis => [:Leaf],
+	photosynthesis_module => [:Leaf],
 	PlantModules.hydraulic_module => [:Internode, :Shoot, :Leaf],
 	PlantModules.constant_carbon_module => [:Internode, :Shoot, :Leaf],
 	PlantModules.environmental_module => [:Soil, :Air],
