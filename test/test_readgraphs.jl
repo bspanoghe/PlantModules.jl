@@ -13,4 +13,4 @@ coolnode = testgraph[coolnode_id]
 @test PlantModules.structmod(coolnode) == :RU
 
 coolnode_nbs = PlantModules.neighbours(coolnode, testgraph)
-@test issetequal(PlantModules.id.(coolnode_nbs), [5069720, 5069722])
+@test issetequal(PlantModules.id.(coolnode_nbs), [5069718, 5069720, 5069722])

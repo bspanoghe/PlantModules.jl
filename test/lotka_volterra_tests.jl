@@ -138,17 +138,17 @@ connection_MTKs, connection_equations = PlantModules.get_connection_info(node, g
 @test connection_MTKs isa Vector{ODESystem}
 @test connection_equations isa Vector{Equation}
 
-## getnodeu0s
+## getnodeparamu0s
 node = node4
 structmodule = :Forest
 func_module = lotka_volterra
-nodeu0s = PlantModules.getnodeu0s(node, structmodule, func_module, module_defaults, default_u0s)
+nodeu0s = PlantModules.getnodeparamu0s(node, structmodule, func_module, module_defaults, default_u0s)
 @test issetequal(nodeu0s, [:P => 0, :N => 5])
 
 node = PlantModules.nodes(graph2)[1]
 structmodule = :Cave
 func_module = fountain_of_rabbits
-nodeu0s = PlantModules.getnodeu0s(node, structmodule, func_module, module_defaults, default_u0s)
+nodeu0s = PlantModules.getnodeparamu0s(node, structmodule, func_module, module_defaults, default_u0s)
 @test issetequal(nodeu0s, [:P => 0, :N => 1])
 
 ## generate_system

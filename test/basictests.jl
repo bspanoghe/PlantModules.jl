@@ -44,16 +44,13 @@ altered_params, altered_u0s = alter_defaults(default_changes, default_params = d
 @test altered_params == (qux = (bar = 100, baz = 100, quux = 100, corge = 100), snoo = (snee = 100,))
 @test altered_u0s == (qux = (xyzzy = 500,),)
 
-## getnodeparams
+## getnodeparamu0s
 
 node = Foo(1)
 
-@test PlantModules.getnodeparams(node, structmodule, func_module, module_defaults, default_params) ==
+@test PlantModules.getnodeparamu0s(node, structmodule, func_module, module_defaults, default_params) ==
     Dict([:bar => 1, :baz => 10, :quux => 42, :corge => 100])
-
-## getnodeu0s
-
-@test PlantModules.getnodeu0s(node, structmodule, func_module, module_defaults, default_u0s) ==
+@test PlantModules.getnodeparamu0s(node, structmodule, func_module, module_defaults, default_u0s) ==
     Dict([:xyzzy => 10])
 
 ## getMTKsystem
