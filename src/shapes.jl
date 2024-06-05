@@ -69,7 +69,52 @@ struct Cuboid{T}<:Shape
     end
 end
 
-volume(s::Shape, ::AbstractArray) = error("Function volume is not defined for shape $s")
+"""
+    volume(s::Shape, ::AbstractArray)
+
+Calculate the volume of a given shape.
+"""
+volume(s::Shape, ::AbstractArray) = error("Function `volume` is not defined for shape $s")
+"""
+    volume(::Sphere, D::AbstractArray)
+
+Calculate the volume of a sphere.
+"""
 volume(::Sphere, D::AbstractArray) = 4/3 * pi * D[1]^3 # Write dimensions in the order: radius
+"""
+    volume(::Cilinder, D::AbstractArray)
+
+Calculate the volume of a cilinder. Dimensions are assumed to be in the order radius, length.
+"""
 volume(::Cilinder, D::AbstractArray) = D[1]^2 * pi * D[2] # Write dimensions in the order: radius - length
+"""
+    volume(::Cuboid, D::AbstractArray)
+
+Calculate the volume of a cuboid.
+"""
 volume(::Cuboid, D::AbstractArray) = D[1] * D[2] * D[3] # Write dimensions in the order: length - width - height
+
+"""
+    cross_area(s::Shape, ::AbstractArray)
+
+Calculate the cross-sectional area of a given shape.
+"""
+cross_area(s::Shape, ::AbstractArray) = error("Function `cross_area` is not defined for shape $s")
+"""
+    cross_area(::Sphere, D::AbstractArray)
+
+Calculate the cross-sectional area of a sphere, defined as the area of a circle with its radius.
+"""
+cross_area(::Sphere, D::AbstractArray) = D[1]^2 * pi # Write dimensions in the order: radius
+"""
+    cross_area(::Cilinder, D::AbstractArray)
+
+Calculate the cross-sectional area of a cilinder, defined as its base area. Dimensions are assumed to be in the order radius, length.
+"""
+cross_area(::Cilinder, D::AbstractArray) = D[1]^2 * pi # Write dimensions in the order: radius - length
+"""
+    cross_area(::Cuboid, D::AbstractArray)
+
+Calculate the cross-sectional area of a cuboid, defined as the product of its **last** two dimensions.
+"""
+cross_area(::Cuboid, D::AbstractArray) = D[2] * D[3] # Write dimensions in the order: length - width - height
