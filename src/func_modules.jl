@@ -51,22 +51,6 @@ function hydraulic_module(; name, T, shape::Shape, Γ, P, D)
 end
 
 """
-    constant_carbon_module(; name, C)
-
-Returns a ModelingToolkit ODESystem describing a constant concentration of osmotically active metabolite content.
-"""
-function constant_carbon_module(; name, M)
-    @variables (
-        M(t) = M, [description = "Osmotically active metabolite content", unit = u"mol / m^3"], # m^3 so units match in second equation (Pa = J/m^3) #! extend validation function so L is ok?
-    )
-
-    eqs = [
-        d(M) ~ 0
-    ]
-    return ODESystem(eqs, t; name)
-end
-
-"""
     environmental_module(; name, T, W_max, W_r)
 
 Returns a ModelingToolkit ODESystem describing a non-growing water reservoir.
@@ -90,6 +74,22 @@ function environmental_module(; name, T, W_max, W_r)
         W_r ~ W / W_max,
         ΔW ~ ΣF, # Water content changes due to flux (depending on water potentials as defined in connections)
         d(W) ~ ΔW,
+    ]
+    return ODESystem(eqs, t; name)
+end
+
+"""
+    constant_carbon_module(; name, C)
+
+Returns a ModelingToolkit ODESystem describing a constant concentration of osmotically active metabolite content.
+"""
+function constant_carbon_module(; name, M)
+    @variables (
+        M(t) = M, [description = "Osmotically active metabolite content", unit = u"mol / m^3"],
+    )
+
+    eqs = [
+        d(M) ~ 0
     ]
     return ODESystem(eqs, t; name)
 end
@@ -129,33 +129,45 @@ function Ψ_air_module(; name, T)
         V_w = 18e-6, [description = "Molar volume of water", unit = u"m^3/mol"]
     )
 
-	eqs = [Ψ ~ R * T / V_w * log(W_r)]
-		#! What's this equation called again? (Ask Jeroen)
+	eqs = [Ψ ~ R * T / V_w * log(W_r)] # Spanner equation (see e.g. https://academic.oup.com/insilicoplants/article/4/1/diab038/6510844)
 
+	return ODESystem(eqs, t; name)
+end
+
+function constant_K_module(; name, K)
+	@variables (
+        K(t) = K, [description = "Specific hydraulic conductivity of connections with compartment", unit = u"g / hr / MPa / m^2"],
+        K_A(t), [description = "Hydraulic conductivity of connections with compartment", unit = u"g / hr / MPa"],
+        D(t)[1:num_D], [description = "Dimensions of compartment", unit = u"m"],
+    )
+
+	eqs = [
+        d(K) ~ 0
+        K_A ~ cross_area(shape, D)
+    ]
 	return ODESystem(eqs, t; name)
 end
 
 # Module connections #
 
 """
-    hydraulic_connection(; name, K)
+    hydraulic_connection(; name)
 
 Returns a ModelingToolkit ODESystem describing a water flow connection between two hydraulics-based functional modules. 
 """
-function hydraulic_connection(; name, K)
-    @parameters (
-        K = K, [description = "Hydraulic conductivity of connection", unit = u"g / hr / MPa"],
-    )
+function hydraulic_connection(; name)
     @variables (
         F(t), [description = "Water flux from compartment 2 to compartment 1", unit = u"g / hr"],
         Ψ_1(t), [description = "Total water potential of compartment 1", unit = u"MPa"],
         Ψ_2(t), [description = "Total water potential of compartment 2", unit = u"MPa"],
+        K(t), [description = "Hydraulic conductivity of connection", unit = u"g / hr / MPa / m^2"],
+        K_1(t), [description = "Hydraulic conductivity of compartment 1", unit = u"g / hr / MPa / m^2"],
+        K_2(t), [description = "Hydraulic conductivity of compartment 2", unit = u"g / hr / MPa / m^2"],
     )
 
     eqs = [
-        F ~ K * (Ψ_2 - Ψ_1) 
-            #! make K per m^2 ?
-            # or make K = (1/2/K_1 + 1/2/K_2)^-1
+        F ~ K * (Ψ_2 - Ψ_1)
+        K ~ 2*(1/K_1 + 1/K_2)^-1 #! Why use harmonic mean instead of arithmetic mean?
     ]
     return ODESystem(eqs, t; name)
 end
@@ -163,7 +175,9 @@ end
 hydraulic_connection_eqs(node_MTK, nb_node_MTKs, connection_MTKs) = [
 	[connection_MTK.Ψ_1 ~ node_MTK.Ψ for connection_MTK in connection_MTKs]...,
 	[connection_MTK.Ψ_2 ~ nb_node_MTK.Ψ for (connection_MTK, nb_node_MTK) in zip(connection_MTKs, nb_node_MTKs)]...,
-	node_MTK.ΣF ~ sum([connection_MTK.F for connection_MTK in connection_MTKs])
+	node_MTK.ΣF ~ sum([connection_MTK.F for connection_MTK in connection_MTKs]),
+    [connection_MTK.K_1 ~ node_MTK.K for connection_MTK in connection_MTKs]...,
+	[connection_MTK.K_2 ~ nb_node_MTK.K for (connection_MTK, nb_node_MTK) in zip(connection_MTKs, nb_node_MTKs)]...,
 ]
 
 # Helper functions #
@@ -191,38 +205,21 @@ LSE(x::Real...; γ = 1) = log(sum(exp.(γ .* x .- maximum(x))) ) / γ + maximum(
 # Default values #
 
 default_params = (
-    hydraulic_module = (
-        T = 298.15, shape = Sphere(ϵ_D = [1.0], ϕ_D = [1.0]), Γ = 0.3
-    ),
-    constant_carbon_module = (
-    ),
-    environmental_module = (
-        T = 298.15, W_max = 1e6
-    ),
-    Ψ_soil_module = (
-    ),
-    Ψ_air_module = (
-        T = 298.15,
-    ),
-    hydraulic_connection = (
-        K = 3,
-    )
+    hydraulic_module = (T = 298.15, shape = Sphere(ϵ_D = [1.0], ϕ_D = [1.0]), Γ = 0.3),
+    constant_carbon_module = (),
+    environmental_module = (T = 298.15, W_max = 1e6),
+    Ψ_soil_module = (),
+    Ψ_air_module = (T = 298.15,),
+    constant_K_module = (),
+    hydraulic_connection = ()
 )
 
 default_u0s = (
-    hydraulic_module = (
-        P = 0.1, D = [0.15],
-    ),
-    constant_carbon_module = (
-        M = 25,
-    ),
-    environmental_module = (
-        W_r = 0.8,
-    ),
-    Ψ_soil_module = (
-    ),
-    Ψ_air_module = (
-    ),
-    hydraulic_connection = (
-    )
+    hydraulic_module = (P = 0.1, D = [0.15],),
+    constant_carbon_module = (M = 25,),
+    environmental_module = (W_r = 0.8,),
+    Ψ_soil_module = (),
+    Ψ_air_module = (),
+    constant_K_module = (K = 500,),
+    hydraulic_connection = ()
 )
