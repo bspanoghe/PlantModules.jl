@@ -116,11 +116,12 @@ node1, node2, node3, node4 = collect(values(graph.nodes))
 ## getMTKsystem
 node1, node2, node3, node4 = collect(values(graph.nodes))
 
-sys1 = PlantModules.getMTKsystem(node1, module_coupling, module_defaults, default_params, default_u0s)
+checkunits = false
+sys1 = PlantModules.getMTKsystem(node1, module_coupling, module_defaults, default_params, default_u0s, checkunits)
 @test get_name(sys1) == Symbol(string(PlantModules.structmod(node1)) * string(PlantModules.id(node1)))
 
 ## get_MTK_system_dicts
-MTK_system_dicts = PlantModules.get_MTK_system_dicts(graphs, module_coupling, module_defaults, default_params, default_u0s)
+MTK_system_dicts = PlantModules.get_MTK_system_dicts(graphs, module_coupling, module_defaults, default_params, default_u0s, checkunits)
 @test length(MTK_system_dicts) == 2
 @test length(MTK_system_dicts[1]) == 4
 @test length(MTK_system_dicts[2]) == 3
