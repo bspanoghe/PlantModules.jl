@@ -118,3 +118,29 @@ cross_area(::Cilinder, D::AbstractArray) = D[1]^2 * pi # Write dimensions in the
 Calculate the cross-sectional area of a cuboid, defined as the product of its **last** two dimensions.
 """
 cross_area(::Cuboid, D::AbstractArray) = D[2] * D[3] # Write dimensions in the order: length - width - height
+
+
+"""
+    surface_area(s::Shape, ::AbstractArray)
+
+Calculate the surface area of a given shape.
+"""
+surface_area(s::Shape, ::AbstractArray) = error("Function `surface_area` is not defined for shape $s")
+"""
+    surface_area(::Sphere, D::AbstractArray)
+
+Calculate the surface area of a sphere.
+"""
+surface_area(::Sphere, D::AbstractArray) = 4 * pi * D[1]^2
+"""
+    surface_area(::Cilinder, D::AbstractArray)
+
+Calculate the surface area of a cilinder. Dimensions are assumed to be in the order radius, length.
+"""
+surface_area(::Cilinder, D::AbstractArray) = 2 * (D[1]^2 * pi) + (2 * D[1] * pi) * D[2]
+"""
+    surface_area(::Cuboid, D::AbstractArray)
+
+Calculate the surface area of a cuboid.
+"""
+surface_area(::Cuboid, D::AbstractArray) = 2 * (D[1]*D[2] + D[1]*D[3] + D[2]*D[3])

@@ -18,9 +18,10 @@ function generate_system(default_params::NamedTuple, default_u0s::NamedTuple, mo
 	)
 
 	graphs, intergraph_connections = struct_connections
-    connecting_modules, get_connection_eqs = func_connections
 
-	MTK_system_dicts = get_MTK_system_dicts(graphs, module_coupling, module_defaults, default_params, default_u0s, checkunits)
+	MTK_system_dicts = get_MTK_system_dicts(
+		graphs, module_coupling, module_defaults, default_params, default_u0s, checkunits
+	)
 	MTK_systems = vcat(collect.(values.(MTK_system_dicts))...)
 
 	connection_MTKs = ODESystem[]
@@ -31,26 +32,32 @@ function generate_system(default_params::NamedTuple, default_u0s::NamedTuple, mo
 			nb_nodes, nb_node_graphnrs = get_nb_nodes(node, graphs, graphnr, intergraph_connections)
 
 			if !isempty(nb_nodes) # no neighbours no connection info
-				node_connection_MTK, node_connection_equations = get_connection_info(node, graphnr, nb_nodes, nb_node_graphnrs, connecting_modules, get_connection_eqs, default_params, default_u0s, MTK_system_dicts)
+				node_connection_MTK, node_connection_equations = get_connection_info(
+					node, graphnr, nb_nodes, nb_node_graphnrs,
+					func_connections, default_params, default_u0s, MTK_system_dicts
+				)
 				append!(connection_MTKs, node_connection_MTK)
 				append!(connection_equations, node_connection_equations)
 			end
 		end
 	end
 
-	system = ODESystem(connection_equations, get_iv(MTK_systems[1]), name = :system, systems = vcat(MTK_systems, connection_MTKs), checks = checkunits)
+	system = ODESystem(connection_equations, get_iv(MTK_systems[1]), name = :system,
+		systems = vcat(MTK_systems, connection_MTKs), checks = checkunits
+	)
 
 	return system
 end
 
 # get node idx to corresponding MTK system
-get_MTK_system_dicts(graphs, module_coupling, module_defaults, default_params, default_u0s, checkunits) = 
-	[
+function get_MTK_system_dicts(graphs, module_coupling, module_defaults, default_params, default_u0s, checkunits) 
+	return [
 		[PlantModules.id(node) => 
 			getMTKsystem(node, module_coupling, module_defaults, default_params, default_u0s, checkunits)
 			for node in PlantModules.nodes(graph)
 		] |> Dict for graph in graphs
-]
+	]
+end
 
 # Get MTK system corresponding with node
 function getMTKsystem(node, module_coupling, module_defaults, default_params, default_u0s, checkunits)
@@ -103,24 +110,38 @@ end
 
 # collapse multiple ODESystems into one. like ModelingToolkit.compose, but keeps a single namespace
 function collapse(systems::Vector{ODESystem}; name::Symbol, checkunits::Bool)
-    return ODESystem(vcat([get_eqs(system) for system in systems]...), get_iv(systems[1]), vcat([unknowns(system) for system in systems]...),
-        vcat([parameters(system) for system in systems]...), name = name, checks = checkunits)
-end
+    return ODESystem(
+		vcat([get_eqs(system) for system in systems]...),
+		get_iv(systems[1]), vcat([unknowns(system) for system in systems]...),
+        vcat([parameters(system) for system in systems]...),
+		name = name, checks = checkunits
+		)
+end #! use `extend` instead?
 
 # get MTK systems and the vector of equations defining connections between MTK systems of a node and its neighbour nodes
-function get_connection_info(node, graphnr, nb_nodes, nb_node_graphnrs, connecting_modules, get_connection_eqs, default_params, default_u0s, MTK_system_dicts)
+function get_connection_info(node, graphnr, nb_nodes, nb_node_graphnrs, func_connections, 
+	default_params, default_u0s, MTK_system_dicts
+	)
+
+	connecting_modules, multi_connection_eqs = func_connections
+
 	node_MTK = MTK_system_dicts[graphnr][PlantModules.id(node)]
 
 	nb_node_MTKs = Vector{ODESystem}(undef, length(nb_nodes))
 	connection_MTKs = Vector{ODESystem}(undef, length(nb_nodes))
+	node_connection_eqs = Vector{Function}(undef, length(nb_nodes)+1)
 
 	for (nb_nr, (nb_node, nb_node_graphnr)) in enumerate(zip(nb_nodes, nb_node_graphnrs))
 		nb_node_MTKs[nb_nr] = MTK_system_dicts[nb_node_graphnr][PlantModules.id(nb_node)]
-		connection_MTKs[nb_nr] = get_func_connection(node, nb_node, connecting_modules, default_params, default_u0s)
+		connection_MTKs[nb_nr], get_node_connection_eqs = get_func_connection(
+			node, nb_node, connecting_modules, default_params, default_u0s
+		)
+		node_connection_eqs[nb_nr] = get_node_connection_eqs(node_MTK, nb_node_MTKs[nb_nr], connection_MTKs[nb_nr])
 	end
 
-	connection_equations = get_connection_eqs(node_MTK, nb_node_MTKs, connection_MTKs)
-	return connection_MTKs, connection_equations
+	node_connection_eqs[end] = multi_connection_eqs(node_MTK, nb_node_MTKs, connection_MTKs)
+	node_connection_eqs = reduce(vcat, node_connection_eqs)
+	return connection_MTKs, node_connection_eqs
 end
 
 # given two nodes' structural modules, get the MTK system of the functional connection between them
@@ -128,25 +149,30 @@ function get_func_connection(node, nb_node, connecting_modules, default_params, 
 	structmodule = PlantModules.structmod(node)
 	nb_structmodule = PlantModules.structmod(nb_node)
 
-	connecting_module_vec = [connecting_module for connecting_module in connecting_modules if issetequal(connecting_module.first, (structmodule, nb_structmodule))]
+	connecting_module_idx = findfirst(x -> x.first == (structmodule, nb_structmodule), connecting_modules)
 
-	if isempty(connecting_module_vec)
-		default_connecting_module = [connecting_module for connecting_module in connecting_modules if isempty(connecting_module.first)]
-		connector_func, connection_specific_values = default_connecting_module[1].second, []
+	if isnothing(connecting_module_idx)
+		default_connecting_module_idx = findfirst(x -> isempty(x.first), connecting_modules)
+		default_connecting_module = connecting_modules[default_connecting_module_idx]
+		connector_func, connection_specific_values = default_connecting_module.second, []
 	else
-		connector_func, connection_specific_values = connecting_module_vec[1].second
+		connecting_module = connecting_modules[connecting_module_idx]
+		connector_func, connection_specific_values = second(connecting_module)
 	end
 
-	default_conn_info = merge(get(default_params, Symbol(connector_func), []), get(default_u0s, Symbol(connector_func), []))
+	default_conn_info = merge(
+		get(default_params, Symbol(connector_func), []),
+		get(default_u0s, Symbol(connector_func), [])
+	)
 	conn_info = merge(default_conn_info, connection_specific_values)
 
-	func_connection = connector_func(;
+	func_connection, get_node_connection_eqs = connector_func(;
 		name = Symbol(string(structmodule) * string(PlantModules.id(node)) * "_" *
 			string(nb_structmodule) * string(PlantModules.id(nb_node))),
 		Pair.(keys(conn_info), values(conn_info))...
 	)
 
-	return func_connection
+	return func_connection, get_node_connection_eqs
 end
 
 # get neighbouring nodes of a node both from the same graph and all connected graphs

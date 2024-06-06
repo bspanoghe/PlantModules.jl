@@ -146,7 +146,9 @@ connecting_modules = [
     (:Leaf, :Air) => (PlantModules.hydraulic_connection, [:K => 10])
 ]
 
-get_connection_eqs = PlantModules.hydraulic_connection_eqs #!
+get_connection_eqs = [
+	PlantModules.hydraulic_connection => PlantModules.hydraulic_connection_eqs,
+] #! CHANGED
 
 func_connections = [connecting_modules, get_connection_eqs]
 

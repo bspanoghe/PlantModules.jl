@@ -134,50 +134,67 @@ function Ψ_air_module(; name, T)
 	return ODESystem(eqs, t; name)
 end
 
-function constant_K_module(; name, K)
-	@variables (
-        K(t) = K, [description = "Specific hydraulic conductivity of connections with compartment", unit = u"g / hr / MPa / m^2"],
-        K_A(t), [description = "Hydraulic conductivity of connections with compartment", unit = u"g / hr / MPa"],
-        D(t)[1:num_D], [description = "Dimensions of compartment", unit = u"m"],
-    )
-
-	eqs = [
-        d(K) ~ 0
-        K_A ~ cross_area(shape, D)
-    ]
-	return ODESystem(eqs, t; name)
-end
-
 # Module connections #
+
+## Connection information
 
 """
     hydraulic_connection(; name)
 
 Returns a ModelingToolkit ODESystem describing a water flow connection between two hydraulics-based functional modules. 
 """
-function hydraulic_connection(; name)
+function hydraulic_connection(; name, K)
+    @parameters (
+        K(t) = K, [description = "Hydraulic conductivity of connection", unit = u"g / hr / MPa / m^2"],
+    )
     @variables (
         F(t), [description = "Water flux from compartment 2 to compartment 1", unit = u"g / hr"],
         Ψ_1(t), [description = "Total water potential of compartment 1", unit = u"MPa"],
         Ψ_2(t), [description = "Total water potential of compartment 2", unit = u"MPa"],
-        K(t), [description = "Hydraulic conductivity of connection", unit = u"g / hr / MPa / m^2"],
-        K_1(t), [description = "Hydraulic conductivity of compartment 1", unit = u"g / hr / MPa / m^2"],
-        K_2(t), [description = "Hydraulic conductivity of compartment 2", unit = u"g / hr / MPa / m^2"],
     )
 
     eqs = [
         F ~ K * (Ψ_2 - Ψ_1)
-        K ~ 2*(1/K_1 + 1/K_2)^-1 #! Why use harmonic mean instead of arithmetic mean?
     ]
-    return ODESystem(eqs, t; name)
+
+    get_node_connection_eqs(node_MTK, nb_node_MTK, connection_MTK) = [
+        connection_MTK.Ψ_1 ~ node_MTK.Ψ,
+        connection_MTK.Ψ_2 ~ nb_node_MTK.Ψ,
+    ]
+
+    return ODESystem(eqs, t; name), get_node_connection_eqs
 end
 
-hydraulic_connection_eqs(node_MTK, nb_node_MTKs, connection_MTKs) = [
-	[connection_MTK.Ψ_1 ~ node_MTK.Ψ for connection_MTK in connection_MTKs]...,
-	[connection_MTK.Ψ_2 ~ nb_node_MTK.Ψ for (connection_MTK, nb_node_MTK) in zip(connection_MTKs, nb_node_MTKs)]...,
-	node_MTK.ΣF ~ sum([connection_MTK.F for connection_MTK in connection_MTKs]),
-    [connection_MTK.K_1 ~ node_MTK.K for connection_MTK in connection_MTKs]...,
-	[connection_MTK.K_2 ~ nb_node_MTK.K for (connection_MTK, nb_node_MTK) in zip(connection_MTKs, nb_node_MTKs)]...,
+function environmental_hydraulic_connection(; name, K_s)
+    @parameters (
+        K_s(t) = K_s, [description = "Specific hydraulic conductivity of connection", unit = u"g / hr / MPa / m^2"],
+    )
+    @variables (
+        F(t), [description = "Water flux from compartment 2 to compartment 1", unit = u"g / hr"],
+        Ψ_1(t), [description = "Total water potential of compartment 1", unit = u"MPa"],
+        Ψ_2(t), [description = "Total water potential of compartment 2", unit = u"MPa"],
+        D_1(t)[1:num_D], [description = "Dimensions of compartment 1", unit = u"m"],
+        SA(t), [description = "Surface area of connection", unit = u"m^2"],
+    )
+
+    eqs = [
+        F ~ K_s * SA * (Ψ_2 - Ψ_1)
+        SA ~ surface_area(D_1)
+    ]
+
+    get_node_connection_eqs(node_MTK, nb_node_MTK, connection_MTK) = [
+        connection_MTK.Ψ_1 ~ node_MTK.Ψ,
+        connection_MTK.Ψ_2 ~ nb_node_MTK.Ψ,
+        connection_MTK.D_1 ~ node_MTK.D,
+    ]
+
+    return ODESystem(eqs, t; name), get_node_connection_eqs
+end
+
+## Node behaviour in function of all their connections
+
+multi_connection_eqs(node_MTK, connection_MTKs) = [
+    node_MTK.ΣF ~ sum([connection_MTK.F for connection_MTK in connection_MTKs])
 ]
 
 # Helper functions #
@@ -210,8 +227,8 @@ default_params = (
     environmental_module = (T = 298.15, W_max = 1e6),
     Ψ_soil_module = (),
     Ψ_air_module = (T = 298.15,),
-    constant_K_module = (),
-    hydraulic_connection = ()
+    hydraulic_connection = (K = 5,),
+    environmental_hydraulic_connection = (K_s = 50,),
 )
 
 default_u0s = (
@@ -220,6 +237,6 @@ default_u0s = (
     environmental_module = (W_r = 0.8,),
     Ψ_soil_module = (),
     Ψ_air_module = (),
-    constant_K_module = (K = 500,),
-    hydraulic_connection = ()
+    hydraulic_connection = (K = 5,),
+    environmental_hydraulic_connection = (K_s = 50,),
 )
