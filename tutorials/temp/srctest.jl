@@ -1,8 +1,10 @@
-using Pkg; Pkg.activate(".")
-include("../PlantModules.jl")
-using PlantGraphs, ModelingToolkit, DifferentialEquations, Unitful, Plots #! MTK imports etc. should not be necessary when package is done
-# import GLMakie.draw
-# using BenchmarkTools
+using Pkg; Pkg.activate("./tutorials")
+include("../../src/PlantModules.jl"); using .PlantModules
+using PlantGraphs, MultiScaleTreeGraph
+import PlantGraphs: Node
+using ModelingToolkit, DifferentialEquations, Unitful
+using Plots; import GLMakie.draw
+
 
 #! for testing
 function showme(x)
@@ -70,9 +72,7 @@ connecting_modules = [
 	(:Soil, :Air) => (PlantModules.hydraulic_connection, [:K => 5e-2]) #! check value
 ] # values based on https://www.mdpi.com/2073-4441/10/8/1036
 
-get_connection_eqs = PlantModules.hydraulic_connection_eqs #!
-
-func_connections = [connecting_modules, get_connection_eqs]
+func_connections = [connecting_modules, PlantModules.multi_connection_eqs]
 
 system = PlantModules.generate_system(default_params, default_u0s,
 	module_defaults, module_coupling, struct_connections, func_connections, checkunits = false

@@ -145,7 +145,7 @@ Returns a ModelingToolkit ODESystem describing a water flow connection between t
 """
 function hydraulic_connection(; name, K)
     @parameters (
-        K(t) = K, [description = "Hydraulic conductivity of connection", unit = u"g / hr / MPa / m^2"],
+        K(t) = K, [description = "Hydraulic conductivity of connection", unit = u"g / hr / MPa"],
     )
     @variables (
         F(t), [description = "Water flux from compartment 2 to compartment 1", unit = u"g / hr"],
@@ -157,12 +157,12 @@ function hydraulic_connection(; name, K)
         F ~ K * (Ψ_2 - Ψ_1)
     ]
 
-    get_node_connection_eqs(node_MTK, nb_node_MTK, connection_MTK) = [
+    get_connection_eqset(node_MTK, nb_node_MTK, connection_MTK) = [
         connection_MTK.Ψ_1 ~ node_MTK.Ψ,
         connection_MTK.Ψ_2 ~ nb_node_MTK.Ψ,
     ]
 
-    return ODESystem(eqs, t; name), get_node_connection_eqs
+    return ODESystem(eqs, t; name), get_connection_eqset
 end
 
 function environmental_hydraulic_connection(; name, K_s)
@@ -182,13 +182,13 @@ function environmental_hydraulic_connection(; name, K_s)
         SA ~ surface_area(D_1)
     ]
 
-    get_node_connection_eqs(node_MTK, nb_node_MTK, connection_MTK) = [
+    get_connection_eqset(node_MTK, nb_node_MTK, connection_MTK) = [
         connection_MTK.Ψ_1 ~ node_MTK.Ψ,
         connection_MTK.Ψ_2 ~ nb_node_MTK.Ψ,
         connection_MTK.D_1 ~ node_MTK.D,
     ]
 
-    return ODESystem(eqs, t; name), get_node_connection_eqs
+    return ODESystem(eqs, t; name), get_connection_eqset
 end
 
 ## Node behaviour in function of all their connections
@@ -237,6 +237,6 @@ default_u0s = (
     environmental_module = (W_r = 0.8,),
     Ψ_soil_module = (),
     Ψ_air_module = (),
-    hydraulic_connection = (K = 5,),
-    environmental_hydraulic_connection = (K_s = 50,),
+    hydraulic_connection = (),
+    environmental_hydraulic_connection = (),
 )

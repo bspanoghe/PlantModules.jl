@@ -18,38 +18,67 @@ function generate_system(default_params::NamedTuple, default_u0s::NamedTuple, mo
 	)
 
 	graphs, intergraph_connections = struct_connections
+	connecting_modules, multi_connection_eqset = func_connections
 
 	MTK_system_dicts = get_MTK_system_dicts(
 		graphs, module_coupling, module_defaults, default_params, default_u0s, checkunits
-	)
-	MTK_systems = vcat(collect.(values.(MTK_system_dicts))...)
+	) # Vector of a dict per graph with (node id => node MTK system)
+	MTK_systems = vcat(collect.(values.(MTK_system_dicts))...) # node MTK systems
 
-	connection_MTKs = ODESystem[]
-	connection_equations = Equation[]
+	connection_MTK_dict = Dict{Tuple{Int64, Int64}, ODESystem}() # (node_idx, nb_node_idx) => edge MTK system
+	connection_eqsets = Equation[] # equations linking nodes with edges
 
-	for (graphnr, graph) in enumerate(graphs)
-		for node in PlantModules.nodes(graph)
-			nb_nodes, nb_node_graphnrs = get_nb_nodes(node, graphs, graphnr, intergraph_connections)
+	for (graphnr, graph) in enumerate(graphs) # go over all graphs
 
-			if !isempty(nb_nodes) # no neighbours no connection info
-				node_connection_MTK, node_connection_equations = get_connection_info(
-					node, graphnr, nb_nodes, nb_node_graphnrs,
-					func_connections, default_params, default_u0s, MTK_system_dicts
-				)
-				append!(connection_MTKs, node_connection_MTK)
-				append!(connection_equations, node_connection_equations)
+		for node in PlantModules.nodes(graph) # go over every node in the graph
+			#! put some of this code into a function
+			node_id = PlantModules.id(node)
+			nb_nodes, nb_node_graphnrs = get_nb_nodes(node, graphs, graphnr, intergraph_connections) # collect neighbour nodes
+			nb_connection_MTKs = ODESystem[]
+
+			for (nb_node, nb_node_graphnr) in zip(nb_nodes, nb_node_graphnrs) # go over all neighbours of the node
+				nb_node_id = PlantModules.id(nb_node)
+				connection_exists = haskey(connection_MTK_dict, (nb_node_id, node_id)) 
+					# check if connection between nodes is already defined from the neighbour's side
+
+				if connection_exists # connection and it's corresponding equations already in there
+					connection_MTK = connection_MTK_dict[(nb_node_id, node_id)]
+				else # define the connection
+					connecting_module, reverse_order = get_connecting_module(node, nb_node, connecting_modules)
+					if reverse_order # put neighbour node as main node in `get_connection_info`
+						connection_MTK, connection_eqset = get_connection_info( 
+							nb_node, nb_node_graphnr, node, graphnr,
+							connecting_module, default_params, default_u0s, MTK_system_dicts
+						) # get connection info (= MTK system of edge AND equations linking edge with its two nodes)
+					else
+						connection_MTK, connection_eqset = get_connection_info( 
+							node, graphnr, nb_node, nb_node_graphnr,
+							connecting_module, default_params, default_u0s, MTK_system_dicts
+						)
+					end
+					connection_MTK_dict[(node_id, nb_node_id)] = connection_MTK 
+						# add connection to dict 
+						# (main node first even if order was reversed calling `get_connection_info`)
+						# (otherwise when it's the current neighbour's turn it won't find this connection)
+					append!(connection_eqsets, connection_eqset)
+				end
+
+				push!(nb_connection_MTKs, connection_MTK)
 			end
+			append!(connection_eqsets, multi_connection_eqset(MTK_system_dicts[graphnr][node_id], nb_connection_MTKs))
 		end
-	end
 
-	system = ODESystem(connection_equations, get_iv(MTK_systems[1]), name = :system,
+	end
+	connection_MTKs = collect(values(connection_MTK_dict))
+
+	system = ODESystem(connection_eqsets, get_iv(MTK_systems[1]), name = :system,
 		systems = vcat(MTK_systems, connection_MTKs), checks = checkunits
-	)
+	) # combine all subsystems together with equations linking nodes with edges
 
 	return system
 end
 
-# get node idx to corresponding MTK system
+# get node idx => node MTK system
 function get_MTK_system_dicts(graphs, module_coupling, module_defaults, default_params, default_u0s, checkunits) 
 	return [
 		[PlantModules.id(node) => 
@@ -118,61 +147,50 @@ function collapse(systems::Vector{ODESystem}; name::Symbol, checkunits::Bool)
 		)
 end #! use `extend` instead?
 
-# get MTK systems and the vector of equations defining connections between MTK systems of a node and its neighbour nodes
-function get_connection_info(node, graphnr, nb_nodes, nb_node_graphnrs, func_connections, 
-	default_params, default_u0s, MTK_system_dicts
-	)
-
-	connecting_modules, multi_connection_eqs = func_connections
-
-	node_MTK = MTK_system_dicts[graphnr][PlantModules.id(node)]
-
-	nb_node_MTKs = Vector{ODESystem}(undef, length(nb_nodes))
-	connection_MTKs = Vector{ODESystem}(undef, length(nb_nodes))
-	node_connection_eqs = Vector{Function}(undef, length(nb_nodes)+1)
-
-	for (nb_nr, (nb_node, nb_node_graphnr)) in enumerate(zip(nb_nodes, nb_node_graphnrs))
-		nb_node_MTKs[nb_nr] = MTK_system_dicts[nb_node_graphnr][PlantModules.id(nb_node)]
-		connection_MTKs[nb_nr], get_node_connection_eqs = get_func_connection(
-			node, nb_node, connecting_modules, default_params, default_u0s
-		)
-		node_connection_eqs[nb_nr] = get_node_connection_eqs(node_MTK, nb_node_MTKs[nb_nr], connection_MTKs[nb_nr])
-	end
-
-	node_connection_eqs[end] = multi_connection_eqs(node_MTK, nb_node_MTKs, connection_MTKs)
-	node_connection_eqs = reduce(vcat, node_connection_eqs)
-	return connection_MTKs, node_connection_eqs
-end
-
-# given two nodes' structural modules, get the MTK system of the functional connection between them
-function get_func_connection(node, nb_node, connecting_modules, default_params, default_u0s)
+# Get the MTK system of the edge between the two nodes, and whether it exists in correct order
+function get_connecting_module(node, nb_node, connecting_modules)
 	structmodule = PlantModules.structmod(node)
 	nb_structmodule = PlantModules.structmod(nb_node)
 
-	connecting_module_idx = findfirst(x -> x.first == (structmodule, nb_structmodule), connecting_modules)
+	connecting_module_idx = findfirst(x -> issetequal(x.first, (structmodule, nb_structmodule)), connecting_modules)
 
 	if isnothing(connecting_module_idx)
-		default_connecting_module_idx = findfirst(x -> isempty(x.first), connecting_modules)
-		default_connecting_module = connecting_modules[default_connecting_module_idx]
-		connector_func, connection_specific_values = default_connecting_module.second, []
-	else
-		connecting_module = connecting_modules[connecting_module_idx]
-		connector_func, connection_specific_values = second(connecting_module)
+		error("No connection module found for edges between nodes of types $structmodule and $nb_structmodule.")
 	end
 
+	connecting_module = connecting_modules[connecting_module_idx]
+	reverse_order = connecting_module.first[1] == nb_structmodule
+	return connecting_module, reverse_order
+end
+
+# get MTK system of connection between a node and its neighbour node AND the equations connecting the edge with the nodes
+function get_connection_info(node, graphnr, nb_node, nb_node_graphnr, connecting_module, 
+	default_params, default_u0s, MTK_system_dicts
+	)
+
+	structmodule = PlantModules.structmod(node)
+	nb_structmodule = PlantModules.structmod(nb_node)
+
+	connector_func, connection_specific_values = connecting_module.second
+	
 	default_conn_info = merge(
 		get(default_params, Symbol(connector_func), []),
 		get(default_u0s, Symbol(connector_func), [])
 	)
 	conn_info = merge(default_conn_info, connection_specific_values)
 
-	func_connection, get_node_connection_eqs = connector_func(;
+	connection_MTK, get_connection_eqset = connector_func(;
 		name = Symbol(string(structmodule) * string(PlantModules.id(node)) * "_" *
 			string(nb_structmodule) * string(PlantModules.id(nb_node))),
 		Pair.(keys(conn_info), values(conn_info))...
 	)
 
-	return func_connection, get_node_connection_eqs
+	node_MTK = MTK_system_dicts[graphnr][PlantModules.id(node)]
+	nb_node_MTK = MTK_system_dicts[nb_node_graphnr][PlantModules.id(nb_node)]
+
+	connection_eqset = get_connection_eqset(node_MTK, nb_node_MTK, connection_MTK)
+
+	return connection_MTK, connection_eqset
 end
 
 # get neighbouring nodes of a node both from the same graph and all connected graphs

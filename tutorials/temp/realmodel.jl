@@ -3,7 +3,7 @@ include("../../src/PlantModules.jl"); using .PlantModules
 using PlantGraphs, MultiScaleTreeGraph
 using ModelingToolkit, DifferentialEquations, Unitful
 using PlantBiophysics, PlantBiophysics.PlantMeteo, PlantSimEngine
-using Surrogates
+# using Surrogates
 using Plots; import GLMakie.draw
 
 # Structural modules #
@@ -72,7 +72,7 @@ graphs = [mtg, soil_graph, air_graph]
 
 ## connections
 
-intergraph_connections = [[1, 2] => (mtg, :Soil), [1, 3] => (:Leaf, :Air), [2, 3] => (:Soil, :Air)]
+intergraph_connections = [[1, 2] => (mtg, :Soil), [1, 3] => (:Leaf, :Air)]
 struct_connections = [graphs, intergraph_connections]
 
 # Functional modules #
@@ -126,6 +126,34 @@ function photosynthesis_module(; name, shape)
     return ODESystem(eqs, t; name, checks = false) #! checks back to true?
 end
 
+function waterdependent_hydraulic_connection(; name, K_max)
+	@parameters (
+		K_max(t) = K_max, [description = "Hydraulic conductivity of connection at maximum water content", unit = u"g / hr / MPa"],
+	)
+    @variables (
+        F(t), [description = "Water flux from compartment 2 to compartment 1", unit = u"g / hr"],
+        Ψ_1(t), [description = "Total water potential of compartment 1", unit = u"MPa"],
+        Ψ_2(t), [description = "Total water potential of compartment 2", unit = u"MPa"],
+		W_r_1(t), [description = "Relative water content of compartment 1", unit = u"g / g"],
+		K(t), [description = "Hydraulic conductivity of connection", unit = u"g / hr / MPa"],
+
+    )
+
+    eqs = [
+        F ~ K * (Ψ_2 - Ψ_1)
+		K ~ K_max * exp(-5*(1-W_r_1)^3)
+    ]
+
+    get_connection_eqset(node_MTK, nb_node_MTK, connection_MTK) = [
+        connection_MTK.Ψ_1 ~ node_MTK.Ψ,
+        connection_MTK.Ψ_2 ~ nb_node_MTK.Ψ,
+		connection_MTK.W_r_1 ~ node_MTK.W_r
+    ]
+
+    return ODESystem(eqs, t; name), get_connection_eqset
+end
+
+
 ## Connect them to structure
 
 module_coupling = [
@@ -138,19 +166,14 @@ module_coupling = [
 ]
 
 connecting_modules = [
-	() => PlantModules.hydraulic_connection,
-	(:Soil, :Internode) => (PlantModules.hydraulic_connection, [:K => 100]),
-    (:Internode, :Internode) => (PlantModules.hydraulic_connection, [:K => 800]),
-	(:Internode, :Shoot) => (PlantModules.hydraulic_connection, [:K => 600]),
-	(:Internode, :Leaf) => (PlantModules.hydraulic_connection, [:K => 500]),
-    (:Leaf, :Air) => (PlantModules.hydraulic_connection, [:K => 10])
+	(:Soil, :Internode) => (waterdependent_hydraulic_connection, [:K_max => 1]),
+    (:Internode, :Internode) => (PlantModules.hydraulic_connection, [:K => 3]),
+	(:Internode, :Shoot) => (PlantModules.hydraulic_connection, [:K => 2]),
+	(:Internode, :Leaf) => (PlantModules.hydraulic_connection, [:K => 2]),
+    (:Leaf, :Air) => (PlantModules.hydraulic_connection, [:K => 0])
 ]
 
-get_connection_eqs = [
-	PlantModules.hydraulic_connection => PlantModules.hydraulic_connection_eqs,
-] #! CHANGED
-
-func_connections = [connecting_modules, get_connection_eqs]
+func_connections = [connecting_modules, PlantModules.multi_connection_eqs]
 
 ## Tweak parameters
 
@@ -159,11 +182,14 @@ C_shoot = 350
 C_leaf = 400
 
 default_params = merge(PlantModules.default_params, 
-	(photosynthesis_module = (shape = Cuboid(ϵ_D = [0, 0, 0], ϕ_D = [0, 0, 0]),),)
+	(photosynthesis_module = (shape = Cuboid(ϵ_D = [0, 0, 0], ϕ_D = [0, 0, 0]),),),
+	(waterdependent_hydraulic_connection = (K_max = 0,),), 
+	#! add check to make sure they're NamedTuples => (K_max = 0) throws a weird error
 )
 
 default_u0s = merge(PlantModules.default_u0s,
-	(photosynthesis_module = (),)
+	(photosynthesis_module = (),),
+	(waterdependent_hydraulic_connection = (),)
 )
 
 module_defaults = (
@@ -184,13 +210,21 @@ sys_simpl = structural_simplify(system)
 prob = ODEProblem(sys_simpl, ModelingToolkit.missing_variable_defaults(sys_simpl), (0.0, 5*24))
 sol = solve(prob)
 
+PlantModules.plotgraph(sol, graphs[2], func_varname = :K)
+
 PlantModules.plotgraph(sol, graphs[1], func_varname = :W)
 PlantModules.plotgraph(sol, graphs[2], func_varname = :W)
 PlantModules.plotgraph(sol, graphs[3], func_varname = :W)
 
+PlantModules.plotgraph(sol, graphs[1], func_varname = :ΣF)
+PlantModules.plotgraph(sol, graphs[2], func_varname = :ΣF)
+PlantModules.plotgraph(sol, graphs[3], func_varname = :ΣF)
+
 PlantModules.plotgraph(sol, graphs[1], func_varname = :M)
 PlantModules.plotgraph(sol, graphs[1:2], func_varname = :Ψ)
 PlantModules.plotgraph(sol, graphs[1], func_varname = :PR)
+
+
 
 # Fancier #
 
