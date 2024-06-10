@@ -65,9 +65,9 @@ intergraph_connections = [[1, 2] => (:Root, :Soil), [1, 3] => (:Leaf, :Air), [2,
 struct_connections = [graphs, intergraph_connections]
 
 connecting_modules = [
-	() => PlantModules.hydraulic_connection,
 	(:Soil, :Root) => (PlantModules.hydraulic_connection, [:K => 8]),
 	(:Root, :Stem) => (PlantModules.hydraulic_connection, [:K => 4]), # 6*10^-7 kg/s/MPa * 1000 g/kg * 3600 s/h = 2.2 g/h/MPa
+	(:Stem, :Leaf) => (PlantModules.hydraulic_connection, [:K => 4]),
 	(:Leaf, :Air) => (PlantModules.hydraulic_connection, [:K => 1e-2]),
 	(:Soil, :Air) => (PlantModules.hydraulic_connection, [:K => 5e-2]) #! check value
 ] # values based on https://www.mdpi.com/2073-4441/10/8/1036

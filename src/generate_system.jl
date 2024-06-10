@@ -25,51 +25,30 @@ function generate_system(default_params::NamedTuple, default_u0s::NamedTuple, mo
 	) # Vector of a dict per graph with (node id => node MTK system)
 	MTK_systems = vcat(collect.(values.(MTK_system_dicts))...) # node MTK systems
 
-	connection_MTK_dict = Dict{Tuple{Int64, Int64}, ODESystem}() # (node_idx, nb_node_idx) => edge MTK system
+	connection_MTKs = ODESystem[] # MTK systems of edges
 	connection_eqsets = Equation[] # equations linking nodes with edges
 
 	for (graphnr, graph) in enumerate(graphs) # go over all graphs
 
 		for node in PlantModules.nodes(graph) # go over every node in the graph
-			#! put some of this code into a function
 			node_id = PlantModules.id(node)
 			nb_nodes, nb_node_graphnrs = get_nb_nodes(node, graphs, graphnr, intergraph_connections) # collect neighbour nodes
 			nb_connection_MTKs = ODESystem[]
 
 			for (nb_node, nb_node_graphnr) in zip(nb_nodes, nb_node_graphnrs) # go over all neighbours of the node
-				nb_node_id = PlantModules.id(nb_node)
-				connection_exists = haskey(connection_MTK_dict, (nb_node_id, node_id)) 
-					# check if connection between nodes is already defined from the neighbour's side
-
-				if connection_exists # connection and it's corresponding equations already in there
-					connection_MTK = connection_MTK_dict[(nb_node_id, node_id)]
-				else # define the connection
-					connecting_module, reverse_order = get_connecting_module(node, nb_node, connecting_modules)
-					if reverse_order # put neighbour node as main node in `get_connection_info`
-						connection_MTK, connection_eqset = get_connection_info( 
-							nb_node, nb_node_graphnr, node, graphnr,
-							connecting_module, default_params, default_u0s, MTK_system_dicts
-						) # get connection info (= MTK system of edge AND equations linking edge with its two nodes)
-					else
-						connection_MTK, connection_eqset = get_connection_info( 
-							node, graphnr, nb_node, nb_node_graphnr,
-							connecting_module, default_params, default_u0s, MTK_system_dicts
-						)
-					end
-					connection_MTK_dict[(node_id, nb_node_id)] = connection_MTK 
-						# add connection to dict 
-						# (main node first even if order was reversed calling `get_connection_info`)
-						# (otherwise when it's the current neighbour's turn it won't find this connection)
-					append!(connection_eqsets, connection_eqset)
-				end
-
+				connecting_module, reverse_order = get_connecting_module(node, nb_node, connecting_modules)
+				connection_MTK, connection_eqset = get_connection_info( 
+					node, graphnr, nb_node, nb_node_graphnr, connecting_module,
+					reverse_order, default_params, default_u0s, MTK_system_dicts
+				)
+				append!(connection_MTKs, connection_MTK)
+				append!(connection_eqsets, connection_eqset)
 				push!(nb_connection_MTKs, connection_MTK)
 			end
 			append!(connection_eqsets, multi_connection_eqset(MTK_system_dicts[graphnr][node_id], nb_connection_MTKs))
 		end
 
 	end
-	connection_MTKs = collect(values(connection_MTK_dict))
 
 	system = ODESystem(connection_eqsets, get_iv(MTK_systems[1]), name = :system,
 		systems = vcat(MTK_systems, connection_MTKs), checks = checkunits
@@ -164,7 +143,7 @@ function get_connecting_module(node, nb_node, connecting_modules)
 end
 
 # get MTK system of connection between a node and its neighbour node AND the equations connecting the edge with the nodes
-function get_connection_info(node, graphnr, nb_node, nb_node_graphnr, connecting_module, 
+function get_connection_info(node, graphnr, nb_node, nb_node_graphnr, connecting_module, reverse_order,
 	default_params, default_u0s, MTK_system_dicts
 	)
 
@@ -179,7 +158,7 @@ function get_connection_info(node, graphnr, nb_node, nb_node_graphnr, connecting
 	)
 	conn_info = merge(default_conn_info, connection_specific_values)
 
-	connection_MTK, get_connection_eqset = connector_func(;
+	connection_info = connector_func(;
 		name = Symbol(string(structmodule) * string(PlantModules.id(node)) * "_" *
 			string(nb_structmodule) * string(PlantModules.id(nb_node))),
 		Pair.(keys(conn_info), values(conn_info))...
@@ -187,6 +166,15 @@ function get_connection_info(node, graphnr, nb_node, nb_node_graphnr, connecting
 
 	node_MTK = MTK_system_dicts[graphnr][PlantModules.id(node)]
 	nb_node_MTK = MTK_system_dicts[nb_node_graphnr][PlantModules.id(nb_node)]
+
+
+	if length(connection_info) == 2 # symmetric connection
+		connection_MTK, get_connection_eqset = connection_info
+	elseif length(connection_info) == 3 # asymmetric connection
+		connection_MTK, get_connection_eqset, rev_get_connection_eqset = connection_info
+	else
+		error("Incorrect number of outputs for connection function $connector_func.")
+	end
 
 	connection_eqset = get_connection_eqset(node_MTK, nb_node_MTK, connection_MTK)
 
