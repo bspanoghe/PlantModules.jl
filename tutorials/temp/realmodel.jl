@@ -100,7 +100,7 @@ leafarea(::Cuboid, D::AbstractArray) = D[1] * D[2]
 
 import .PlantModules: t, d
 
-function photosynthesis_module(; name, shape)
+function photosynthesis_module(; name, M, shape)
 	@constants (
 		uc1 = (10^-6 * 60^2), [description = "Unit conversion from (µmol/s) to (mol/hr)", unit = u"(mol/hr) / (µmol/s)"],
 	)
@@ -112,7 +112,7 @@ function photosynthesis_module(; name, shape)
 	)
 
 	@variables (
-        M(t), [description = "Osmotically active metabolite content", unit = u"mol / m^3"], # m^3 so units match in second equation (Pa = J/m^3) #! extend validation function so L is ok?
+        M(t) = M, [description = "Osmotically active metabolite content", unit = u"mol / m^3"], # m^3 so units match in second equation (Pa = J/m^3) #! extend validation function so L is ok?
 		I(t), [description = "Irradiance", unit = u"μmol / s / m^2"], #! make sure not to use variable name from other func mod used in same struct mod
 		PR(t), [description = "Photosynthetic rate", unit = u"µmol / m^2 / s"], # = carbon assimilation rate
 		D(t)[1:length(shape.ϵ_D)], [description = "Dimensions of compartment", unit = u"m"],
@@ -144,11 +144,21 @@ function waterdependent_hydraulic_connection(; name, K_max)
 		K ~ K_max * exp(-5*(1-W_r_1)^3)
     ]
 
-    get_connection_eqset(node_MTK, nb_node_MTK, connection_MTK) = [
-        connection_MTK.Ψ_1 ~ node_MTK.Ψ,
-        connection_MTK.Ψ_2 ~ nb_node_MTK.Ψ,
-		connection_MTK.W_r_1 ~ node_MTK.W_r
-    ]
+    get_connection_eqset(node_MTK, nb_node_MTK, connection_MTK, reverse_order) = begin
+		if !reverse_order 
+			return [	
+			connection_MTK.Ψ_1 ~ node_MTK.Ψ,
+			connection_MTK.Ψ_2 ~ nb_node_MTK.Ψ,
+			connection_MTK.W_r_1 ~ node_MTK.W_r
+    		]
+		else
+			return [
+			connection_MTK.Ψ_1 ~ node_MTK.Ψ,
+			connection_MTK.Ψ_2 ~ nb_node_MTK.Ψ,
+			connection_MTK.W_r_1 ~ nb_node_MTK.W_r
+			]
+		end
+	end
 
     return ODESystem(eqs, t; name), get_connection_eqset
 end
@@ -166,11 +176,11 @@ module_coupling = [
 ]
 
 connecting_modules = [
-	(:Soil, :Internode) => (waterdependent_hydraulic_connection, [:K_max => 1]),
-    (:Internode, :Internode) => (PlantModules.hydraulic_connection, [:K => 3]),
-	(:Internode, :Shoot) => (PlantModules.hydraulic_connection, [:K => 2]),
-	(:Internode, :Leaf) => (PlantModules.hydraulic_connection, [:K => 2]),
-    (:Leaf, :Air) => (PlantModules.hydraulic_connection, [:K => 0])
+	(:Soil, :Internode) => (waterdependent_hydraulic_connection, [:K_max => 10]),
+    (:Internode, :Internode) => (PlantModules.hydraulic_connection, [:K => 10]),
+	(:Internode, :Shoot) => (PlantModules.hydraulic_connection, [:K => 5]),
+	(:Internode, :Leaf) => (PlantModules.hydraulic_connection, [:K => 5]),
+    (:Leaf, :Air) => (PlantModules.hydraulic_connection, [:K => 0.01])
 ]
 
 func_connections = [connecting_modules, PlantModules.multi_connection_eqs]
@@ -188,7 +198,7 @@ default_params = merge(PlantModules.default_params,
 )
 
 default_u0s = merge(PlantModules.default_u0s,
-	(photosynthesis_module = (),),
+	(photosynthesis_module = (M = 0,),),
 	(waterdependent_hydraulic_connection = (),)
 )
 
@@ -196,7 +206,7 @@ module_defaults = (
 	Internode = (shape = Cilinder(ϵ_D = [5.0, 0.3], ϕ_D = [0.1, 0.01]), M = C_stem),
 	Shoot = (shape = Cilinder(ϵ_D = [5.0, 0.3], ϕ_D = [0.1, 0.01]), M = C_shoot),
 	Leaf = (shape = Cuboid(ϵ_D = [0.5, 0.5, 0.01], ϕ_D = [0.1, 0.1, 0.01]), M = C_leaf),
-	Soil = (W_max = 10000.0, T = 293.15),
+	Soil = (W_max = 1000.0, T = 293.15),
 	Air = ()
 )
 
@@ -210,7 +220,7 @@ sys_simpl = structural_simplify(system)
 prob = ODEProblem(sys_simpl, ModelingToolkit.missing_variable_defaults(sys_simpl), (0.0, 5*24))
 sol = solve(prob)
 
-PlantModules.plotgraph(sol, graphs[2], func_varname = :K)
+# PlantModules.plotgraph(sol, graphs[2], func_varname = :K)
 
 PlantModules.plotgraph(sol, graphs[1], func_varname = :W)
 PlantModules.plotgraph(sol, graphs[2], func_varname = :W)
@@ -223,8 +233,6 @@ PlantModules.plotgraph(sol, graphs[3], func_varname = :ΣF)
 PlantModules.plotgraph(sol, graphs[1], func_varname = :M)
 PlantModules.plotgraph(sol, graphs[1:2], func_varname = :Ψ)
 PlantModules.plotgraph(sol, graphs[1], func_varname = :PR)
-
-
 
 # Fancier #
 
@@ -264,7 +272,7 @@ end
 # get_est_assimilation_rate(PAR, T) = [surr([PAR_i, T]) for PAR_i in PAR]
 # @register_symbolic get_est_assimilation_rate(PAR, T)
 
-function photosynthesis_module(; name, T, shape)
+function photosynthesis_module(; name, T, M, shape)
 	@constants (
 		uc1 = (10^-6 * 60^2), [description = "Unit conversion from (µmol/s) to (mol/hr)", unit = u"(mol/hr) / (µmol/s)"],
 	)
@@ -276,7 +284,7 @@ function photosynthesis_module(; name, T, shape)
 	)
 
 	@variables (
-        M(t), [description = "Osmotically active metabolite content", unit = u"mol / m^3"], # m^3 so units match in second equation (Pa = J/m^3) #! extend validation function so L is ok?
+        M(t) = M, [description = "Osmotically active metabolite content", unit = u"mol / m^3"], # m^3 so units match in second equation (Pa = J/m^3) #! extend validation function so L is ok?
 		PF(t), [description = "Incoming PAR flux", unit = u"J / s / m^2"], #! make sure not to use variable name from other func mod used in same struct mod
 		A(t), [description = "Carbon assimilation rate", unit = u"µmol / m^2 / s"],
 		D(t)[1:length(shape.ϵ_D)], [description = "Dimensions of compartment", unit = u"m"],
@@ -285,13 +293,15 @@ function photosynthesis_module(; name, T, shape)
     eqs = [
 		PF ~ get_PAR_flux(t)
 		A ~ get_assimilation_rate(PF, T, LAI, k)
-        d(M) ~ uc1 * leafarea(shape, D) * A / volume(shape, D) - carbon_decay_rate*M # convert µmol => mol and s^-1 => hr^-1
+        d(M) ~ uc1 * leafarea(shape, D) * A / volume(shape, D) # - carbon_decay_rate*M # convert µmol => mol and s^-1 => hr^-1
     ]
     return ODESystem(eqs, t; name, checks = false) #! checks back to true?
 end
 
 default_params = merge(PlantModules.default_params, 
-	(photosynthesis_module = (shape = Cuboid(ϵ_D = [0, 0, 0], ϕ_D = [0, 0, 0]), T = 293.15),)
+	(photosynthesis_module = (shape = Cuboid(ϵ_D = [0, 0, 0], ϕ_D = [0, 0, 0]), T = 293.15),),
+	(waterdependent_hydraulic_connection = (K_max = 0,),), 
+	#! add check to make sure they're NamedTuples => (K_max = 0) throws a weird error
 )
 
 module_coupling = [
@@ -315,9 +325,15 @@ sol = solve(prob)
 
 PlantModules.plotgraph(sol, graphs[1], func_varname = :W)
 PlantModules.plotgraph(sol, graphs[2], func_varname = :W)
+PlantModules.plotgraph(sol, graphs[3], func_varname = :W)
+
+PlantModules.plotgraph(sol, graphs[1], func_varname = :ΣF)
+PlantModules.plotgraph(sol, graphs[2], func_varname = :ΣF)
+PlantModules.plotgraph(sol, graphs[3], func_varname = :ΣF)
+
 PlantModules.plotgraph(sol, graphs[1], func_varname = :M)
-PlantModules.plotgraph(sol, graphs[1], func_varname = :Ψ)
 PlantModules.plotgraph(sol, graphs[1:2], func_varname = :Ψ)
+PlantModules.plotgraph(sol, graphs[1], func_varname = :A)
 PlantModules.plotgraph(sol, graphs[1], func_varname = :PF)
 
 

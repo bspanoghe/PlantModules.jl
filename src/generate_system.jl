@@ -29,25 +29,25 @@ function generate_system(default_params::NamedTuple, default_u0s::NamedTuple, mo
 	connection_eqsets = Equation[] # equations linking nodes with edges
 
 	for (graphnr, graph) in enumerate(graphs) # go over all graphs
-
 		for node in PlantModules.nodes(graph) # go over every node in the graph
+			
 			node_id = PlantModules.id(node)
 			nb_nodes, nb_node_graphnrs = get_nb_nodes(node, graphs, graphnr, intergraph_connections) # collect neighbour nodes
-			nb_connection_MTKs = ODESystem[]
+			current_connection_MTKs = Vector{ODESystem}(undef, length(nb_nodes)) # MTKs of current node's connections
 
-			for (nb_node, nb_node_graphnr) in zip(nb_nodes, nb_node_graphnrs) # go over all neighbours of the node
+			for (nb_idx, (nb_node, nb_node_graphnr)) in enumerate(zip(nb_nodes, nb_node_graphnrs)) # go over all neighbours of the node
 				connecting_module, reverse_order = get_connecting_module(node, nb_node, connecting_modules)
 				connection_MTK, connection_eqset = get_connection_info( 
 					node, graphnr, nb_node, nb_node_graphnr, connecting_module,
 					reverse_order, default_params, default_u0s, MTK_system_dicts
 				)
-				append!(connection_MTKs, connection_MTK)
+				current_connection_MTKs[nb_idx] = connection_MTK
 				append!(connection_eqsets, connection_eqset)
-				push!(nb_connection_MTKs, connection_MTK)
 			end
-			append!(connection_eqsets, multi_connection_eqset(MTK_system_dicts[graphnr][node_id], nb_connection_MTKs))
-		end
+			append!(connection_MTKs, current_connection_MTKs)
+			append!(connection_eqsets, multi_connection_eqset(MTK_system_dicts[graphnr][node_id], current_connection_MTKs))
 
+		end
 	end
 
 	system = ODESystem(connection_eqsets, get_iv(MTK_systems[1]), name = :system,
@@ -152,13 +152,13 @@ function get_connection_info(node, graphnr, nb_node, nb_node_graphnr, connecting
 
 	connector_func, connection_specific_values = connecting_module.second
 	
-	default_conn_info = merge(
-		get(default_params, Symbol(connector_func), []),
-		get(default_u0s, Symbol(connector_func), [])
+	default_conn_info = merge( # merge parameter and initial values. #! if the default values are empty, assume there are none?
+		get(default_params, Symbol(connector_func), ()),
+		get(default_u0s, Symbol(connector_func), ())
 	)
 	conn_info = merge(default_conn_info, connection_specific_values)
 
-	connection_info = connector_func(;
+	connection_MTK, get_connection_eqset = connector_func(;
 		name = Symbol(string(structmodule) * string(PlantModules.id(node)) * "_" *
 			string(nb_structmodule) * string(PlantModules.id(nb_node))),
 		Pair.(keys(conn_info), values(conn_info))...
@@ -167,16 +167,7 @@ function get_connection_info(node, graphnr, nb_node, nb_node_graphnr, connecting
 	node_MTK = MTK_system_dicts[graphnr][PlantModules.id(node)]
 	nb_node_MTK = MTK_system_dicts[nb_node_graphnr][PlantModules.id(nb_node)]
 
-
-	if length(connection_info) == 2 # symmetric connection
-		connection_MTK, get_connection_eqset = connection_info
-	elseif length(connection_info) == 3 # asymmetric connection
-		connection_MTK, get_connection_eqset, rev_get_connection_eqset = connection_info
-	else
-		error("Incorrect number of outputs for connection function $connector_func.")
-	end
-
-	connection_eqset = get_connection_eqset(node_MTK, nb_node_MTK, connection_MTK)
+	connection_eqset = get_connection_eqset(node_MTK, nb_node_MTK, connection_MTK, reverse_order)
 
 	return connection_MTK, connection_eqset
 end

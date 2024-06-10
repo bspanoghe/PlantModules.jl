@@ -157,10 +157,10 @@ function hydraulic_connection(; name, K)
         F ~ K * (Ψ_2 - Ψ_1)
     ]
 
-    get_connection_eqset(node_MTK, nb_node_MTK, connection_MTK) = [
+    get_connection_eqset(node_MTK, nb_node_MTK, connection_MTK, reverse_order) = [ 
         connection_MTK.Ψ_1 ~ node_MTK.Ψ,
         connection_MTK.Ψ_2 ~ nb_node_MTK.Ψ,
-    ]
+    ] # symmetric connections don't need to change if the order is reversed
 
     return ODESystem(eqs, t; name), get_connection_eqset
 end
@@ -182,11 +182,21 @@ function environmental_hydraulic_connection(; name, K_s)
         SA ~ surface_area(D_1)
     ]
 
-    get_connection_eqset(node_MTK, nb_node_MTK, connection_MTK) = [
-        connection_MTK.Ψ_1 ~ node_MTK.Ψ,
-        connection_MTK.Ψ_2 ~ nb_node_MTK.Ψ,
-        connection_MTK.D_1 ~ node_MTK.D,
-    ]
+    get_connection_eqset(node_MTK, nb_node_MTK, connection_MTK, reverse_order) = begin
+        if !reverse_order
+            [
+                connection_MTK.Ψ_1 ~ node_MTK.Ψ,
+                connection_MTK.Ψ_2 ~ nb_node_MTK.Ψ,
+                connection_MTK.D_1 ~ node_MTK.D,
+            ]
+        else
+            [
+                connection_MTK.Ψ_1 ~ node_MTK.Ψ,
+                connection_MTK.Ψ_2 ~ nb_node_MTK.Ψ,
+                connection_MTK.D_1 ~ nb_node_MTK.D,
+            ]
+        end
+    end
 
     return ODESystem(eqs, t; name), get_connection_eqset
 end
