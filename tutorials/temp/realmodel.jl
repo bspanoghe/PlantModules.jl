@@ -3,13 +3,14 @@ include("../../src/PlantModules.jl"); using .PlantModules
 using PlantGraphs, MultiScaleTreeGraph
 using ModelingToolkit, DifferentialEquations, Unitful
 using PlantBiophysics, PlantBiophysics.PlantMeteo, PlantSimEngine
+using Memoization
 # using Surrogates
 using Plots; import GLMakie.draw
 
 # Structural modules #
 
 ## Plant
-plant_graph = readXEG("tutorials/temp/structures/beech0.xeg") #! change to beech
+plant_graph = readXEG("tutorials/temp/structures/beech10.xeg") #! change to beech
 # convert_to_PG(plant_graph) |> draw
 
 mtg = convert_to_MTG(plant_graph)
@@ -80,9 +81,9 @@ struct_connections = [graphs, intergraph_connections]
 ## New functional modules
 
 # based on https://link.springer.com/article/10.1007/BF00195075
-irradiance_data = [max(0, 2000 * sin(t/24*2*pi - 8)) + randn() for t in 0:10*24]
+irradiance_data = [max(0, 2000 * sin(t/24*2*pi - 8) + randn()) for t in 0:10*24]
 get_irradiance(t) = irradiance_data[floor(Int, t+1)] + (t-floor(t)) * irradiance_data[ceil(Int, t+1)]
-get_irradiance(t) = max(0, 2000 * sin(t/24*2*pi - 8))
+# get_irradiance(t) = max(0, 2000 * sin(t/24*2*pi - 8))
 @register_symbolic get_irradiance(t)
 
 #=
@@ -185,6 +186,8 @@ connecting_modules = [
 
 func_connections = [connecting_modules, PlantModules.multi_connection_eqs]
 
+descendants(mtg, filter_fun = node -> node[:shape] == :Cilinder)
+
 ## Tweak parameters
 
 C_stem = 300
@@ -233,15 +236,17 @@ PlantModules.plotgraph(sol, graphs[3], func_varname = :ΣF)
 PlantModules.plotgraph(sol, graphs[1], func_varname = :M)
 PlantModules.plotgraph(sol, graphs[1:2], func_varname = :Ψ)
 PlantModules.plotgraph(sol, graphs[1], func_varname = :PR)
+PlantModules.plotgraph(sol, graphs[1], func_varname = :I)
+
 
 # Fancier #
 
 PAR_data = [max(0, 400 * sin(t/24*2*pi - 8)) + randn() for t in 0:10*24]
-get_PAR_flux(t) = PAR_data[floor(Int, t+1)] + (t-floor(t)) * PAR_data[ceil(Int, t+1)]
+# get_PAR_flux(t) = PAR_data[floor(Int, t+1)] + (t-floor(t)) * PAR_data[ceil(Int, t+1)]
 get_PAR_flux(t) = max(0, 400 * sin(t/24*2*pi - 8))
 @register_symbolic get_PAR_flux(t)
 
-function get_assimilation_rate(PAR_flux, T, LAI, k)
+@memoize function get_assimilation_rate(PAR_flux, T, LAI, k)
 	Kelvin_to_C = -273.15
 	meteo = Atmosphere(T = T + Kelvin_to_C, Wind = 1.0, P = 101.3, Rh = 0.65, Ri_PAR_f = PAR_flux)
 	m = ModelList(
@@ -251,7 +256,7 @@ function get_assimilation_rate(PAR_flux, T, LAI, k)
 		status = (Tₗ = meteo[:T], LAI = LAI, Cₛ = meteo[:Cₐ], Dₗ = meteo[:VPD], RI_PAR_f = meteo[:Ri_PAR_f])
 	)
 	run!(m, meteo)
-	return only(m[:A]) # extract result of the first (and only) timestep
+	return only(m[:A]) |> x -> max(x, 0) # extract result of the first (and only) timestep
 end
 
 @register_symbolic get_assimilation_rate(PAR_flux, T, LAI, k)
@@ -266,10 +271,9 @@ end
 # test_PAR_Ts = sample(n_samples, lower_bound, upper_bound, RandomSample())
 # test_As = get_assimilation_rate.(first.(test_PAR_Ts), last.(test_PAR_Ts), 2.0, 0.5)
 # mean((test_As - surr.(test_PAR_Ts)).^2)
-# @which surr([400.2, 295.3])
 # @btime surr([400.2, 295.3])
 
-# get_est_assimilation_rate(PAR, T) = [surr([PAR_i, T]) for PAR_i in PAR]
+# get_est_assimilation_rate(PAR, T) = surr([PAR, T])
 # @register_symbolic get_est_assimilation_rate(PAR, T)
 
 function photosynthesis_module(; name, T, M, shape)
@@ -293,7 +297,7 @@ function photosynthesis_module(; name, T, M, shape)
     eqs = [
 		PF ~ get_PAR_flux(t)
 		A ~ get_assimilation_rate(PF, T, LAI, k)
-        d(M) ~ uc1 * leafarea(shape, D) * A / volume(shape, D) # - carbon_decay_rate*M # convert µmol => mol and s^-1 => hr^-1
+        d(M) ~ uc1 * leafarea(shape, D) * A / volume(shape, D) - carbon_decay_rate*M # convert µmol => mol and s^-1 => hr^-1
     ]
     return ODESystem(eqs, t; name, checks = false) #! checks back to true?
 end
