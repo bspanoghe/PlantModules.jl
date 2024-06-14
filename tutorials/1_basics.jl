@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.19.40
+# v0.19.42
 
 using Markdown
 using InteractiveUtils
@@ -8,7 +8,7 @@ using InteractiveUtils
 using Pkg; Pkg.activate(".")
 
 # ╔═╡ 662c0476-70aa-4a60-a81c-d7db2248b728
-using PlantModules
+include("../src/PlantModules.jl"); using .PlantModules
 
 # ╔═╡ 65f88593-1180-447a-900f-49aef4647cd1
 using PlantGraphs, ModelingToolkit, DifferentialEquations, Plots
@@ -189,7 +189,7 @@ Now imagine we have some data on our plant in question and it calls for differen
 default_changes = (Γ = 0.4, P = 0.2, T = 293.15)
 
 # ╔═╡ 2c516ca9-e169-43aa-b41b-b5f91ee80588
-default_params, default_u0s = alter_defaults(default_changes)
+default_params, default_u0s = PlantModules.alter_defaults(default_changes)
 
 # ╔═╡ e60a5281-18ce-4e88-b76b-b8279af7dc65
 md"""
@@ -210,7 +210,7 @@ module_defaults = (
 	Stem = (shape = PlantModules.Cilinder(ϵ_D = [6.0, 0.15], ϕ_D = [0.8, 0.03]), D = [0.015, 0.1], M = 300),
 	Leaf = (shape = PlantModules.Sphere(ϵ_D = [3.0], ϕ_D = [0.45]), M = 330),
 	Soil = (W_max = 500.0, T = 288.15),
-	Air = ()
+	Air = (W_max = 2000,)
 )
 
 # ╔═╡ e0e5e7f7-d2f5-404b-a6c6-6848c318eccb
@@ -315,11 +315,11 @@ Defining a new functional connection module is discussed in the following tutori
 
 # ╔═╡ 611289e9-e22c-4e6e-beec-ccea90eb48c9
 connecting_modules = [
-	() => PlantModules.hydraulic_connection,
-	(:Soil, :Root) => (PlantModules.hydraulic_connection, [:K => 8]),
-	(:Root, :Stem) => (PlantModules.hydraulic_connection, [:K => 4]),
-	(:Leaf, :Air) => (PlantModules.hydraulic_connection, [:K => 1e-2]),
-	(:Soil, :Air) => (PlantModules.hydraulic_connection, [:K => 5e-2])
+	(:Soil, :Root) => (PlantModules.hydraulic_connection, [:K => 20]),
+	(:Root, :Stem) => (PlantModules.hydraulic_connection, [:K => 15]),
+	(:Stem, :Leaf) => (PlantModules.hydraulic_connection, [:K => 10]),
+	(:Leaf, :Air) => (PlantModules.hydraulic_connection, [:K => 3e-1]),
+	(:Soil, :Air) => (PlantModules.hydraulic_connection, [:K => 5e-3])
 ]
 
 # ╔═╡ a8a725d4-d876-4867-acbc-26bbadc4b462
@@ -329,7 +329,7 @@ However, the system also needs to know how the edges relate to the nodes functio
 """
 
 # ╔═╡ 5ca7ded4-d333-4edb-96db-3fdb7bc827ce
-get_connection_eqs = PlantModules.hydraulic_connection_eqs
+get_connection_eqs = PlantModules.multi_connection_eqs
 
 # ╔═╡ 113c0bdc-53e4-4a19-a47c-f4afba237eeb
 md"""
@@ -373,7 +373,7 @@ The rest of the modeling workflow is mostly taken care of by ModelingToolkit.jl 
 """
 
 # ╔═╡ bf114636-1e35-49f1-9407-f472b443a9ea
-time_span = (0, 7*24.0) # We'll simulate our problem for a timespan of 7 days
+time_span = (0, 3*24.0) # We'll simulate our problem for a timespan of 3 days
 
 # ╔═╡ 2f431e8c-d0e4-4117-896f-3140d9633d1d
 sys_simpl = structural_simplify(system);
@@ -392,7 +392,13 @@ Finding the answer to our toy problem now comes down to plotting out the soil wa
 """
 
 # ╔═╡ e890700e-80a4-4dfc-8380-732bf91d1aa4
-plotnode(sol, graphs[2], func_varname = :W_r)
+PlantModules.plotnode(sol, graphs[2], func_varname = :W_r)
+
+# ╔═╡ 2f93758b-5cc9-4ed3-aec0-4c28ee22cbf6
+PlantModules.plotgraph(sol, graphs[1], func_varname = :W)
+
+# ╔═╡ f0fdcaaa-90df-4e40-a234-fc12daeaa359
+PlantModules.plotgraph(sol, graphs[1:2], func_varname = :Ψ)
 
 # ╔═╡ 2d131155-f62b-4f4a-92d8-9e7443202434
 md"""
@@ -431,7 +437,7 @@ md"""
 # ╠═dac02191-b640-40f5-a7d6-e6b06b946c23
 # ╟─43211f69-6bfe-4fd1-b474-65d0601558de
 # ╟─c04564c4-4fb5-47bf-bc14-77aaebdece15
-# ╠═1e2eaa86-d6e0-4749-bc92-04c64fe9f47d
+# ╟─1e2eaa86-d6e0-4749-bc92-04c64fe9f47d
 # ╟─4d17b269-06b8-4293-b2cb-b6bd9fa0ccc8
 # ╟─3035b6d0-bca0-4803-b32a-da1459bdd880
 # ╟─df4cd3de-d2b2-4f11-b755-a36e640fd2d5
@@ -482,5 +488,7 @@ md"""
 # ╠═c38b1a71-c5e9-4bfa-a210-bcbf9068f7ed
 # ╟─a6608eff-9399-443c-a33a-c62341f7b14c
 # ╠═e890700e-80a4-4dfc-8380-732bf91d1aa4
+# ╠═2f93758b-5cc9-4ed3-aec0-4c28ee22cbf6
+# ╠═f0fdcaaa-90df-4e40-a234-fc12daeaa359
 # ╟─2d131155-f62b-4f4a-92d8-9e7443202434
 # ╟─fb3c58df-1d6b-4ced-803d-2d0fc537b942
