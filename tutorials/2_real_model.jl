@@ -1,57 +1,34 @@
 ### A Pluto.jl notebook ###
-# v0.19.40
+# v0.19.42
 
 using Markdown
 using InteractiveUtils
 
 # ╔═╡ 34fd1713-4d0a-4bc9-81e1-bacf418747a2
-# Maybe not include this in the tutorial?
-using Pkg; Pkg.activate("..")
+using Pkg; Pkg.activate(".")
 
-# ╔═╡ 65f88593-1180-447a-900f-49aef4647cd1
-using PlantGraphs, GLMakie, ModelingToolkit, DifferentialEquations #! MTK imports etc. should not be necessary when package is done
+# ╔═╡ c379b857-4a95-42c0-92bd-bf9df430e1e8
+include("../src/PlantModules.jl"); using PlantModules
+
+# ╔═╡ 32b33d71-281e-4d07-b4c1-86f7be6997bf
+using PlantGraphs, MultiScaleTreeGraph
+
+# ╔═╡ 8f5728b1-fa78-492e-beab-9e40ebc633ef
+using ModelingToolkit, DifferentialEquations, Unitful
+
+# ╔═╡ 876006eb-b8b6-46dc-8077-8f64991c5616
+using PlantBiophysics, PlantBiophysics.PlantMeteo, PlantSimEngine
+
+# ╔═╡ 41b55366-5b6e-4489-b37d-342d57fd7b41
+using Memoization
+
+# ╔═╡ dc47be70-0bc4-452d-a128-73ff5fce56ce
+using Plots; import GLMakie.draw
 
 # ╔═╡ 56c3527f-d8df-4f5c-9075-77c34d5c7204
 md"""
 # Tutorial 2: Making a real model
 """
-
-# ╔═╡ d16a6d55-1f29-4b98-b1af-2dee1d38f386
-module PlantModules
-#! To be actually written out so this thing works
-
-export PlantSystem
-import ModelingToolkit.ODEProblem, Plots.plot, DifferentialEquations.solve
-
-function hydraulic_module(; name) end
-
-function environmental_module(; name) end
-
-function hydraulic_connection(; name) end
-
-struct PlantSystem
-	model_defaults
-	module_defaults
-	module_coupling
-	struct_connections
-	func_connections
-	MTK
-
-	function PlantSystem(; model_defaults, module_defaults, module_coupling, struct_connections, func_connections)
-		MTK = missing #! calculate MTK things here and add to struct
-		return new(model_defaults, module_defaults, module_coupling, struct_connections, func_connections, MTK)
-	end
-end
-
-default_vals = [:T => 298.15, :P => 0.1, :Γ => 0.3]
-
-function ODEProblem(ps::PlantSystem, timespan::Tuple) end
-
-function solve(prob) end #! this one doesn't actually have to be extended
-
-function plot(sol, struct_modules::Vector, func_vars::Vector)  end
-
-end # module
 
 # ╔═╡ 6ab177fd-ed5b-4ae4-a2b5-f7f4eb8e4d0d
 md"""
@@ -67,33 +44,20 @@ Last tutorial has covered the most basic functionality of the package in order t
 md"""
 ### Toy problem description
 
-There is no fun in modeling without purpose, which is why we'll introduce the package with a simple problem.
+For the second tutorial, we'll again keep track of the water dynamics between the soil and a plant. However, this time we're scaling up: instead of a pepper seedling, we'll be considering a beech tree. Additionally, we'll include photosynthesis into the model this time combined with (simulated) weather data!
 
-Our recently sprouted pepper seedlings are growing on the windowsill indoors. We just watered them, and we'd like to know how the water content of the soil changes through time so we can water them again at the optimal moment: the soil should have dried adequately to promote root growth without putting the seedlings under too much drought stress.
-
-![plantfigu](https://www.almanac.com/sites/default/files/users/The%20Editors/pepper-seedlings_full_width.jpg)
+![plantfigu](https://www.woodlandtrust.org.uk/media/4550/copper-beech-tree-mature-alamy-e08fat-andrew-roland.jpg)
 """
 #! replace picture with something royalty free. a drawing?
 
 # ╔═╡ aa3b75e4-1868-4c84-8dc8-f9b54d560b3a
 md"""
-## Creating the model 🛠
+## Working with real plant structures
 """
 
 # ╔═╡ 6ef5c63a-b753-43ae-baee-f6c24313a385
 md"""
-As the name suggests, one of the most important goals of PlantModules is to enable the user to easily model plant growth in a _modular_ manner. In order to achieve this, we will define our plant in function of a few sets of similarly behaving parts or "modules" for short. Parts of the same module can be similar on the structural - and on the functional level.
-
-On the structural level, some examples are:
-- An oak tree can be considered a repeating module in a forest.
-- A branch can be considered a repeating module in a tree.
-- A collenchyma cell can be considered a repeating module in a branch.
-
-On the functional level, on the other hand:
-- Most structural modules of a tree (branches, leaves, root segments, etc.) contain water which will flow between them as dictated by hydraulic laws, which plays an important role in plant growth. All these structural modules share this same functional module. 
-- One or more of the plant's structural modules will assimilate carbon through photosynthesis, while the others do not. On the cellular level, only cells containing chloroplasts should share this functional module.
-
-As such, the workflow to create a model in PlantModules boils down to defining these modules and how they interact. Let's jump right in!
+For practical applications, it is generally not adviced to write out the entire plant structure by hand. An easier way to acquire them is by use of L-systems or some other kind of rewriting system. This can be done in Julia, making use of e.g. [PlantGeom.jl](https://github.com/VEZY/PlantGeom.jl), or using other software, in which case the plant structure needs to be saved as a file. For this tutorial we'll consider the latter case and use a Beech structure generated in [GroIMP](https://wwwuser.gwdguser.de/~groimp/grogra.de/software/groimp/index.html) from its [example library](https://groimp.wordpress.com/fspm/). The plant structure was saved as an XEG file, a file format for FSPMs created by GroIMP and OpenAlea. Another popular file format for plant structures is the MTG (Multiscale Tree Graph) file, which can be read using the MultiScaleTreeGraph.jl package.
 """
 
 # ╔═╡ b6eb66b5-a2d7-4baf-b6a6-87e819309a2d
@@ -195,9 +159,6 @@ C_leaf = 3 # And here!
 # ╔═╡ 68fbfd88-b1a6-4d52-aee4-37e76b191fe4
 Ψ_soil_func(W_r) = -(1/(100*W_r) + 1) * exp((39.8 - 100*W_r) / 19) # An empirical relationship between the soil water potential and relative water content
 
-# ╔═╡ b69ee1cb-6506-4152-9ef0-b02a43a90990
-Ψ_air_func(T, W_r) = R * T / V_w * log(W_r) #! What's this equation called again? (Ask Jeroen)
-
 # ╔═╡ 10ac5d18-8527-4bb8-aa5d-0da752c9a808
 md"""
 The function for the air water potential uses two constants not yet described in the system: the ideal gas constant *R* and the molar volume of water *V_w*. We will define these in the global scope using the standard ModelingToolkit.jl syntax. 
@@ -205,6 +166,9 @@ The function for the air water potential uses two constants not yet described in
 
 # ╔═╡ 137a367e-7b0e-4ef2-8068-628158f3a45d
 @constants R = 8.314 V_w = 18e-6
+
+# ╔═╡ b69ee1cb-6506-4152-9ef0-b02a43a90990
+Ψ_air_func(T, W_r) = R * T / V_w * log(W_r) #! What's this equation called again? (Ask Jeroen)
 
 # ╔═╡ 4d17b269-06b8-4293-b2cb-b6bd9fa0ccc8
 md"""
@@ -432,17 +396,21 @@ md"""
 
 # ╔═╡ Cell order:
 # ╟─56c3527f-d8df-4f5c-9075-77c34d5c7204
-# ╟─d16a6d55-1f29-4b98-b1af-2dee1d38f386
 # ╟─6ab177fd-ed5b-4ae4-a2b5-f7f4eb8e4d0d
-# ╠═1144887a-a4c7-46f6-9cf8-cba50cf873d0
+# ╟─1144887a-a4c7-46f6-9cf8-cba50cf873d0
 # ╟─aa3b75e4-1868-4c84-8dc8-f9b54d560b3a
 # ╟─6ef5c63a-b753-43ae-baee-f6c24313a385
 # ╟─b6eb66b5-a2d7-4baf-b6a6-87e819309a2d
 # ╟─aec7bcd6-6f27-4cf5-a955-f4d59e778fd3
 # ╟─659e911c-8af2-4a66-855a-e333c41120c1
 # ╟─e232199f-ee2f-4294-8762-f41b37883d26
-# ╟─34fd1713-4d0a-4bc9-81e1-bacf418747a2
-# ╠═65f88593-1180-447a-900f-49aef4647cd1
+# ╠═34fd1713-4d0a-4bc9-81e1-bacf418747a2
+# ╠═c379b857-4a95-42c0-92bd-bf9df430e1e8
+# ╠═32b33d71-281e-4d07-b4c1-86f7be6997bf
+# ╠═8f5728b1-fa78-492e-beab-9e40ebc633ef
+# ╠═876006eb-b8b6-46dc-8077-8f64991c5616
+# ╠═41b55366-5b6e-4489-b37d-342d57fd7b41
+# ╠═dc47be70-0bc4-452d-a128-73ff5fce56ce
 # ╟─0cc02e82-4fe8-4f27-a2d2-eb4bfba6b291
 # ╠═e920f6aa-4c7b-4fd1-9dca-d9e3d4155ec2
 # ╠═6b7ebc68-f4a1-4ed6-b12b-e4ac5ee9b00a

@@ -4,7 +4,6 @@ using PlantGraphs, MultiScaleTreeGraph
 using ModelingToolkit, DifferentialEquations, Unitful
 using PlantBiophysics, PlantBiophysics.PlantMeteo, PlantSimEngine
 using Memoization
-# using Surrogates
 using Plots; import GLMakie.draw
 
 # Structural modules #
@@ -80,9 +79,9 @@ struct_connections = [graphs, intergraph_connections]
 
 ## New functional modules
 
-PAR_data = [max(0, 400 * sin(t/24*2*pi - 8)) + randn() for t in 0:10*24]
-@memoize get_PAR_flux(t) = PAR_data[floor(Int, t+1)] + (t-floor(t)) * PAR_data[ceil(Int, t+1)]
-#  get_PAR_flux(t) = max(0, 400 * sin(t/24*2*pi - 8))
+# PAR_data = [max(0, 400 * sin(t/24*2*pi - 8)) + randn() for t in 0:10*24]
+# @memoize get_PAR_flux(t) = PAR_data[floor(Int, t+1)] + (t-floor(t)) * PAR_data[ceil(Int, t+1)]
+get_PAR_flux(t) = max(0, 100 * sin(t/24*2*pi - 8))
 @register_symbolic get_PAR_flux(t)
 
 @memoize function get_assimilation_rate(PAR_flux, T, LAI, k)
@@ -131,7 +130,7 @@ end
 
 function waterdependent_hydraulic_connection(; name, K_max)
 	@parameters (
-		K_max(t) = K_max, [description = "Hydraulic conductivity of connection at maximum water content", unit = u"g / hr / MPa"],
+		K_max = K_max, [description = "Hydraulic conductivity of connection at maximum water content", unit = u"g / hr / MPa"],
 	)
     @variables (
         F(t), [description = "Water flux from compartment 2 to compartment 1", unit = u"g / hr"],
@@ -185,7 +184,7 @@ connecting_modules = [
 	(:Shoot, :Shoot) => (PlantModules.hydraulic_connection, [:K => 5]),
 	(:Shoot, :Leaf) => (PlantModules.hydraulic_connection, [:K => 5]),
 	(:Internode, :Leaf) => (PlantModules.hydraulic_connection, [:K => 5]),
-    (:Leaf, :Air) => (PlantModules.hydraulic_connection, [:K => 1e-8])
+    (:Leaf, :Air) => (PlantModules.hydraulic_connection, [:K => 0])
 ]
 
 func_connections = [connecting_modules, PlantModules.multi_connection_eqs]
@@ -211,7 +210,7 @@ module_defaults = (
 	Internode = (shape = Cilinder(ϵ_D = [5.0, 0.3], ϕ_D = [0.1, 0.01]), M = C_stem),
 	Shoot = (shape = Cilinder(ϵ_D = [5.0, 0.3], ϕ_D = [0.1, 0.01]), M = C_shoot),
 	Leaf = (shape = Cuboid(ϵ_D = [0.5, 0.5, 0.01], ϕ_D = [0.1, 0.1, 0.01]), M = C_leaf),
-	Soil = (W_max = 1000000.0, T = 293.15),
+	Soil = (W_max = 100000.0, T = 293.15),
 	Air = ()
 )
 
@@ -222,8 +221,8 @@ system = PlantModules.generate_system(default_params, default_u0s,
 )
 
 sys_simpl = structural_simplify(system)
-prob = ODEProblem(sys_simpl, ModelingToolkit.missing_variable_defaults(sys_simpl), (0.0, 5*24))
-@time sol = solve(prob)
+prob = ODEProblem(sys_simpl, ModelingToolkit.missing_variable_defaults(sys_simpl), (0.0, 1))
+@time sol = solve(prob, maxiters = 100)
 
 PlantModules.plotgraph(sol, graphs[1], func_varname = :W)
 PlantModules.plotgraph(sol, graphs[2], func_varname = :W)
