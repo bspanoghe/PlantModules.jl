@@ -132,3 +132,7 @@ parent(node::Dict, graph::Dict) = node[:parent_id] == -1 ? nothing : graph[node[
 ## Implementation for PlantGraphs.jl
 
 ## Implementation for MultiScaleTreeGraph.jl
+
+root(graph::MultiScaleTreeGraph.Node) = MultiScaleTreeGraph.get_root(graph)
+children(node::MultiScaleTreeGraph.Node, _) = getfield(node, :children)
+parent(node::MultiScaleTreeGraph.Node, _) = MultiScaleTreeGraph.parent(node)

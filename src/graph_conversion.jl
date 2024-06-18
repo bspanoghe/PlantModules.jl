@@ -15,7 +15,7 @@ function convert_to_MTG(graph)
     return MTGgraph
 end
 
-function add_children!(MTGnode::MultiScaleTreeGraph.Node, node::Dict, graph::Dict)
+function add_children!(MTGnode::MultiScaleTreeGraph.Node, node, graph)
     for chnode in PM.children(node, graph)
         MTG_chnode = MTG.Node(MTGnode, MTGify_node_MTG(chnode), MTGify_node_attributes(chnode))
         add_children!(MTG_chnode, chnode, graph)
@@ -40,7 +40,7 @@ function convert_to_PG(graph)
     return PGgraph
 end
 
-function add_children!(PGgraph::PlantGraphs.StaticGraph, node_id::Int, node::Dict, graph::Dict)
+function add_children!(PGgraph::PlantGraphs.StaticGraph, node_id::Int, node, graph)
     for chnode in PlantModules.children(node, graph)
 		targeted_append!(PGgraph, PGify_node(chnode), node_id)
 		chnode_id = PGgraph.insertion
