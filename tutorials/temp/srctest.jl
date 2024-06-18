@@ -4,6 +4,7 @@ using PlantGraphs, MultiScaleTreeGraph
 import PlantGraphs: Node
 using ModelingToolkit, DifferentialEquations, Unitful
 using Plots; import GLMakie.draw
+using BenchmarkTools
 
 
 #! for testing
@@ -80,7 +81,8 @@ system = PlantModules.generate_system(default_params, default_u0s,
 
 sys_simpl = structural_simplify(system);
 prob = ODEProblem(sys_simpl, ModelingToolkit.missing_variable_defaults(sys_simpl), (0.0, 5*24))	 #! Generate warning for missing variable defaults that aren't dummies
-sol = solve(prob)
+sol = solve(prob);
+@btime sol = solve(prob);
 
 PlantModules.plotgraph(sol, graphs[1]) .|> display
 PlantModules.plotgraph(sol, graphs[2]) .|> display

@@ -41,13 +41,13 @@ function hydraulic_module(; name, T, shape::Shape, Γ, P, D)
         ΔW ~ ΣF, # Water content changes due to flux (depending on water potentials as defined in connections)
         V ~ W / ρ_w, # Shape is directly related to water content        
         V ~ volume(shape, D), # Shape is also directly related to compartment dimensions
-        [ΔD[i] ~ D[i] * (ΔP/ϵ_D[i] + ϕ_D[i] * LSE(P - Γ, P_0, γ = 100)) for i in eachindex(D)]..., # Compartment dimensions can only change due to a change in pressure
+        [ΔD[i] ~ D[i] * (ΔP/ϵ_D[i] + ϕ_D[i] * max(P - Γ, P_0)) for i in eachindex(D)]..., # Compartment dimensions can only change due to a change in pressure
 
         d(P) ~ ΔP,
         d(W) ~ ΔW,
         [d(D[i]) ~ ΔD[i] for i in eachindex(D)]...,
     ]
-    return ODESystem(eqs, t; name)
+    return ODESystem(eqs, t; name, continuous_events = [P ~ Γ])
 end
 
 """
@@ -206,28 +206,6 @@ end
 multi_connection_eqs(node_MTK, connection_MTKs) = [
     node_MTK.ΣF ~ sum([connection_MTK.F for connection_MTK in connection_MTKs])
 ]
-
-# Helper functions #
-
-## Unitful is a dangerous beast
-val(x) = x
-val(x::Quantity) = x.val
-
-## Forbidden rites #! try fixing this... creative solution?
-import Base.exp
-import Base.log
-exp(x::Quantity) = exp(val(x))*unit(x)
-log(x::Quantity) = log(val(x))*unit(x)
-
-"""
-    LSE(x, y, ...; γ = 1)
-
-LogSumExp, a smooth approximation for the maximum function. 
-The temperature parameter γ determines how close the approximation is to the actual maximum.
-This implementation makes use of the log-sum-exp trick (https://en.wikipedia.org/wiki/LogSumExp#log-sum-exp_trick_for_log-domain_calculations) to ensure numerical stability.
-"""
-LSE(x::Real...; γ = 1) = log(sum(exp.(γ .* x .- maximum(x))) ) / γ + maximum(x)
-@register_symbolic LSE(x)
 
 # Default values #
 

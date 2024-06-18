@@ -5,11 +5,12 @@ using ModelingToolkit, DifferentialEquations, Unitful
 using PlantBiophysics, PlantBiophysics.PlantMeteo, PlantSimEngine
 using Memoization
 using Plots; import GLMakie.draw
+using BenchmarkTools
 
 # Structural modules #
 
 ## Plant
-plant_graph = readXEG("tutorials/temp/structures/beech3.xeg") #! change to beech
+plant_graph = readXEG("tutorials/temp/structures/beech0.xeg") #! change to beech
 # convert_to_PG(plant_graph) |> draw
 
 mtg = convert_to_MTG(plant_graph)
@@ -221,8 +222,9 @@ system = PlantModules.generate_system(default_params, default_u0s,
 )
 
 sys_simpl = structural_simplify(system)
-prob = ODEProblem(sys_simpl, ModelingToolkit.missing_variable_defaults(sys_simpl), (0.0, 1))
-@time sol = solve(prob, maxiters = 100)
+prob = ODEProblem(sys_simpl, ModelingToolkit.missing_variable_defaults(sys_simpl), (0.0, 5*24))
+@time sol = solve(prob)
+@btime sol = solve(prob);
 
 PlantModules.plotgraph(sol, graphs[1], func_varname = :W)
 PlantModules.plotgraph(sol, graphs[2], func_varname = :W)
@@ -237,8 +239,8 @@ PlantModules.plotgraph(sol, graphs[1:2], func_varname = :Ψ)
 PlantModules.plotgraph(sol, graphs[1], func_varname = :A)
 PlantModules.plotgraph(sol, graphs[1], func_varname = :PF)
 
-
-
+PlantModules.plotgraph(sol, graphs[1], func_varname = :P, struct_module = :Leaf)
+PlantModules.plotgraph(sol, graphs[1], func_varname = :ΔD, struct_module = :Leaf)
 
 
 # plotspeed #

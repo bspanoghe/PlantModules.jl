@@ -644,7 +644,6 @@ plot(x -> P_J(x; ϕ = 0.9, P_m = 33, Θ = 0.8), xlims = (0, xl));
 scatter!(0:xl, get_assimilation_rate.(0:xl, 293.15, 1, 0.7))
 =#
 
-leafarea(::Cuboid, D::AbstractArray) = D[1] * D[2]
 
 function photosynthesis_module(; name, M, shape)
 	@constants (
@@ -686,3 +685,29 @@ end
 
 # get_est_assimilation_rate(PAR, T) = surr([PAR, T])
 # @register_symbolic get_est_assimilation_rate(PAR, T)
+
+
+
+
+
+
+# Helper functions #
+
+## Unitful is a dangerous beast
+val(x) = x
+val(x::Quantity) = x.val
+
+## Forbidden rites #! try fixing this... creative solution?
+import Base.exp
+import Base.log
+exp(x::Quantity) = exp(val(x))*unit(x)
+log(x::Quantity) = log(val(x))*unit(x)
+
+"""
+    LSE(x, y, ...; γ = 1)
+
+LogSumExp, a smooth approximation for the maximum function. 
+The temperature parameter γ determines how close the approximation is to the actual maximum.
+"""
+LSE(x::Real...; γ = 1) = log(sum(exp.(γ .* x )) ) / γ
+@register_symbolic LSE(x)
