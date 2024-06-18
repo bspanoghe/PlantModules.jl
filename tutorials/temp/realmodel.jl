@@ -10,7 +10,7 @@ using BenchmarkTools
 # Structural modules #
 
 ## Plant
-plant_graph = readXEG("tutorials/temp/structures/beech0.xeg") #! change to beech
+plant_graph = readXEG("tutorials/temp/structures/beech3.xeg") #! change to beech
 # convert_to_PG(plant_graph) |> draw
 
 mtg = convert_to_MTG(plant_graph)
@@ -60,6 +60,8 @@ mtg |> DataFrame
 descendants(mtg, symbol = "Internode", self = true) |> DataFrame
 descendants(mtg, symbol = "Shoot", self = true) |> DataFrame
 descendants(mtg, symbol = "Leaf", self = true) |> DataFrame
+
+convert_to_PG(mtg) |> draw
 
 ## Environment
 
@@ -111,7 +113,7 @@ function photosynthesis_module(; name, T, M, shape)
 		T = T, [description = "Temperature", unit = u"K"],
 		LAI = 2.0, [description = "Leaf Area Index", unit = u"m^2 / m^2"],
 		k = 0.5, [description = "Light extinction coefficient", unit = u"N/N"],
-		carbon_decay_rate = 0.1, [description = "Rate at which carbon is consumed for growth", unit = u"hr^-1"],
+		carbon_decay_rate = 0.05, [description = "Rate at which carbon is consumed for growth", unit = u"hr^-1"],
 	)
 
 	@variables (
@@ -179,13 +181,12 @@ module_coupling = [
 ]
 
 connecting_modules = [
-	(:Soil, :Internode) => (waterdependent_hydraulic_connection, [:K_max => 10]),
-    (:Internode, :Internode) => (PlantModules.hydraulic_connection, [:K => 10]),
-	(:Internode, :Shoot) => (PlantModules.hydraulic_connection, [:K => 5]),
-	(:Shoot, :Shoot) => (PlantModules.hydraulic_connection, [:K => 5]),
-	(:Shoot, :Leaf) => (PlantModules.hydraulic_connection, [:K => 5]),
-	(:Internode, :Leaf) => (PlantModules.hydraulic_connection, [:K => 5]),
-    (:Leaf, :Air) => (PlantModules.hydraulic_connection, [:K => 0])
+	(:Soil, :Internode) => (waterdependent_hydraulic_connection, [:K_max => 30]),
+    (:Internode, :Internode) => (PlantModules.hydraulic_connection, [:K => 100]),
+	(:Internode, :Shoot) => (PlantModules.hydraulic_connection, [:K => 10]),
+	(:Shoot, :Leaf) => (PlantModules.hydraulic_connection, [:K => 1]),
+	(:Internode, :Leaf) => (PlantModules.hydraulic_connection, [:K => 1]),
+    (:Leaf, :Air) => (PlantModules.hydraulic_connection, [:K => 1e-8])
 ]
 
 func_connections = [connecting_modules, PlantModules.multi_connection_eqs]
@@ -208,9 +209,9 @@ default_u0s = merge(PlantModules.default_u0s,
 )
 
 module_defaults = (
-	Internode = (shape = Cilinder(ϵ_D = [5.0, 0.3], ϕ_D = [0.1, 0.01]), M = C_stem),
-	Shoot = (shape = Cilinder(ϵ_D = [5.0, 0.3], ϕ_D = [0.1, 0.01]), M = C_shoot),
-	Leaf = (shape = Cuboid(ϵ_D = [0.5, 0.5, 0.01], ϕ_D = [0.1, 0.1, 0.01]), M = C_leaf),
+	Internode = (shape = Cilinder(ϵ_D = [5.0, 0.3], ϕ_D = [0.5, 0.1]), M = C_stem),
+	Shoot = (shape = Cilinder(ϵ_D = [5.0, 0.3], ϕ_D = [0.3, 0.01]), M = C_shoot),
+	Leaf = (shape = Cuboid(ϵ_D = [0.5, 0.5, 0.01], ϕ_D = [0.3, 0.3, 0.01]), M = C_leaf),
 	Soil = (W_max = 100000.0, T = 293.15),
 	Air = ()
 )
@@ -224,9 +225,10 @@ system = PlantModules.generate_system(default_params, default_u0s,
 sys_simpl = structural_simplify(system)
 prob = ODEProblem(sys_simpl, ModelingToolkit.missing_variable_defaults(sys_simpl), (0.0, 5*24))
 @time sol = solve(prob)
-@btime sol = solve(prob);
+# @btime sol = solve(prob);
 
-PlantModules.plotgraph(sol, graphs[1], func_varname = :W)
+PlantModules.plotgraph(sol, graphs[1], func_varname = :W, struct_module = :Leaf)
+PlantModules.plotgraph(sol, graphs[1], func_varname = :W, struct_module = :Internode)
 PlantModules.plotgraph(sol, graphs[2], func_varname = :W)
 PlantModules.plotgraph(sol, graphs[3], func_varname = :W)
 
