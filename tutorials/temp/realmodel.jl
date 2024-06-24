@@ -22,9 +22,9 @@ function combine_dimensions(l, d, w)
 	if all(isnothing.([l, d, w]))
 		return nothing
 	elseif isnothing(w)
-		return [l, d]
+		return [d/2, l]
 	else
-		return [l, w, 1.5e-4]
+		return [l, w, 3e-5]
 	end
 end
 
@@ -50,6 +50,35 @@ descendants(mtg, symbol = "Shoot", self = true) |> DataFrame
 descendants(mtg, symbol = "Leaf", self = true) |> DataFrame
 
 # convert_to_PG(mtg) |> draw
+
+supervolume(mtg) = volume(length(mtg.D) == 2 ? Cilinder(ϵ_D = [0, 0], ϕ_D = [0, 0]) : Cuboid(ϵ_D = [0, 0, 0], ϕ_D = [0, 0, 0]), mtg.D)
+
+minimum(supervolume.(descendants(mtg, self = true)))
+
+function checkthemconnections(mtg)
+	vol = supervolume(mtg)
+	chvols = [supervolume(chnode) for chnode in PlantModules.children(mtg, mtg)]
+	println("$(round.(chvols ./ vol, digits = 2))")
+
+	for chnode in PlantModules.children(mtg, mtg)
+		checkthemconnections(chnode)
+	end
+end
+
+checkthemconnections(mtg)
+
+#! 
+
+# import PlantGraphs: Node
+# mutable struct Internode <: Node
+# 	D::Vector
+# end
+# mutable struct Leaf <: Node
+# 	D::Vector
+# end
+# D_internode
+
+# mtg = InterNode()
 
 ## Environment
 
@@ -169,12 +198,22 @@ module_coupling = [ #! photosynthesis_module for leaf
 
 connecting_modules = [
 	(:Soil, :Internode) => (PlantModules.hydraulic_connection, [:K => 100]), #! waterdependent_hydraulic_connection
-    (:Internode, :Internode) => (PlantModules.hydraulic_connection, [:K => 3]),
-	(:Internode, :Shoot) => (PlantModules.hydraulic_connection, [:K => 3]),
-	(:Shoot, :Shoot) => (PlantModules.hydraulic_connection, [:K => 3]),
-	(:Shoot, :Leaf) => (PlantModules.hydraulic_connection, [:K => 0.01]),
-	(:Internode, :Leaf) => (PlantModules.hydraulic_connection, [:K => 0.01]),
-    (:Leaf, :Air) => (PlantModules.hydraulic_connection, [:K => 1e-5])
+    (:Internode, :Internode) => (PlantModules.hydraulic_connection, [:K => 5]),
+	(:Internode, :Shoot) => (PlantModules.hydraulic_connection, [:K => 5]),
+	(:Shoot, :Shoot) => (PlantModules.hydraulic_connection, [:K => 5]),
+	(:Shoot, :Leaf) => (PlantModules.hydraulic_connection, [:K => 3]),
+	(:Internode, :Leaf) => (PlantModules.hydraulic_connection, [:K => 3]),
+    (:Leaf, :Air) => (PlantModules.hydraulic_connection, [:K => 1e-3])
+]
+
+connecting_modules = [
+	(:Soil, :Internode) => (PlantModules.hydraulic_connection, [:K => 0]), #! waterdependent_hydraulic_connection
+    (:Internode, :Internode) => (PlantModules.hydraulic_connection, [:K => 5]),
+	(:Internode, :Shoot) => (PlantModules.hydraulic_connection, [:K => 5]),
+	(:Shoot, :Shoot) => (PlantModules.hydraulic_connection, [:K => 0]),
+	(:Shoot, :Leaf) => (PlantModules.hydraulic_connection, [:K => 0]),
+	(:Internode, :Leaf) => (PlantModules.hydraulic_connection, [:K => 0]),
+    (:Leaf, :Air) => (PlantModules.hydraulic_connection, [:K => 0])
 ]
 
 func_connections = [connecting_modules, PlantModules.multi_connection_eqs]
@@ -212,7 +251,7 @@ system = PlantModules.generate_system(default_params, default_u0s,
 
 sys_simpl = structural_simplify(system)
 prob = ODEProblem(sys_simpl,
-	ModelingToolkit.missing_variable_defaults(sys_simpl), (0.0, 1e-8)
+	ModelingToolkit.missing_variable_defaults(sys_simpl), (0.0, 5*24)
 )
 @time sol = solve(prob);
 # @btime sol = solve(prob);

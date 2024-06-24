@@ -1943,7 +1943,6 @@ version = "1.6.3"
 [[deps.OrdinaryDiffEq]]
 deps = ["ADTypes", "Adapt", "ArrayInterface", "DataStructures", "DiffEqBase", "DocStringExtensions", "ExponentialUtilities", "FastBroadcast", "FastClosures", "FillArrays", "FiniteDiff", "ForwardDiff", "FunctionWrappersWrappers", "IfElse", "InteractiveUtils", "LineSearches", "LinearAlgebra", "LinearSolve", "Logging", "MacroTools", "MuladdMacro", "NonlinearSolve", "Polyester", "PreallocationTools", "PrecompileTools", "Preferences", "RecursiveArrayTools", "Reexport", "SciMLBase", "SciMLOperators", "SimpleNonlinearSolve", "SimpleUnPack", "SparseArrays", "SparseDiffTools", "StaticArrayInterface", "StaticArrays", "TruncatedStacktraces"]
 git-tree-sha1 = "cd8c4fb1cc88e65e27f92c7e714afc430cd1debc"
-pinned = true
 uuid = "1dea7af3-3e70-54e6-95c3-0bf5283fa5ed"
 version = "6.75.0"
 
@@ -2018,7 +2017,9 @@ version = "0.3.3"
 
 [[deps.PlantBiophysics]]
 deps = ["CSV", "DataFrames", "Dates", "LsqFit", "OrderedCollections", "PlantMeteo", "PlantSimEngine", "RecipesBase", "Statistics", "YAML"]
-path = "C:\\Users\\bspanogh\\Documents\\Github\\PlantBiophysics.jl"
+git-tree-sha1 = "86edce8ed1cd1b9567c7c1334444652979ae992a"
+repo-rev = "compat-bump"
+repo-url = "C:\\Users\\brams\\Documents\\GitHub\\PlantBiophysics.jl"
 uuid = "7ae8fcfa-76ad-4ec6-9ea7-5f8f5e2d6ec9"
 version = "0.10.0"
 

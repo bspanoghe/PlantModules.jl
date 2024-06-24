@@ -145,7 +145,7 @@ Returns a ModelingToolkit ODESystem describing a water flow connection between t
 """
 function hydraulic_connection(; name, K)
     @parameters (
-        K(t) = K, [description = "Hydraulic conductivity of connection", unit = u"g / hr / MPa"],
+        K = K, [description = "Hydraulic conductivity of connection", unit = u"g / hr / MPa"],
     )
     @variables (
         F(t), [description = "Water flux from compartment 2 to compartment 1", unit = u"g / hr"],
