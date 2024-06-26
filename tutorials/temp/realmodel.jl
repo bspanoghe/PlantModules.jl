@@ -43,14 +43,11 @@ function get_mtg()
 	
 	traverse!(mtg, node -> symbol!(node, "Shoot"), symbol = "ShortShoot")
 	mtg = delete_nodes!(mtg, filter_fun = node -> isnothing(node.D))
+
+	# descendants(mtg, symbol = "Internode", self = true) |> DataFrame
+	# descendants(mtg, symbol = "Shoot", self = true) |> DataFrame
+	# descendants(mtg, symbol = "Leaf", self = true) |> DataFrame
 end
-
-
-mtg |> DataFrame
-
-descendants(mtg, symbol = "Internode", self = true) |> DataFrame
-descendants(mtg, symbol = "Shoot", self = true) |> DataFrame
-descendants(mtg, symbol = "Leaf", self = true) |> DataFrame
 
 # mtg = delete_nodes!(mtg, symbol = "Shoot")
 
@@ -65,31 +62,51 @@ function prunetree!(mtg, target_length; remaining_length = length(mtg))
 	end
 end
 
-mtg = get_mtg()
+function create_MWE()
+	mtg = get_mtg()
+	[prunetree!(mtg, 60) for _ in 1:3]; # no work
+	mtg = delete_node!(mtg)
+	mtg = delete_node!(mtg)
+	mtg = delete_node!(mtg)
+	# r_branch = descendants(mtg[2], self = true)
+	# mtg = delete_nodes!(mtg, filter_fun = node -> node in r_branch)
+	prunetree!(mtg[1], 20) # removes errorbringer
 
-[prunetree!(mtg, 60) for _ in 1:3]; # no bueno
-[prunetree!(mtg, 40) for _ in 1:3];
-length(mtg)
-
-convert_to_PG(mtg) |> draw
-
-supervolume(mtg) = volume(length(mtg.D) == 2 ? Cilinder(ϵ_D = [0, 0], ϕ_D = [0, 0]) : Cuboid(ϵ_D = [0, 0, 0], ϕ_D = [0, 0, 0]), mtg.D)
-
-minimum(supervolume.(descendants(mtg, self = true)))
-mean(supervolume.(descendants(mtg, self = true)))
-
-
-function checkthemconnections(mtg)
-	vol = supervolume(mtg)
-	chvols = [supervolume(chnode) for chnode in PlantModules.children(mtg, mtg)]
-	println("$(round.(chvols ./ vol, digits = 2))")
-
-	for chnode in PlantModules.children(mtg, mtg)
-		checkthemconnections(chnode)
-	end
+	return mtg
 end
 
-checkthemconnections(mtg)
+mtg = create_MWE()
+length(mtg)
+convert_to_PG(mtg) |> draw
+
+
+
+# mtg = get_mtg()
+# [prunetree!(mtg, 40) for _ in 1:3]; # yes bueno
+
+# DataFrame(mtg, [:D])
+# branchingpoint = mtg[1][1][1]
+# DataFrame(branchingpoint, [:D])
+# DataFrame(branchingpoint[1], [:D])
+# DataFrame(branchingpoint[2], [:D])
+
+# supervolume(mtg) = volume(length(mtg.D) == 2 ? Cilinder(ϵ_D = [0, 0], ϕ_D = [0, 0]) : Cuboid(ϵ_D = [0, 0, 0], ϕ_D = [0, 0, 0]), mtg.D)
+
+# minimum(supervolume.(descendants(mtg, self = true)))
+# mean(supervolume.(descendants(mtg, self = true)))
+
+
+# function checkthemconnections(mtg)
+# 	vol = supervolume(mtg)
+# 	chvols = [supervolume(chnode) for chnode in PlantModules.children(mtg, mtg)]
+# 	println("$(round.(chvols ./ vol, digits = 2))")
+
+# 	for chnode in PlantModules.children(mtg, mtg)
+# 		checkthemconnections(chnode)
+# 	end
+# end
+
+# checkthemconnections(mtg)
 
 #! 
 
