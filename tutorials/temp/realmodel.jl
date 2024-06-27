@@ -68,9 +68,12 @@ function create_MWE()
 	mtg = delete_node!(mtg)
 	mtg = delete_node!(mtg)
 	mtg = delete_node!(mtg)
-	# r_branch = descendants(mtg[2], self = true)
-	# mtg = delete_nodes!(mtg, filter_fun = node -> node in r_branch)
-	prunetree!(mtg[1], 20) # removes errorbringer
+
+	lil_branch2 = descendants(mtg[1][1][1][1][1][1][1][1][1][1][1][1], self = true)
+	mtg = delete_nodes!(mtg, filter_fun = node -> node in lil_branch2)
+
+	# shoots = descendants(mtg, symbol = "Shoot", self = true)
+	# mtg = delete_nodes!(mtg, filter_fun = node -> node in shoots)
 
 	return mtg
 end
@@ -78,8 +81,6 @@ end
 mtg = create_MWE()
 length(mtg)
 convert_to_PG(mtg) |> draw
-
-
 
 # mtg = get_mtg()
 # [prunetree!(mtg, 40) for _ in 1:3]; # yes bueno
