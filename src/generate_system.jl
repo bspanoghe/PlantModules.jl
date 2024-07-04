@@ -72,7 +72,7 @@ function getMTKsystem(node, module_coupling, module_defaults, default_params, de
 	structmodule = PlantModules.structmod(node)
 	func_modules = [coupling.first for coupling in module_coupling if structmodule in coupling.second]
 
-	component_systems = Vector{ODESystem}(undef, length(func_modules))
+	component_systems = Vector{ODESystem}(undef, length(func_modules)) #! error if no func_modules found for structural module
 
 	for (modulenum, func_module) in enumerate(func_modules)
 		nodeparams = getnodeparamu0s(node, structmodule, func_module, module_defaults, default_params)
