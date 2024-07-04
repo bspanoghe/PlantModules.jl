@@ -10,7 +10,7 @@ using BenchmarkTools
 # Structural modules #
 
 ## Plant
-plant_graph = readXEG("tutorials/temp/structures/beech10.xeg") #! change to beech
+plant_graph = readXEG("tutorials/temp/structures/beech0.xeg") #! change to beech
 # convert_to_PG(plant_graph) |> draw
 
 function get_mtg()
@@ -25,7 +25,7 @@ function get_mtg()
 		elseif isnothing(w)
 			return 1e2*[d/2, l]
 		else
-			return 1e2*[l, w, 3e-5]
+			return 1e2*[l, w, 3e-3]
 		end
 	end
 	
@@ -69,8 +69,11 @@ function create_MWE()
 	mtg = delete_node!(mtg)
 	mtg = delete_node!(mtg)
 
-	lil_branch2 = descendants(mtg[1][1][1][1][1][1][1][1][1][1][1][1], self = true)
-	mtg = delete_nodes!(mtg, filter_fun = node -> node in lil_branch2)
+	lil_branch = descendants(mtg[1][1][1][1][1][1][1][1][1][1][1][1], self = true)
+	mtg = delete_nodes!(mtg, filter_fun = node -> node in lil_branch)
+
+	# bigger_branch = descendants(mtg[2][1][1][1][1][1][1][1][1], self = true)
+	# mtg = delete_nodes!(mtg, filter_fun = node -> node in bigger_branch)
 
 	# shoots = descendants(mtg, symbol = "Shoot", self = true)
 	# mtg = delete_nodes!(mtg, filter_fun = node -> node in shoots)
@@ -239,12 +242,12 @@ module_coupling = [ #! photosynthesis_module for leaf
 ]
 
 connecting_modules = [
-	(:Soil, :Internode) => (PlantModules.hydraulic_connection, [:K => 100]), #! waterdependent_hydraulic_connection
-    (:Internode, :Internode) => (PlantModules.hydraulic_connection, [:K => 5]),
-	(:Internode, :Shoot) => (PlantModules.hydraulic_connection, [:K => 5]),
-	(:Shoot, :Shoot) => (PlantModules.hydraulic_connection, [:K => 5]),
-	(:Shoot, :Leaf) => (PlantModules.hydraulic_connection, [:K => 3]),
-	(:Internode, :Leaf) => (PlantModules.hydraulic_connection, [:K => 3]),
+	(:Soil, :Internode) => (PlantModules.hydraulic_connection, [:K => 10]), #! waterdependent_hydraulic_connection
+    (:Internode, :Internode) => (PlantModules.hydraulic_connection, [:K => 2]),
+	(:Internode, :Shoot) => (PlantModules.hydraulic_connection, [:K => 2]),
+	(:Shoot, :Shoot) => (PlantModules.hydraulic_connection, [:K => 2]),
+	(:Shoot, :Leaf) => (PlantModules.hydraulic_connection, [:K => 1]),
+	(:Internode, :Leaf) => (PlantModules.hydraulic_connection, [:K => 1]),
     (:Leaf, :Air) => (PlantModules.hydraulic_connection, [:K => 1e-3])
 ]
 func_connections = [connecting_modules, PlantModules.multi_connection_eqs]
@@ -270,7 +273,7 @@ module_defaults = (
 	Internode = (shape = Cilinder(ϵ_D = [10.0, 300.0], ϕ_D = [1e-3, 1e-5]), M = C_stem),
 	Shoot = (shape = Cilinder(ϵ_D = [10.0, 300.0], ϕ_D = [3e-3, 3e-5]), M = C_shoot),
 	Leaf = (shape = Cuboid(ϵ_D = [15.0, 10.0, 1000.0], ϕ_D = [3e-3, 3e-3, 1e-5]), M = C_leaf),
-	Soil = (W_max = 10000.0, T = 293.15),
+	Soil = (W_max = 10000.0, T = 293.15, W_r = 0.9),
 	Air = (W_r = 0.8,)
 )
 
@@ -282,7 +285,7 @@ system = PlantModules.generate_system(default_params, default_u0s,
 
 sys_simpl = structural_simplify(system)
 prob = ODEProblem(sys_simpl,
-	ModelingToolkit.missing_variable_defaults(sys_simpl), (0.0, 5*24)
+	ModelingToolkit.missing_variable_defaults(sys_simpl), (0.0, 1e-3)
 )
 @time sol = solve(prob);
 # @btime sol = solve(prob);
@@ -301,7 +304,7 @@ PlantModules.plotgraph(sol, graphs[1:2], func_varname = :Ψ)
 PlantModules.plotgraph(sol, graphs[1], func_varname = :A)
 PlantModules.plotgraph(sol, graphs[1], func_varname = :PF)
 
-PlantModules.plotgraph(sol, graphs[1], func_varname = :P, struct_module = :Leaf)
+PlantModules.plotgraph(sol, graphs[1], func_varname = :P)
 PlantModules.plotgraph(sol, graphs[1], func_varname = :D, struct_module = :Leaf)
 
 
