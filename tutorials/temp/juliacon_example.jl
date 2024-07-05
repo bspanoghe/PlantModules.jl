@@ -47,6 +47,7 @@ get_PAR_flux(t) = max(0, 400 * sin(t/24*2*pi - 8))
 	)
 	run!(m, meteo)
 	return only(m[:A]) |> x -> max(x, 0) # extract result of the first (and only) timestep
+	#! m also has transpiration rate to air if energy balance is included
 end
 
 @register_symbolic get_assimilation_rate(PAR_flux, T, LAI, k)
@@ -98,8 +99,8 @@ connecting_modules = [
 	(:Internode, :Leaf) => (PlantModules.hydraulic_connection, [:K => 1]),
     (:Leaf, :Air) => (PlantModules.hydraulic_connection, [:K => 1e-3])
 ]
-func_connections = [connecting_modules, PlantModules.multi_connection_eqs]
 
+func_connections = [connecting_modules, PlantModules.multi_connection_eqs]
 
 ## Parameters
 
@@ -136,12 +137,15 @@ sys_simpl = structural_simplify(system);
 prob = ODEProblem(sys_simpl, ModelingToolkit.missing_variable_defaults(sys_simpl), (0.0, 5*24))	 #! Generate warning for missing variable defaults that aren't dummies
 @time sol = solve(prob);
 
-
 plotgraph(sol, graphs[1], func_varname = :M, struct_module = :Leaf);
-plot!(yformatter = y -> y * 1e3);
+plot!(yformatter = y -> y * 1e3)
 ylabel!("active metabolites (1e³ mol / cm³)")
 savefig("./plots/Leaf_M.svg")
 
 plotgraph(sol, graphs[1], func_varname = :W)
 ylabel!("water (g)")
 savefig("./plots/Plant_W.svg")
+
+plotgraph(sol, graphs[1:2], func_varname = :Ψ)
+plotgraph(sol, graphs[1], func_varname = :P)
+plotgraph(sol, graphs[1], func_varname = :Π)

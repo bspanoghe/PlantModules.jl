@@ -10,7 +10,7 @@ using BenchmarkTools
 # Structural modules #
 
 ## Plant
-plant_graph = readXEG("tutorials/temp/structures/beech0.xeg") #! change to beech
+plant_graph = readXEG("tutorials/temp/structures/beech10.xeg") #! change to beech
 # convert_to_PG(plant_graph) |> draw
 
 function get_mtg()
@@ -25,7 +25,7 @@ function get_mtg()
 		elseif isnothing(w)
 			return 1e2*[d/2, l]
 		else
-			return 1e2*[l, w, 3e-3]
+			return 1e2*[l, w, 5e-4]
 		end
 	end
 	
@@ -81,11 +81,11 @@ function create_MWE()
 	return mtg
 end
 
-mtg = create_MWE()
-length(mtg)
-convert_to_PG(mtg) |> draw
+# mtg = create_MWE()
+# length(mtg)
+# convert_to_PG(mtg) |> draw
 
-# mtg = get_mtg()
+mtg = get_mtg()
 # [prunetree!(mtg, 40) for _ in 1:3]; # yes bueno
 
 # DataFrame(mtg, [:D])
@@ -189,6 +189,8 @@ function photosynthesis_module(; name, T, M, shape)
 		PF ~ get_PAR_flux(t)
 		A ~ get_assimilation_rate(PF, T, LAI, k)
         d(M) ~ uc1 * A * leafarea(shape, D) / volume(shape, D) - carbon_decay_rate*M # convert µmol => mol and s^-1 => hr^-1
+		#! change carbon decay rate into maintenance term (~ compartment size) and growth term (~ compartment growth)
+		#! add buffer term? (#starch)
     ]
     return ODESystem(eqs, t; name, checks = false) #! checks back to true?
 end
