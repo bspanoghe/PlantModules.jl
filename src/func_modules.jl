@@ -1,4 +1,4 @@
-@variables t, [description = "Time", unit = u"hr"]; #! add documentation
+@variables t, [description = "Time", unit = u"hr"];
 d = Differential(t);
 
 """
@@ -24,7 +24,7 @@ function hydraulic_module(; name, T, shape::Shape, Γ, P, D)
         Ψ(t), [description = "Total water potential", unit = u"MPa"],
         Π(t), [description = "Osmotic water potential", unit = u"MPa"],
         P(t) = P, [description = "Hydrostatic potential", unit = u"MPa"],
-        M(t), [description = "Osmotically active metabolite content", unit = u"mol / cm^3"], # m^3 so units match in second equation () #! extend validation function so L is ok?
+        M(t), [description = "Osmotically active metabolite content", unit = u"mol / cm^3"],
         W(t) = PlantModules.volume(shape, D) * ρ_w, [description = "Water content", unit = u"g"],
         D(t)[1:num_D] = D, [description = "Dimensions of compartment", unit = u"cm"],
         V(t), [description = "Volume of compartment", unit = u"cm^3"],
@@ -47,7 +47,7 @@ function hydraulic_module(; name, T, shape::Shape, Γ, P, D)
         d(W) ~ ΔW,
         [d(D[i]) ~ ΔD[i] for i in eachindex(D)]...,
     ]
-    return ODESystem(eqs, t; name, continuous_events = [P ~ Γ])
+    return ODESystem(eqs, t; name)
 end
 
 """

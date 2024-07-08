@@ -1,3 +1,28 @@
+# Structure #
+
+Base.@kwdef mutable struct Forest <: PlantGraphs.Node
+    N::Int = 20
+    P::Int = 10
+    δ::Float64 = 1.0
+end
+
+Base.@kwdef mutable struct Grassland <: PlantGraphs.Node
+    N::Int = 100
+    P::Int = 5
+end
+
+Base.@kwdef mutable struct Cave <: PlantGraphs.Node end
+
+graph = Grassland() + Grassland(N = 50, P = 3) + (Forest(δ = 1.8), Forest(N = 5, P = 0, δ = 2.3))
+graph2 = Cave() + Forest() + Grassland()
+graphs = [graph, graph2]
+intergraph_connections = [[1, 2] => (:Forest, :Cave)]
+struct_connections = [graphs, intergraph_connections]
+
+# Function #
+
+## New functional modules
+
 function lotka_volterra(; name, α, β, δ, γ, N, P)
     @parameters α = α β = β δ = δ γ = γ
     @variables t N(t) = N P(t) = P ΣF_N(t) ΣF_P(t)
@@ -37,30 +62,38 @@ function wandering_animals(; name, κ)
         F_N ~ κ * (N_2 - N_1),
         F_P ~ κ * (P_2 - P_1)
     ]
-    return ODESystem(eqs, t; name)
+
+    wandering_eqs(node_MTK, nb_node_MTK, connection_MTK, reverse_order) = [
+        connection_MTK.N_1 ~ node_MTK.N,
+        connection_MTK.P_1 ~ node_MTK.P,
+        connection_MTK.N_2 ~ nb_node_MTK.N,
+        connection_MTK.P_2 ~ nb_node_MTK.P,
+    ]
+
+    return ODESystem(eqs, t; name), wandering_eqs
 end
 
-wandering_eqs(node_MTK, nb_node_MTKs, connection_MTKs) = [
-    [connection_MTK.N_1 ~ node_MTK.N for connection_MTK in connection_MTKs]...,
-    [connection_MTK.P_1 ~ node_MTK.P for connection_MTK in connection_MTKs]...,
-    [connection_MTK.N_2 ~ nb_node_MTK.N for (connection_MTK, nb_node_MTK) in zip(connection_MTKs, nb_node_MTKs)]...,
-    [connection_MTK.P_2 ~ nb_node_MTK.P for (connection_MTK, nb_node_MTK) in zip(connection_MTKs, nb_node_MTKs)]...,
+## Coupling
+
+module_coupling = [
+    lotka_volterra => [:Grassland, :Forest],
+    fountain_of_rabbits => [:Cave]
+]
+
+connecting_modules = [
+    (:Grassland, :Forest) => (wandering_animals, [:κ => 0.03]),
+    (:Forest, :Cave) => (wandering_animals, [:κ => 0.05]),
+    (:Grassland, :Grassland) => (wandering_animals, [:κ => 0.2]),
+]
+
+multi_connection_eqs(node_MTK, connection_MTKs) = [
     node_MTK.ΣF_N ~ sum([connection_MTK.F_N for connection_MTK in connection_MTKs]),
     node_MTK.ΣF_P ~ sum([connection_MTK.F_P for connection_MTK in connection_MTKs])
 ]
 
-Base.@kwdef mutable struct Forest <: PlantGraphs.Node
-    N::Int = 20
-    P::Int = 10
-    δ::Float64 = 1.0
-end
+func_connections = [connecting_modules, multi_connection_eqs]
 
-Base.@kwdef mutable struct Grassland <: PlantGraphs.Node
-    N::Int = 100
-    P::Int = 5
-end
-
-Base.@kwdef mutable struct Cave <: PlantGraphs.Node end
+## Parameters
 
 default_params = (
     lotka_volterra = (α = 1.5, β = 1.9, δ = 1.5, γ = 0.8),
@@ -77,19 +110,6 @@ module_defaults = (
     Forest = (δ = 2.3,),
     Cave = (β = 0,)
 )
-module_coupling = [
-    lotka_volterra => [:Grassland, :Forest],
-    fountain_of_rabbits => [:Cave]
-]
-graph = Grassland() + Grassland(N = 50, P = 3) + (Forest(δ = 1.8), Forest(N = 5, P = 0, δ = 2.3))
-graph2 = Cave() + Forest() + Grassland()
-graphs = [graph, graph2]
-struct_connections = [graphs, [[1, 2] => (:Forest, :Cave)]] #! make vector of graphs as input unnecessary when theres only 1 graph
-func_connections = [[() => wandering_animals], wandering_eqs]
-
-graphs, intergraph_connections = struct_connections
-connecting_modules, get_connection_eqs = func_connections
-
 
 # graphfuncs #
 
@@ -132,11 +152,22 @@ graphnr = 1
 nb_nodes, nb_node_graphnrs = PlantModules.get_nb_nodes(node, graphs, graphnr, intergraph_connections)
 @test issetequal(nb_nodes, [node2, PlantModules.nodes(graphs[2])[1]])
 
-## get_connection_info
+## get_connecting_module
 node = node4
+nb_node = nb_nodes[1]
+
+connecting_module, reverse_order = PlantModules.get_connecting_module(node, nb_node, connecting_modules)
+
+## get_connection_info
 graphnr = 1
-connection_MTKs, connection_equations = PlantModules.get_connection_info(node, graphnr, nb_nodes, nb_node_graphnrs, connecting_modules, get_connection_eqs, default_params, default_u0s, MTK_system_dicts)
-@test connection_MTKs isa Vector{ODESystem}
+nb_node_graphnr = nb_node_graphnrs[1]
+
+connection_MTK, connection_equations = PlantModules.get_connection_info(node, graphnr, 
+    nb_node, nb_node_graphnr, connecting_module, reverse_order, default_params, default_u0s, MTK_system_dicts
+)
+
+@test connection_MTK isa ODESystem
+@test only(values(connection_MTK.defaults)) == 0.03
 @test connection_equations isa Vector{Equation}
 
 ## getnodeparamu0s

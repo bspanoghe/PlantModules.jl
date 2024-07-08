@@ -7,7 +7,9 @@ export readXEG, convert_to_MTG, convert_to_PG
 export plotgraph, plotnode
 
 using ModelingToolkit, DifferentialEquations, Unitful # Simulation packages
-import ModelingToolkit: get_eqs, get_systems, get_unknowns, get_defaults, get_name, get_iv
+import ModelingToolkit: get_eqs, get_unknowns, get_ps, get_parameter_dependencies, get_observed,
+    get_continuous_events, get_discrete_events, get_defaults, get_systems, get_name, get_iv
+import ModelingToolkit: extend, AbstractSystem, get_gui_metadata
 using PlantGraphs, MultiScaleTreeGraph # Graph packages
 using Plots # Visualisation packages
 

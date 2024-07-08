@@ -72,24 +72,65 @@ function getMTKsystem(node, module_coupling, module_defaults, default_params, de
 	structmodule = PlantModules.structmod(node)
 	func_modules = [coupling.first for coupling in module_coupling if structmodule in coupling.second]
 
-	component_systems = Vector{ODESystem}(undef, length(func_modules)) #! error if no func_modules found for structural module
+	component_systems = Vector{ODESystem}(undef, length(func_modules))
 
 	for (modulenum, func_module) in enumerate(func_modules)
 		nodeparams = getnodeparamu0s(node, structmodule, func_module, module_defaults, default_params)
 		nodeu0s = getnodeparamu0s(node, structmodule, func_module, module_defaults, default_u0s)
 
-		component_systems[modulenum] = func_module(; :name => :foo,
+		component_systems[modulenum] = func_module(; :name => Symbol(string(structmodule) * string(PlantModules.id(node))),
 			Pair.(keys(nodeparams), values(nodeparams))..., Pair.(keys(nodeu0s), values(nodeu0s))...)
 				# real name given later
 	end
 
-	MTKsystem = collapse(
-		component_systems,
-		name = Symbol(string(structmodule) * string(PlantModules.id(node))),
-		checkunits = checkunits
-	)
+	MTKsystem = component_systems[1]
+
+	for comp_sys in component_systems[2:end]
+		MTKsystem = extend(MTKsystem, comp_sys, checkunits)
+	end
 
 	return MTKsystem
+end
+
+# extended version of ModelingToolkit.extend to include unitful checks
+function extend(sys::AbstractSystem, basesys::AbstractSystem, checkunits::Bool; name::Symbol = nameof(sys),
+	gui_metadata = get_gui_metadata(sys))
+
+	T = SciMLBase.parameterless_type(basesys)
+	ivs = independent_variables(basesys)
+	if !(sys isa T)
+		if length(ivs) == 0
+			sys = convert_system(T, sys)
+		elseif length(ivs) == 1
+			sys = convert_system(T, sys, ivs[1])
+		else
+			throw("Extending multivariate systems is not supported")
+		end
+	end
+
+	eqs = union(get_eqs(basesys), get_eqs(sys))
+	sts = union(get_unknowns(basesys), get_unknowns(sys))
+	ps = union(get_ps(basesys), get_ps(sys))
+	base_deps = get_parameter_dependencies(basesys)
+	deps = get_parameter_dependencies(sys)
+	dep_ps = isnothing(base_deps) ? deps :
+			isnothing(deps) ? base_deps : union(base_deps, deps)
+	obs = union(get_observed(basesys), get_observed(sys))
+	cevs = union(get_continuous_events(basesys), get_continuous_events(sys))
+	devs = union(get_discrete_events(basesys), get_discrete_events(sys))
+	defs = merge(get_defaults(basesys), get_defaults(sys)) # prefer `sys`
+	syss = union(get_systems(basesys), get_systems(sys))
+
+	if length(ivs) == 0
+		T(eqs, sts, ps, observed = obs, defaults = defs, name = name, systems = syss,
+			continuous_events = cevs, discrete_events = devs, gui_metadata = gui_metadata,
+			parameter_dependencies = dep_ps, checks = checkunits)
+	elseif length(ivs) == 1
+		T(eqs, ivs[1], sts, ps, observed = obs, defaults = defs, name = name,
+			systems = syss, continuous_events = cevs, discrete_events = devs,
+			gui_metadata = gui_metadata, parameter_dependencies = dep_ps, 
+			checks = checkunits)
+	end
 end
 
 # get correct parameter/initial values for node between those defined in the model defaults, module defaults and node values
@@ -99,7 +140,6 @@ function getnodeparamu0s(node, structmodule, func_module, module_defaults, defau
 	end
 
 	paramu0s = default_paramu0s[Symbol(func_module)] |> x -> Dict{Any, Any}(Pair.(keys(x), values(x))) # PlantModules defaults
-		#! excluding {Any, Any} causes the Dict to overspecialize on a type sometimes, better fix available?
 	paramu0names = keys(paramu0s)
 
 	node_attributes = PlantModules.attributes(node)
@@ -115,16 +155,6 @@ function getnodeparamu0s(node, structmodule, func_module, module_defaults, defau
 
 	return paramu0s
 end
-
-# collapse multiple ODESystems into one. like ModelingToolkit.compose, but keeps a single namespace
-function collapse(systems::Vector{ODESystem}; name::Symbol, checkunits::Bool)
-    return ODESystem(
-		vcat([get_eqs(system) for system in systems]...),
-		get_iv(systems[1]), vcat([unknowns(system) for system in systems]...),
-        vcat([parameters(system) for system in systems]...),
-		name = name, checks = checkunits
-		)
-end #! use `extend` instead?
 
 # Get the MTK system of the edge between the two nodes, and whether it exists in correct order
 function get_connecting_module(node, nb_node, connecting_modules)
@@ -152,7 +182,7 @@ function get_connection_info(node, graphnr, nb_node, nb_node_graphnr, connecting
 
 	connector_func, connection_specific_values = connecting_module.second
 	
-	default_conn_info = merge( # merge parameter and initial values. #! if the default values are empty, assume there are none?
+	default_conn_info = merge(
 		get(default_params, Symbol(connector_func), ()),
 		get(default_u0s, Symbol(connector_func), ())
 	)
