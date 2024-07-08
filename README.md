@@ -12,4 +12,4 @@ The package is currently not yet in the Julia registry. Therefore, installation 
 
 ## 2. Usage
 
-The package currently has no documentation page yet. However, Pluto notebooks with an explanation of how to use the package are available in the tutorial folder.
+The package currently has no documentation page yet. However, Pluto notebooks with an explanation of how to use the package are available in the tutorials folder.

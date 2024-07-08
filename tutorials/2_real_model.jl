@@ -8,7 +8,7 @@ using InteractiveUtils
 using Pkg; Pkg.activate(".")
 
 # ╔═╡ c379b857-4a95-42c0-92bd-bf9df430e1e8
-include("../src/PlantModules.jl"); using .PlantModules
+using PlantModules
 
 # ╔═╡ 32b33d71-281e-4d07-b4c1-86f7be6997bf
 using PlantGraphs, MultiScaleTreeGraph

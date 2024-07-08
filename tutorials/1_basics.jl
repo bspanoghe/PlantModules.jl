@@ -8,7 +8,7 @@ using InteractiveUtils
 using Pkg; Pkg.activate(".")
 
 # ╔═╡ 662c0476-70aa-4a60-a81c-d7db2248b728
-include("../src/PlantModules.jl"); using .PlantModules
+using PlantModules
 
 # ╔═╡ 65f88593-1180-447a-900f-49aef4647cd1
 using PlantGraphs, ModelingToolkit, DifferentialEquations, Plots
