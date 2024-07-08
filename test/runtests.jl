@@ -1,17 +1,10 @@
-using DrWatson, Test
-@quickactivate "PlantModules.jl"
-
-# Here you include files using `srcdir`
-# include(srcdir("file.jl"))
-
-# Run test suite
-println("Starting tests")
-ti = time()
-
-@testset "PlantModules.jl tests" begin
-    @test 1 == 1
+module basictests
+    using Test, PlantModules, PlantGraphs, ModelingToolkit, DifferentialEquations, Plots
+    import ModelingToolkit: get_eqs, get_systems, get_unknowns, get_defaults, get_name, get_iv
+    @testset "Basic functionality and plotting" include("./generate_system_and_plotting.jl")
 end
 
-ti = time() - ti
-println("\nTest took total time of:")
-println(round(ti/60, digits = 3), " minutes")
+module readingtests
+    using Test, PlantModules
+    @testset "Reading plant structure files" include("test_readgraphs.jl")
+end

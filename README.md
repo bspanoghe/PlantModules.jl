@@ -1,30 +1,15 @@
 # PlantModules.jl
 
-This code base is using the [Julia Language](https://julialang.org/) and
-[DrWatson](https://juliadynamics.github.io/DrWatson.jl/stable/)
-to make a reproducible scientific project named
-> PlantModules.jl
+A Julia package for defining Functional-Structural Plant Modeling (FSPMs) based on [ModelingToolkit.jl](https://github.com/SciML/ModelingToolkit.jl) created to work well together with Julia's plant modeling framework [VirtualPlantLab.jl](https://github.com/VirtualPlantLab/VirtualPlantLab.jl).
+This package is still under active development, but core functionality is already available. 
 
-It is authored by Michiel Stock, Tom De Swaef, Bram Spanoghe.
+## 1. Installation
 
-To (locally) reproduce this project, do the following:
-
-0. Download this code base. Notice that raw data are typically not included in the
-   git-history and may need to be downloaded independently.
-1. Open a Julia console and do:
-   ```
-   julia> using Pkg
-   julia> Pkg.add("DrWatson") # install globally, for using `quickactivate`
-   julia> Pkg.activate("path/to/this/project")
-   julia> Pkg.instantiate()
-   ```
-
-This will install all necessary packages for you to be able to run the scripts and
-everything should work out of the box, including correctly finding local paths.
-
-You may notice that most scripts start with the commands:
+The package is currently not yet in the Julia registry. Therefore, installation of the package can be done through:
 ```julia
-using DrWatson
-@quickactivate "PlantModules.jl"
+] add https://github.com/bspanoghe/PlantModules.jl.git
 ```
-which auto-activate the project and enable local path handling from DrWatson.
+
+## 2. Usage
+
+The package currently has no documentation page yet. However, Pluto notebooks with an explanation of how to use the package are available in the tutorials folder.
