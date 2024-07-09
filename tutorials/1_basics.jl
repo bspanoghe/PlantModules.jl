@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.19.42
+# v0.19.43
 
 using Markdown
 using InteractiveUtils
@@ -8,7 +8,7 @@ using InteractiveUtils
 using Pkg; Pkg.activate(".")
 
 # ╔═╡ 662c0476-70aa-4a60-a81c-d7db2248b728
-include("../src/PlantModules.jl"); using .PlantModules
+using PlantModules
 
 # ╔═╡ 65f88593-1180-447a-900f-49aef4647cd1
 using PlantGraphs, ModelingToolkit, DifferentialEquations, Plots
@@ -105,8 +105,8 @@ mutable struct Root <: Node end
 mutable struct Stem <: Node end
 
 # ╔═╡ d57718c2-c77d-42a8-924f-ebdfcd51d919
-mutable struct Leaf{T} <: Node
-	D::Vector{T}
+mutable struct Leaf <: Node
+	D::Vector
 end
 
 # ╔═╡ a740d4ab-5ad8-4db4-9a80-aef2625a7d7b
@@ -204,13 +204,20 @@ md"""
 Next to changing functional values over the entire model, some of the information we have may require different default values specifically for certain structural modules. We can specify this as shown below.
 """
 
+# ╔═╡ de3220a3-18d9-423c-829f-2b43cac301fe
+begin
+	C_root = 300e-6
+	C_stem = 400e-6
+	C_leaf = 450e-6 
+end
+
 # ╔═╡ 5f21a4b0-f663-4777-94f3-d00acba109b3
 module_defaults = (
-	Root = (shape = PlantModules.Cuboid(ϵ_D = [5.0, 0.3, 0.2], ϕ_D = [0.7, 0.1, 0.05]), D = [0.3, 0.03, 0.01], M = 250),
-	Stem = (shape = PlantModules.Cilinder(ϵ_D = [6.0, 0.15], ϕ_D = [0.8, 0.03]), D = [0.015, 0.1], M = 300),
-	Leaf = (shape = PlantModules.Sphere(ϵ_D = [3.0], ϕ_D = [0.45]), M = 330),
+	Root = (shape = PlantModules.Cuboid(ϵ_D = [5.0, 10.0, 20.0], ϕ_D = [0.7, 0.1, 0.05]), D = [30, 3, 1], M = C_root),
+	Stem = (shape = PlantModules.Cilinder(ϵ_D = [6.0, 15.0], ϕ_D = [0.8, 0.03]), D = [1.5, 10], M = C_stem),
+	Leaf = (shape = PlantModules.Sphere(ϵ_D = [3.0], ϕ_D = [0.45]), M = C_leaf),
 	Soil = (W_max = 500.0, T = 288.15),
-	Air = (W_max = 2000,)
+	Air = (W_r = 0.8,)
 )
 
 # ╔═╡ e0e5e7f7-d2f5-404b-a6c6-6848c318eccb
@@ -257,7 +264,7 @@ Since we're using the PlantGraphs Julia package for this tutorial, we can easily
 """
 
 # ╔═╡ 9af27c17-8f21-4f22-a5bb-e9c95cfdf2f9
-plant_graph = Root() + Stem() + (Leaf([0.02]), Leaf([0.025]))
+plant_graph = Root() + Stem() + (Leaf([2]), Leaf([2.5])) # Leaves are chosen to be  modelled as spheres and are here given radii of 2 and 2.5 cms
 
 # ╔═╡ ecb23f1e-ee39-4c5a-911f-eaa252c23968
 md"""
@@ -301,7 +308,7 @@ struct_connections = [graphs, intergraph_connections]
 
 # ╔═╡ f03a61ce-a0ff-43ff-abdd-2342f76e8c93
 md"""
-> For our tiny example plant, we only have one structural module that actually repeats, somewhat defeating the purpose of modelling in a modular manner: we may as well write this entire model out by hand! Rest assured, however, that the approach we're seeing here also works for trees with hundreds of branches and thousands of leaves, as we will see in the next tutorial.
+> For our tiny example plant, we only have one structural module that actually repeats, somewhat defeating the purpose of modelling in a modular manner: we may as well write this entire model out by hand! Rest assured, however, that the approach we're seeing here also works for larger plants, as we will see in the next tutorial.
 """
 
 # ╔═╡ ac6e098d-98ff-4940-8386-dc76c75eb2c3
@@ -315,11 +322,11 @@ Defining a new functional connection module is discussed in the following tutori
 
 # ╔═╡ 611289e9-e22c-4e6e-beec-ccea90eb48c9
 connecting_modules = [
-	(:Soil, :Root) => (PlantModules.hydraulic_connection, [:K => 20]),
-	(:Root, :Stem) => (PlantModules.hydraulic_connection, [:K => 15]),
-	(:Stem, :Leaf) => (PlantModules.hydraulic_connection, [:K => 10]),
-	(:Leaf, :Air) => (PlantModules.hydraulic_connection, [:K => 3e-1]),
-	(:Soil, :Air) => (PlantModules.hydraulic_connection, [:K => 5e-3])
+	(:Soil, :Root) => (PlantModules.hydraulic_connection, [:K => 10]),
+	(:Root, :Stem) => (PlantModules.hydraulic_connection, [:K => 5]),
+	(:Stem, :Leaf) => (PlantModules.hydraulic_connection, [:K => 5]),
+	(:Leaf, :Air) => (PlantModules.hydraulic_connection, [:K => 5e-2]),
+	(:Soil, :Air) => (PlantModules.hydraulic_connection, [:K => 1e-2])
 ]
 
 # ╔═╡ a8a725d4-d876-4867-acbc-26bbadc4b462
@@ -373,7 +380,7 @@ The rest of the modeling workflow is mostly taken care of by ModelingToolkit.jl 
 """
 
 # ╔═╡ bf114636-1e35-49f1-9407-f472b443a9ea
-time_span = (0, 3*24.0) # We'll simulate our problem for a timespan of 3 days
+time_span = (0, 7*24.0) # We'll simulate our problem for a timespan of one week
 
 # ╔═╡ 2f431e8c-d0e4-4117-896f-3140d9633d1d
 sys_simpl = structural_simplify(system);
@@ -394,23 +401,11 @@ Finding the answer to our toy problem now comes down to plotting out the soil wa
 # ╔═╡ e890700e-80a4-4dfc-8380-732bf91d1aa4
 PlantModules.plotnode(sol, graphs[2], func_varname = :W_r)
 
-# ╔═╡ 2f93758b-5cc9-4ed3-aec0-4c28ee22cbf6
-PlantModules.plotgraph(sol, graphs[1], func_varname = :W)
-
-# ╔═╡ f0fdcaaa-90df-4e40-a234-fc12daeaa359
-PlantModules.plotgraph(sol, graphs[1:2], func_varname = :Ψ)
-
 # ╔═╡ 2d131155-f62b-4f4a-92d8-9e7443202434
 md"""
-We can see the soil still has a relative water content of over 30% after 150 hours or 6 days. Some of the parameters in this example probably need to be changed!
-"""
+It looks like after 1 week only about 20% of the soil water content remains. Since we don't want our seedlings to experience too much drought stress, we may want to water it when the relative soil water content is at about 50%, which would be after around half a week.
 
-# ╔═╡ fb3c58df-1d6b-4ced-803d-2d0fc537b942
-md"""
-# TO-DO list
-
-- Update hyperlinks with pages of docs when they exist
-- Change parameter - and initial values with logical ones based on some data or something
+Of course, the functional modules used in this tutorial are a gross oversimplification of reality and these results are very iffy at best. Next tutorial we'll see how we can create our own functional processes to make the model more realistic.
 """
 
 # ╔═╡ Cell order:
@@ -449,6 +444,7 @@ md"""
 # ╟─e60a5281-18ce-4e88-b76b-b8279af7dc65
 # ╠═8f5b2fb2-7409-4a25-b74f-bcfb247ae647
 # ╟─3c13c600-5135-44ea-8fc2-a1e11f72d0c5
+# ╠═de3220a3-18d9-423c-829f-2b43cac301fe
 # ╠═5f21a4b0-f663-4777-94f3-d00acba109b3
 # ╟─e0e5e7f7-d2f5-404b-a6c6-6848c318eccb
 # ╟─930e7ed8-0bfe-4e5a-8890-a1d1ce155881
@@ -488,7 +484,4 @@ md"""
 # ╠═c38b1a71-c5e9-4bfa-a210-bcbf9068f7ed
 # ╟─a6608eff-9399-443c-a33a-c62341f7b14c
 # ╠═e890700e-80a4-4dfc-8380-732bf91d1aa4
-# ╠═2f93758b-5cc9-4ed3-aec0-4c28ee22cbf6
-# ╠═f0fdcaaa-90df-4e40-a234-fc12daeaa359
 # ╟─2d131155-f62b-4f4a-92d8-9e7443202434
-# ╟─fb3c58df-1d6b-4ced-803d-2d0fc537b942
