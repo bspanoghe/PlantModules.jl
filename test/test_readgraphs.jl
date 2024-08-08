@@ -1,4 +1,5 @@
-testgraph = readXEG("./testdata/test.xeg")
+println("Working dir: $(pwd())") # for testing
+testgraph = readXEG("testdata/test.xeg")
 
 @test testgraph isa Dict
 @test PlantModules.nodes(testgraph) isa Vector{Dict}
