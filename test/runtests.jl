@@ -6,5 +6,5 @@ end
 
 module readingtests
     using Test, PlantModules
-    @testset "Reading plant structure files" include("test_readgraphs.jl")
+    @testset "Reading plant structure files" include("./test_readgraphs.jl")
 end

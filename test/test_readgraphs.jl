@@ -1,5 +1,5 @@
-println("Working dir: $(pwd())") # for testing
-testgraph = readXEG("testdata/test.xeg")
+file_loc = joinpath(dirname(dirname(pathof(PlantModules))), "test", "testdata", "test.xeg")
+testgraph = readXEG(file_loc)
 
 @test testgraph isa Dict
 @test PlantModules.nodes(testgraph) isa Vector{Dict}
