@@ -46,7 +46,6 @@ function generate_system(default_params::NamedTuple, default_u0s::NamedTuple, mo
 			end
 			append!(connection_MTKs, current_connection_MTKs)
 			append!(connection_eqsets, multi_connection_eqset(MTK_system_dicts[graphnr][node_id], current_connection_MTKs))
-
 		end
 	end
 
@@ -83,11 +82,11 @@ function getMTKsystem(node, module_coupling, module_defaults, default_params, de
 				# real name given later
 	end
 
-	MTKsystem = collapse(
-		component_systems,
-		name = Symbol(string(structmodule) * string(PlantModules.id(node))),
-		checkunits = checkunits
-	)
+	MTKsystem = component_systems[1]
+
+	for comp_sys in component_systems[2:end]
+		MTKsystem = extend(MTKsystem, comp_sys, checkunits)
+	end
 
 	return MTKsystem
 end
@@ -116,15 +115,46 @@ function getnodeparamu0s(node, structmodule, func_module, module_defaults, defau
 	return paramu0s
 end
 
-# collapse multiple ODESystems into one. like ModelingToolkit.compose, but keeps a single namespace
-function collapse(systems::Vector{ODESystem}; name::Symbol, checkunits::Bool)
-    return ODESystem(
-		vcat([get_eqs(system) for system in systems]...),
-		get_iv(systems[1]), vcat([unknowns(system) for system in systems]...),
-        vcat([parameters(system) for system in systems]...),
-		name = name, checks = checkunits
-		)
-end #! use `extend` instead?
+# extended version of ModelingToolkit.extend to include unitful checks
+function extend(sys::ModelingToolkit.AbstractSystem, basesys::ModelingToolkit.AbstractSystem, checkunits::Bool; name::Symbol = nameof(sys),
+	gui_metadata = get_gui_metadata(sys))
+
+	T = SciMLBase.parameterless_type(basesys)
+	ivs = independent_variables(basesys)
+	if !(sys isa T)
+		if length(ivs) == 0
+			sys = convert_system(T, sys)
+		elseif length(ivs) == 1
+			sys = convert_system(T, sys, ivs[1])
+		else
+			throw("Extending multivariate systems is not supported")
+		end
+	end
+
+	eqs = union(get_eqs(basesys), get_eqs(sys))
+	sts = union(get_unknowns(basesys), get_unknowns(sys))
+	ps = union(get_ps(basesys), get_ps(sys))
+	base_deps = get_parameter_dependencies(basesys)
+	deps = get_parameter_dependencies(sys)
+	dep_ps = isnothing(base_deps) ? deps :
+			isnothing(deps) ? base_deps : union(base_deps, deps)
+	obs = union(get_observed(basesys), get_observed(sys))
+	cevs = union(get_continuous_events(basesys), get_continuous_events(sys))
+	devs = union(get_discrete_events(basesys), get_discrete_events(sys))
+	defs = merge(get_defaults(basesys), get_defaults(sys)) # prefer `sys`
+	syss = union(get_systems(basesys), get_systems(sys))
+
+	if length(ivs) == 0
+		T(eqs, sts, ps, observed = obs, defaults = defs, name = name, systems = syss,
+			continuous_events = cevs, discrete_events = devs, gui_metadata = gui_metadata,
+			parameter_dependencies = dep_ps, checks = checkunits)
+	elseif length(ivs) == 1
+		T(eqs, ivs[1], sts, ps, observed = obs, defaults = defs, name = name,
+			systems = syss, continuous_events = cevs, discrete_events = devs,
+			gui_metadata = gui_metadata, parameter_dependencies = dep_ps, 
+			checks = checkunits)
+	end
+end
 
 # Get the MTK system of the edge between the two nodes, and whether it exists in correct order
 function get_connecting_module(node, nb_node, connecting_modules)
