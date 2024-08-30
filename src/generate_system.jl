@@ -77,9 +77,8 @@ function getMTKsystem(node, module_coupling, module_defaults, default_params, de
 		nodeparams = getnodeparamu0s(node, structmodule, func_module, module_defaults, default_params)
 		nodeu0s = getnodeparamu0s(node, structmodule, func_module, module_defaults, default_u0s)
 
-		component_systems[modulenum] = func_module(; :name => :foo,
+		component_systems[modulenum] = func_module(; :name => Symbol(string(structmodule) * string(PlantModules.id(node))),
 			Pair.(keys(nodeparams), values(nodeparams))..., Pair.(keys(nodeu0s), values(nodeu0s))...)
-				# real name given later
 	end
 
 	MTKsystem = component_systems[1]
