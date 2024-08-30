@@ -1,5 +1,7 @@
-@variables t, [description = "Time", unit = u"hr"]; #! add documentation
+@independent_variables t, [description = "Time", unit = u"hr"]; #! add documentation
 d = Differential(t);
+
+sigm_func(x; A = 1, s = 1, d = 0) = A / (1 + exp(-s*(x - d)))
 
 """
     hydraulic_module(; name, T, shape, Γ, P, D)
@@ -19,6 +21,7 @@ function hydraulic_module(; name, T, shape::Shape, Γ, P, D)
         ϕ_D[1:num_D] = shape.ϕ_D, [description = "Dimensional extensibility", unit = u"MPa^-1 * hr^-1"],
         Γ = Γ, [description = "Critical turgor pressure", unit = u"MPa"],
         ρ_w = 1.0, [description = "Density of water", unit = u"g / cm^3"],
+        MPa_unit = 1.0, [description = "Dummy variable for correcting units", unit = u"MPa"], #!
     )
     @variables (
         Ψ(t), [description = "Total water potential", unit = u"MPa"],
@@ -39,15 +42,17 @@ function hydraulic_module(; name, T, shape::Shape, Γ, P, D)
         Ψ ~ P - Π, # Water potential consists of a solute- and a pressure component
         Π ~ R*T*M, # Solute component is determined by concentration of dissolved metabolites
         ΔW ~ ΣF, # Water content changes due to flux (depending on water potentials as defined in connections)
-        V ~ W / ρ_w, # Shape is directly related to water content        
-        V ~ volume(shape, D), # Shape is also directly related to compartment dimensions
-        [ΔD[i] ~ D[i] * (ΔP/ϵ_D[i] + ϕ_D[i] * max(P - Γ, P_0)) for i in eachindex(D)]..., # Compartment dimensions can only change due to a change in pressure
+        V ~ W / ρ_w, # Volume is directly related to water content  
+        V ~ volume(shape, D), # Volume is also directly related to compartment dimensions
+        [ΔD[i] ~ D[i] * (ΔP/ϵ_D[i] + ϕ_D[i] * sigm_func((P - Γ)/MPa_unit, A = P - Γ, s = 10)) for i in eachindex(D)]..., # Compartment dimensions can only change due to a change in pressure
+        # [ΔD[i] ~ D[i] * (ΔP/ϵ_D[i] + ϕ_D[i] * max(P - Γ, P_0)) for i in eachindex(D)]..., # Compartment dimensions can only change due to a change in pressure
 
         d(P) ~ ΔP,
         d(W) ~ ΔW,
         [d(D[i]) ~ ΔD[i] for i in eachindex(D)]...,
     ]
-    return ODESystem(eqs, t; name, continuous_events = [P ~ Γ])
+    # return ODESystem(eqs, t; name, continuous_events = [P ~ Γ]) #!
+    return ODESystem(eqs, t; name)
 end
 
 """
