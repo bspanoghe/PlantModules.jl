@@ -66,6 +66,12 @@ end
 structmod(node::PlantGraphs.GraphNode) = typeof(node.data).name.name
 id(node::PlantGraphs.GraphNode) = node.self_id
 
+
+### Graph (dynamic graphs used in rewriting)
+
+nodes(graph::PlantGraphs.Graph) = nodes(graph.graph)
+neighbours(node::PlantGraphs.GraphNode, graph::PlantGraphs.Graph) = neighbours(node, graph.graph)
+
 ### Node (the graph is a single node)
 
 nodes(node::PlantGraphs.Node) = [node]
@@ -82,7 +88,7 @@ end
 structmod(node::PlantGraphs.Node) = typeof(node).name.name
 id(node::PlantGraphs.Node) = 1 # The entire graph only consists of one node if the input type is Node
 
-### MyPGNode (own implementation acquired by graph conversion)
+## MyPGNode (own implementation acquired by graph conversion)
 
 nodes(node::MyPGNode) = [node]
 neighbours(::MyPGNode, ::MyPGNode) = []
@@ -130,6 +136,18 @@ children(node::Dict, graph::Dict) = [graph[child_id] for child_id in node[:child
 parent(node::Dict, graph::Dict) = node[:parent_id] == -1 ? nothing : graph[node[:parent_id]]
 
 ## Implementation for PlantGraphs.jl
+
+### StaticGraph
+
+root(graph::PlantGraphs.StaticGraph) = graph[graph.root]
+children(node::PlantGraphs.GraphNode, graph::PlantGraphs.StaticGraph) = [graph[child_id] for child_id in node.children_id]
+parent(node::PlantGraphs.GraphNode, graph::PlantGraphs.StaticGraph) = graph[node.parent_id]
+
+### (dynamic) Graph
+
+root(graph::PlantGraphs.Graph) = root(graph.graph)
+children(node::PlantGraphs.GraphNode, graph::PlantGraphs.Graph) = children(node, graph.graph)
+parent(node::PlantGraphs.GraphNode, graph::PlantGraphs.Graph) = parent(node, graph.graph)
 
 ## Implementation for MultiScaleTreeGraph.jl
 
