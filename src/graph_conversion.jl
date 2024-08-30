@@ -22,9 +22,9 @@ function add_children!(MTGnode::MultiScaleTreeGraph.Node, node, graph)
     end
 end
 
-MTGify_node(node::Dict) = MTG.Node(MutableNodeMTG("<", string(PM.structmod(node)), 0, 0), PM.attributes(node))
-MTGify_node_MTG(node::Dict) = MutableNodeMTG("<", string(PM.structmod(node)), 0, 0)
-MTGify_node_attributes(node::Dict) = PM.attributes(node)
+MTGify_node(node) = MTG.Node(MutableNodeMTG("<", string(PM.structmod(node)), 0, 0), PM.attributes(node))
+MTGify_node_MTG(node) = MutableNodeMTG("<", string(PM.structmod(node)), 0, 0)
+MTGify_node_attributes(node) = PM.attributes(node)
 
 # PlantGraphs.jl #
 
