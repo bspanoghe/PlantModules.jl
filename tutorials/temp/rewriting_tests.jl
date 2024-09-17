@@ -1,9 +1,12 @@
 using Pkg; Pkg.activate("./tutorials")
 include("../../src/PlantModules.jl"); using .PlantModules
 using PlantGraphs
+# using MultiScaleTreeGraph
 using ModelingToolkit, DifferentialEquations, Unitful
 using Plots; import GLMakie.draw
 using BenchmarkTools
+
+# Plant structure
 
 mutable struct Stem <: Node
 	D::Vector
@@ -40,7 +43,7 @@ rule1 = Rule(Stem,
 )
 
 plant = Graph(axiom = axiom, rules = (rule1,))
-num_iterations = 3
+num_iterations = 2
 for _ in 1:num_iterations
     rewrite!(plant)
 	growify!(plant, 1.1)
@@ -132,74 +135,3 @@ prob = ODEProblem(sys_simpl, ModelingToolkit.missing_variable_defaults(sys_simpl
 
 # [sol[Symbol(string(sys.name) * "₊W")] for sys in sol.prob.f.sys.systems if !occursin("_", string(sys.name))] .|> minimum |> minimum
 # [sol[Symbol(string(sys.name) * "₊ΣF")] for sys in sol.prob.f.sys.systems if !occursin("_", string(sys.name))] .|> maximum |> maximum
-
-
-
-
-
-
-
-import ModelingToolkit: get_eqs, get_unknowns, get_ps, get_parameter_dependencies, get_observed, get_continuous_events, get_discrete_events, get_defaults, get_systems, get_name, get_iv, get_gui_metadata
-
-function plotgrago(sol::ODESolution, grago; struct_module::Symbol = Symbol(""), func_varname::Symbol = Symbol(""))
-    if struct_module == Symbol("") && func_varname == Symbol("") # Ya get nothin'
-        struct_modules = PlantModules.nodes(grago) .|> PlantModules.structmod |> unique
-        nodesystems_by_structmod = [getnodesystems(sol, grago, struct_module) for struct_module in struct_modules]
-        
-        func_varnames = [
-            [get_MTKunknown_symbol(unknown) for unknown in get_unknowns(nodesystems[1])]
-            for nodesystems in nodesystems_by_structmod
-        ]  |> x -> reduce(vcat, x) |> unique
-        nodesystems = reduce(vcat, nodesystems_by_structmod)
-
-        plots = []
-        indep_values = sol[independent_variable(sol.prob.f.sys)] # values of indepedent variable
-        append!(indep_values, NaN)
-
-        for func_varname in func_varnames
-            var_data = Float64[]
-            for nodesystem in nodesystems #! oh the inefficiency
-                if func_varname in [get_MTKunknown_symbol(unknown) for unknown in get_unknowns(nodesystem)]
-                    append!(var_data, sol[getproperty(nodesystem, func_varname)], NaN)
-                end
-            end
-            var_plot = plot(indep_values, reshape(var_data, length(indep_values), :), label = false)
-            push!(plots, )
-        end
-        return plots
-
-    elseif func_varname == Symbol("") # Only structural module provided
-        nodesystems = getnodesystems(sol, grago, struct_module)
-
-        func_varnames = [get_MTKunknown_symbol(unknown) for unknown in get_unknowns(nodesystems[1])] |> unique
-    
-        plots = []
-        for func_varname in func_varnames
-            myplot = Plots.plot();
-            for nodesystem in nodesystems
-                getplot!(sol, nodesystem, func_varname);
-            end
-            push!(plots, myplot)
-        end
-        return plots
-    elseif struct_module == Symbol("") # Only variable name provided
-        struct_modules = PlantModules.nodes(grago) .|> PlantModules.structmod |> unique
-        nodesystems = [getnodesystems(sol, grago, struct_module) for struct_module in struct_modules] |> x -> reduce(vcat, x)
-        myplot = Plots.plot();
-        for nodesystem in nodesystems
-            if func_varname in get_MTKunknown_symbol.(get_unknowns(nodesystem))
-                getplot!(sol, nodesystem, func_varname);
-            end
-        end
-        return(myplot)
-    else # Everything provided
-        nodesystems = getnodesystems(sol, grago, struct_module)
-        myplot = Plots.plot();
-        for nodesystem in nodesystems
-            if func_varname in get_MTKunknown_symbol.(get_unknowns(nodesystem))
-                getplot!(sol, nodesystem, func_varname);
-            end
-        end
-        return(myplot)
-    end
-end

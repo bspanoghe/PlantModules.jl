@@ -225,7 +225,7 @@ default_params = (
 )
 
 default_u0s = (
-    hydraulic_module = (P = 0.1, D = [15],),
+    hydraulic_module = (P = 0.5, D = [15],),
     constant_carbon_module = (M = 25e-6,),
     environmental_module = (W_r = 1.0,),
     Ψ_soil_module = (),
