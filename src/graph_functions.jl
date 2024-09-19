@@ -47,7 +47,7 @@ id(node::Dict) = node[:id]
 
 ### GraphNode / StaticGraph (nodes combined into graph)
 
-nodes(graph::PlantGraphs.StaticGraph) = graph.nodes.vals
+nodes(graph::PlantGraphs.StaticGraph) = values(graph.nodes) |> collect
 neighbours(node::PlantGraphs.GraphNode, graph::PlantGraphs.StaticGraph) = 
 	[
 		graph[nb_id]
