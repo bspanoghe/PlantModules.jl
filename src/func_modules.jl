@@ -14,6 +14,7 @@ function hydraulic_module(; name, T, shape::Shape, Γ, P, D)
     @constants (
         P_0 = 0.0, [description = "Minimum pressure", unit = u"MPa"],
         R = 8.314, [description = "Ideal gas constant", unit = u"MPa * cm^3 / K / mol"], # Pa = J/m^3 => J = Pa * m^3 = MPa * cm^3
+        MPa_unit = 1.0, [description = "Dummy constant for correcting units", unit = u"MPa"], #!
     )
     @parameters (
         T = T, [description = "Temperature", unit = u"K"],
@@ -21,7 +22,6 @@ function hydraulic_module(; name, T, shape::Shape, Γ, P, D)
         ϕ_D[1:num_D] = shape.ϕ_D, [description = "Dimensional extensibility", unit = u"MPa^-1 * hr^-1"],
         Γ = Γ, [description = "Critical turgor pressure", unit = u"MPa"],
         ρ_w = 1.0, [description = "Density of water", unit = u"g / cm^3"],
-        MPa_unit = 1.0, [description = "Dummy variable for correcting units", unit = u"MPa"], #!
     )
     @variables (
         Ψ(t), [description = "Total water potential", unit = u"MPa"],
@@ -89,12 +89,16 @@ end
 Returns a ModelingToolkit ODESystem describing a constant concentration of osmotically active metabolite content.
 """
 function constant_carbon_module(; name, M)
+    @parameters (
+        M_value = M, [description = "Constant value of osmotically active metabolite content", unit = u"mol / cm^3"],
+    )
+
     @variables (
-        M(t) = M, [description = "Osmotically active metabolite content", unit = u"mol / cm^3"],
+        M(t), [description = "Osmotically active metabolite content", unit = u"mol / cm^3"],
     )
 
     eqs = [
-        d(M) ~ 0
+        M ~ M_value
     ]
     return ODESystem(eqs, t; name)
 end
@@ -110,7 +114,7 @@ function Ψ_soil_module(; name)
         Ψ(t), [description = "Total water potential", unit = u"MPa"],
         W_r(t), [description = "Relative water content", unit = u"g / g"],
     )
-    @parameters MPa_unit = 1 [description = "Dummy parameter for correcting units of empirical equation", unit = u"MPa"]
+    @constants MPa_unit = 1 [description = "Dummy constant for correcting units of empirical equation", unit = u"MPa"]
 
 	eqs = [Ψ ~ MPa_unit * -(1/(100*W_r) + 1) * exp((39.8 - 100*W_r) / 19)]
 
