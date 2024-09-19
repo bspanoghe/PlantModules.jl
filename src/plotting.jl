@@ -1,11 +1,11 @@
-#! Add Plots kwargs and maybe add RecipesBase.jl (get rid of Plots dependency)?
+#! Maybe add RecipesBase.jl (get rid of Plots dependency)?
 
 # Plot MTK solutions #
 
-# Get the symbol representation of a MTK unknown (variable)
+## Get the symbol representation of a MTK unknown (variable)
 get_MTKunknown_symbol(s::SymbolicUtils.Symbolic) = s.metadata[ModelingToolkit.VariableSource][2]
 
-# Pry the ODE system corresponding with given node out of the ODE solution
+## Pry the ODE system corresponding with given node out of the ODE solution
 function getnodesystem(sol::ODESolution, node)
     system = getfield(sol.prob.f, :sys)
     nodename = string(PlantModules.structmod(node)) * string(PlantModules.id(node))
@@ -13,7 +13,7 @@ function getnodesystem(sol::ODESolution, node)
     return nodesystem
 end
 
-# Get all ODE systems corresponding with nodes off a certain structural module from an ODE solution
+## Get all ODE systems corresponding with nodes off a certain structural module from an ODE solution
 function getnodesystems(sol::ODESolution, graphnodes, struct_module::Symbol)
     matching_nodes = [node for node in graphnodes if PlantModules.structmod(node) == struct_module]
     if isempty(matching_nodes)
@@ -31,17 +31,28 @@ get_graphnodes(graph::Vector) = reduce(vcat, get_graphnodes.(graph))
 Returns a plot for every functional variable of the given node for the given solution `sol`.
 Optionally, the user can give the name of a functional variable to only return a plot of this variable.
 """
-function plotnode(sol::ODESolution, node; func_varname::Symbol = Symbol(""))
+function plotnode(sol::ODESolution, node; func_varname::Symbol = Symbol(""), kwargs...)
     nodesystem = getnodesystem(sol, node)
+    indep_values = copy(sol[independent_variable(sol.prob.f.sys)]) # values of indepedent variable
 
     if func_varname == Symbol("") # No functional variable name given => show all
         func_varnames = [get_MTKunknown_symbol(unknown) for unknown in get_unknowns(nodesystem)] |> unique
-
-        plots = [getplot(sol, nodesystem, func_varname) for func_varname in func_varnames]
-        return plots
     else
-        return getplot(sol, nodesystem, func_varname)
+        func_varnames = [func_varname]
     end
+
+    var_values_vec = [sol[getproperty(nodesystem, func_varname)] for func_varname in func_varnames]
+    plots = Vector{Plots.Plot}(undef, length(func_varnames))
+
+    for (i, (var_values, func_varname)) in enumerate(zip(var_values_vec, func_varnames))
+        if var_values isa Vector # multidimensional variable (e.g. vector of dimensions D)
+            plots[i] = plot(indep_values, reduce(hcat, var_values)', title = "$func_varname"; kwargs...)
+        else
+            plots[i] = plot(indep_values, var_values, title = "$func_varname"; kwargs...)
+        end
+    end
+  
+    return only(plots)
 end
 
 """
@@ -105,7 +116,7 @@ function plotgraph(sol::ODESolution, graph; struct_module::Symbol = Symbol(""), 
 
         ys = reduce(vcat, var_data)
         xs = repeat(indep_values, length(ys) ÷ length(indep_values))
-        push!(plots, plot(xs, ys, group = groups; kwargs...))
+        push!(plots, plot(xs, ys, group = groups, title = "$func_varname"; kwargs...))
     end
 
     return only(plots)
