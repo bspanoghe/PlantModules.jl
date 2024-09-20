@@ -62,10 +62,10 @@ Returns a plot for every functional variable for every node of the given graph f
 Optionally, the user can give the name of a functional variable to only return a plot of this variable,
 give the name of a structural module to limit considered nodes to those of this type, or both.
 """
-
 function plotgraph(sol::ODESolution, graph; struct_module::Symbol = Symbol(""), func_varname::Symbol = Symbol(""), kwargs...)
 
     indep_values = copy(sol[independent_variable(sol.prob.f.sys)]) # values of indepedent variable
+    append!(indep_values, NaN) # NaN used to cause linebreaks in plot
     plot_data = Dict{Symbol, Dict{Symbol, Vector{Float64}}}()
     graphnodes = get_graphnodes(graph)
 
@@ -96,10 +96,10 @@ function plotgraph(sol::ODESolution, graph; struct_module::Symbol = Symbol(""), 
 
                 if var_values[1] isa Vector # multidimensional variable (e.g. vector of dimensions D)
                     for var_dimension in eachrow(reduce(hcat, var_values))
-                        append!(var_data, var_dimension)
+                        append!(var_data, var_dimension, NaN)
                     end
                 else
-                    append!(var_data, var_values)
+                    append!(var_data, var_values, NaN)
                 end
 
             end
@@ -111,8 +111,10 @@ function plotgraph(sol::ODESolution, graph; struct_module::Symbol = Symbol(""), 
     for func_varname in keys(plot_data)
         var_data = plot_data[func_varname] |> values |> collect
         group_sizes = length.(var_data)
-        groups = [fill(structmod, group_size) for (structmod, group_size) in zip(keys(plot_data[func_varname]), group_sizes)] |> 
-            x -> reduce(vcat, x)
+        groups = [
+            fill(structmod, group_size)
+            for (structmod, group_size) in zip(keys(plot_data[func_varname]), group_sizes)
+        ] |> x -> reduce(vcat, x)
 
         ys = reduce(vcat, var_data)
         xs = repeat(indep_values, length(ys) ÷ length(indep_values))
