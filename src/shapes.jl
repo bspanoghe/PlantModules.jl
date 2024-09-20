@@ -29,6 +29,10 @@ struct Sphere{T}<:Shape
     end
 end
 
+function Sphere()
+    return Sphere(ϵ_D = [0.0], ϕ_D = [0.0])
+end
+
 """
     Cilinder
 
@@ -47,6 +51,10 @@ struct Cilinder{T}<:Shape
 
         return new{typeof(ϵ_D)}(ϵ_D, ϕ_D)
     end
+end
+
+function Cilinder()
+    return Cilinder(ϵ_D = [0.0, 0.0], ϕ_D = [0.0, 0.0])
 end
 
 """
@@ -69,6 +77,10 @@ struct Cuboid{T}<:Shape
     end
 end
 
+function Cuboid()
+    return Cuboid(ϵ_D = [0.0, 0.0, 0.0], ϕ_D = [0.0, 0.0, 0.0])
+end
+
 """
     volume(s::Shape, ::AbstractArray)
 
@@ -84,7 +96,7 @@ volume(::Sphere, D::AbstractArray) = 4/3 * pi * D[1]^3 # Write dimensions in the
 """
     volume(::Cilinder, D::AbstractArray)
 
-Calculate the volume of a cilinder. Dimensions are assumed to be in the order radius, length.
+Calculate the volume of a cilinder. Dimensions are assumed to be in the order: radius, length.
 """
 volume(::Cilinder, D::AbstractArray) = D[1]^2 * pi * D[2] # Write dimensions in the order: radius - length
 """
@@ -109,7 +121,7 @@ cross_area(::Sphere, D::AbstractArray) = D[1]^2 * pi # Write dimensions in the o
 """
     cross_area(::Cilinder, D::AbstractArray)
 
-Calculate the cross-sectional area of a cilinder, defined as its base area. Dimensions are assumed to be in the order radius, length.
+Calculate the cross-sectional area of a cilinder, defined as its base area. Dimensions are assumed to be in the order: radius, length.
 """
 cross_area(::Cilinder, D::AbstractArray) = D[1]^2 * pi # Write dimensions in the order: radius - length
 """
@@ -135,7 +147,7 @@ surface_area(::Sphere, D::AbstractArray) = 4 * pi * D[1]^2
 """
     surface_area(::Cilinder, D::AbstractArray)
 
-Calculate the surface area of a cilinder. Dimensions are assumed to be in the order radius, length.
+Calculate the surface area of a cilinder. Dimensions are assumed to be in the order: radius, length.
 """
 surface_area(::Cilinder, D::AbstractArray) = 2 * (D[1]^2 * pi) + (2 * D[1] * pi) * D[2]
 """
