@@ -1,10 +1,11 @@
+using Revise, BenchmarkTools, Infiltrator
 using Pkg; Pkg.activate("./tutorials")
-include("../../src/PlantModules.jl"); using .PlantModules
+using PlantModules
 using PlantGraphs
 # using MultiScaleTreeGraph
 using ModelingToolkit, DifferentialEquations, Unitful
 using Plots; import GLMakie.draw
-using BenchmarkTools
+
 
 # Structure
 
@@ -55,13 +56,13 @@ rule2 = Rule(Stem,
 axiom = Stem([0.5, 5.0]) + (Leaf([3.0, 1.0, 0.1]), Leaf([5.0, 3.0, 0.1]))
 
 plant = Graph(axiom = axiom, rules = (rule1,))
-num_iterations = 5
+num_iterations = 4
 for _ in 1:num_iterations
     rewrite!(plant)
-	growify!(plant, 1.1)
+	growify!(plant, 1.03)
 end
 
-# draw(plant)
+draw(plant)
 convert_to_MTG(plant) |> PlantModules.MultiScaleTreeGraph.DataFrame
 
 ## Environment
@@ -138,8 +139,8 @@ C_stem = 400e-6
 C_leaf = 450e-6
 
 module_defaults = (
-	Stem = (shape = PlantModules.Cilinder(ϵ_D = [0.6, 1.5], ϕ_D = 1e-5 .* [8, 3]), D = [1.5, 10], M = C_stem),
-	Leaf = (shape = PlantModules.Cuboid(ϵ_D = [0.3, 0.3, 10.0], ϕ_D = 1e-5 .* [3, 3, 0.1]), M = C_leaf),
+	Stem = (shape = PlantModules.Cilinder(ϵ_D = [2.0, 4.5], ϕ_D = 1e-3 .* [8, 3]), D = [1.5, 10], M = C_stem),
+	Leaf = (shape = PlantModules.Cuboid(ϵ_D = [1.5, 1.5, 10.0], ϕ_D = 1e-3 .* [3, 3, 0.1]), M = C_leaf),
 	Soil = (W_max = 10000.0, T = 288.15),
 	Air = (W_r = 0.8,)
 )
@@ -175,15 +176,18 @@ prob = ODEProblem(sys_simpl, ModelingToolkit.missing_variable_defaults(sys_simpl
 @time sol = solve(prob);
 
 # Plotting
+
 plotgraph(sol, graphs[1], func_varname = :W)
-plotgraph(sol, graphs[1], func_varname = :W, ylims = (0, 10))
+plotgraph(sol, graphs[1], func_varname = :W, ylims = (0, 1))
+
+plotgraph(sol, graphs[1], func_varname = :D, ylims = (0, 1))
 
 plotgraph(sol, graphs[1], func_varname = :P)
 plotgraph(sol, graphs[1], func_varname = :M)
 
 plotgraph(sol, graphs[2], func_varname = :W)
-plotgraph(sol, graphs[1], func_varname = :D)
 plotgraph(sol, graphs[1:2], func_varname = :Ψ)
+plotgraph(sol, graphs[1:2], func_varname = :Ψ, struct_module = :Stem, ylims = (-0.1, 0))
 plotgraph(sol, graphs[1], func_varname = :ΣF)
 
 plotnode(sol, PlantModules.root(plant), func_varname = :W)
@@ -200,6 +204,7 @@ function sizedep_hydraulic_connection(; name, K, connection_shape)
     )
     @variables (
         F(t), [description = "Water flux from compartment 2 to compartment 1", unit = u"g / hr"],
+        K(t), [description = "Hydraulic conductivity of connection", unit = u"g / hr / MPa"],
         Ψ_1(t), [description = "Total water potential of compartment 1", unit = u"MPa"],
         Ψ_2(t), [description = "Total water potential of compartment 2", unit = u"MPa"],
 		D_1(t), [description = "Dimensions of compartment 1", unit = u"cm^2"],
@@ -208,7 +213,7 @@ function sizedep_hydraulic_connection(; name, K, connection_shape)
 
     eqs = [
         F ~ K * (Ψ_2 - Ψ_1)
-		K ~ K_s * (PlantModules.surface_area(connection_shape, D_1) + PlantModules.surface_area(connection_shape, D_2))/2
+		K ~ K_s * (PlantModules.cross_area(connection_shape, D_1) + PlantModules.cross_area(connection_shape, D_2))/2
     ]
 
     get_connection_eqset(node_MTK, nb_node_MTK, connection_MTK, reverse_order) = [ 
@@ -221,9 +226,33 @@ function sizedep_hydraulic_connection(; name, K, connection_shape)
     return ODESystem(eqs, t; name), get_connection_eqset
 end
 
+connecting_modules = [
+	(:Soil, :Stem) => (PlantModules.hydraulic_connection, [:K => 80]),
+	(:Stem, :Stem) => (sizedep_hydraulic_connection, [:K_s => 80, :connection_shape => Cilinder()]),
+	(:Stem, :Leaf) => (PlantModules.hydraulic_connection, [:K => 40]),
+	(:Leaf, :Air) => (PlantModules.hydraulic_connection, [:K => 1e-3]),
+	(:Soil, :Air) => (PlantModules.hydraulic_connection, [:K => 5e-3]) #! check value
+]
+
+func_connections = [connecting_modules, PlantModules.multi_connection_eqs]
+
+system = PlantModules.generate_system(default_params, default_u0s,
+	module_defaults, module_coupling, struct_connections, func_connections, checkunits = false
+)
+
+sys_simpl = structural_simplify(system);
+prob = ODEProblem(sys_simpl, ModelingToolkit.missing_variable_defaults(sys_simpl), (0.0, 5*24))
+@time sol = solve(prob);
 
 
+plotgraph(sol, graphs[1], func_varname = :W)
+plotgraph(sol, graphs[1], func_varname = :Ψ, struct_module = :Stem, ylims = (-0.1, 0))
 
+for (idx, system) in enumerate(sol.prob.f.sys.systems)
+    if occursin("_", string(system.name))
+        println(idx)
+    end
+end
 
 
 
