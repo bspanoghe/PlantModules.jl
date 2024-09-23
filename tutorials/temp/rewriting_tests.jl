@@ -73,8 +73,8 @@ air_graph = Air()
 ## Combined
 
 graphs = [plant, soil_graph, air_graph]
-intergraph_connections = [[1, 2] => (PlantModules.root(plant), :Soil), [1, 3] => (:Leaf, :Air), [2, 3] => (:Soil, :Air)]
-struct_connections = [graphs, intergraph_connections]
+intergraph_connections = [(1, 2) => (PlantModules.root(plant), :Soil), (1, 3) => (:Leaf, :Air), (2, 3) => (:Soil, :Air)]
+struct_connections = PlantStructure(graphs, intergraph_connections)
 
 
 # Functional processes
@@ -126,50 +126,45 @@ function simpler_hydraulic_module(; name, T, shape::PlantModules.Shape, Γ, P, D
     return ODESystem(eqs, t; name)
 end
 
-
-default_params = merge(PlantModules.default_params, 
-	(simpler_hydraulic_module = (T = 298.15, shape = Sphere(ϵ_D = [1.0], ϕ_D = [1.0]), Γ = 0.3),),
-)
-default_u0s = merge(PlantModules.default_u0s,
-	(simpler_hydraulic_module = (P = 0.5, D = [15],),),
+extra_defaults = Dict(
+    simpler_hydraulic_module => Dict(:T => 298.15, :shape => Sphere(ϵ_D = [1.0], ϕ_D = [1.0]), :Γ => 0.3, :P => 0.5, :D => [15])
 )
 
 C_root = 300e-6
 C_stem = 400e-6
 C_leaf = 450e-6
 
-module_defaults = (
-	Stem = (shape = PlantModules.Cilinder(ϵ_D = [2.0, 4.5], ϕ_D = 1e-3 .* [8, 3]), D = [1.5, 10], M = C_stem),
-	Leaf = (shape = PlantModules.Cuboid(ϵ_D = [1.5, 1.5, 10.0], ϕ_D = 1e-3 .* [3, 3, 0.1]), M = C_leaf),
-	Soil = (W_max = 10000.0, T = 288.15),
-	Air = (W_r = 0.8,)
+module_defaults = Dict(
+	:Stem => Dict(:shape => PlantModules.Cilinder(ϵ_D = [2.0, 4.5], ϕ_D = 1e-3 .* [8, 3]), :D => [1.5, 10], :M => C_stem),
+	:Leaf => Dict(:shape => PlantModules.Cuboid(ϵ_D = [1.5, 1.5, 10.0], ϕ_D = 1e-3 .* [3, 3, 0.1]), :M => C_leaf),
+	:Soil => Dict(:W_max => 10000.0, :T => 288.15),
+	:Air => Dict(:W_r => 0.8)
 )
 
 connecting_modules = [
-	(:Soil, :Stem) => (PlantModules.hydraulic_connection, [:K => 80]),
-	(:Stem, :Stem) => (PlantModules.hydraulic_connection, [:K => 80]),
-	(:Stem, :Leaf) => (PlantModules.hydraulic_connection, [:K => 40]),
-	(:Leaf, :Air) => (PlantModules.hydraulic_connection, [:K => 1e-3]),
-	(:Soil, :Air) => (PlantModules.hydraulic_connection, [:K => 5e-3]) #! check value
+	(:Soil, :Stem) => (PlantModules.hydraulic_connection, Dict(:K => 80)),
+	(:Stem, :Stem) => (PlantModules.hydraulic_connection, Dict(:K => 80)),
+	(:Stem, :Leaf) => (PlantModules.hydraulic_connection, Dict(:K => 40)),
+	(:Leaf, :Air) => (PlantModules.hydraulic_connection, Dict(:K => 1e-3)),
+	(:Soil, :Air) => (PlantModules.hydraulic_connection, Dict(:K => 5e-3)) #! check value
 ] # values based on https://www.mdpi.com/2073-4441/10/8/1036
 
-func_connections = [connecting_modules, PlantModules.multi_connection_eqs]
+func_connections = PlantFunctionality(module_defaults = module_defaults,
+    connecting_modules = connecting_modules, extra_defaults = extra_defaults
+)
 
 # Coupling 
 
-module_coupling = [
-	PlantModules.hydraulic_module => [:Stem, :Leaf],
-	PlantModules.constant_carbon_module => [:Stem, :Leaf],
-	PlantModules.environmental_module => [:Soil, :Air],
-	PlantModules.Ψ_soil_module => [:Soil],
-	PlantModules.Ψ_air_module => [:Air]
-]
+module_coupling = Dict(
+    :Stem => [PlantModules.hydraulic_module, PlantModules.constant_carbon_module],
+    :Leaf => [PlantModules.hydraulic_module, PlantModules.constant_carbon_module],
+    :Soil => [PlantModules.environmental_module, PlantModules.Ψ_soil_module],
+    :Air => [PlantModules.environmental_module, PlantModules.Ψ_air_module],
+)
 
 # Rev her up
 
-system = PlantModules.generate_system(default_params, default_u0s,
-	module_defaults, module_coupling, struct_connections, func_connections, checkunits = false
-)
+system = PlantModules.generate_system(struct_connections, func_connections, module_coupling, checkunits = false)
 
 sys_simpl = structural_simplify(system);
 prob = ODEProblem(sys_simpl, ModelingToolkit.missing_variable_defaults(sys_simpl), (0.0, 5*24))
@@ -198,7 +193,7 @@ plotnode(sol, PlantModules.nodes(plant)[end], func_varname = :D)
 
 
 
-function sizedep_hydraulic_connection(; name, K, connection_shape)
+function sizedep_hydraulic_connection(; name, K_s, connection_shape)
     @parameters (
         K_s = K_s, [description = "Specific hydraulic conductivity of connection", unit = u"g / hr / MPa / cm^2"],
     )
@@ -207,8 +202,8 @@ function sizedep_hydraulic_connection(; name, K, connection_shape)
         K(t), [description = "Hydraulic conductivity of connection", unit = u"g / hr / MPa"],
         Ψ_1(t), [description = "Total water potential of compartment 1", unit = u"MPa"],
         Ψ_2(t), [description = "Total water potential of compartment 2", unit = u"MPa"],
-		D_1(t), [description = "Dimensions of compartment 1", unit = u"cm^2"],
-		D_2(t), [description = "Dimensions of compartment 2", unit = u"cm^2"],
+		D_1(t)[1:num_D], [description = "Dimensions of compartment 1", unit = u"cm^2"],
+		D_2(t)[1:num_D], [description = "Dimensions of compartment 2", unit = u"cm^2"],
     )
 
     eqs = [
@@ -227,18 +222,23 @@ function sizedep_hydraulic_connection(; name, K, connection_shape)
 end
 
 connecting_modules = [
-	(:Soil, :Stem) => (PlantModules.hydraulic_connection, [:K => 80]),
-	(:Stem, :Stem) => (sizedep_hydraulic_connection, [:K_s => 80, :connection_shape => Cilinder()]),
-	(:Stem, :Leaf) => (PlantModules.hydraulic_connection, [:K => 40]),
-	(:Leaf, :Air) => (PlantModules.hydraulic_connection, [:K => 1e-3]),
-	(:Soil, :Air) => (PlantModules.hydraulic_connection, [:K => 5e-3]) #! check value
+	(:Soil, :Stem) => (PlantModules.hydraulic_connection, Dict(:K => 80)),
+	(:Stem, :Stem) => (sizedep_hydraulic_connection, Dict(:K_s => 80, :connection_shape => Cilinder())),
+	(:Stem, :Leaf) => (PlantModules.hydraulic_connection, Dict(:K => 40)),
+	(:Leaf, :Air) => (PlantModules.hydraulic_connection, Dict(:K => 1e-3)),
+	(:Soil, :Air) => (PlantModules.hydraulic_connection, Dict(:K => 5e-3)) #! check value
 ]
 
-func_connections = [connecting_modules, PlantModules.multi_connection_eqs]
-
-system = PlantModules.generate_system(default_params, default_u0s,
-	module_defaults, module_coupling, struct_connections, func_connections, checkunits = false
+extra_defaults = Dict(
+    simpler_hydraulic_module => Dict(:T => 298.15, :shape => Sphere(ϵ_D = [1.0], ϕ_D = [1.0]), :Γ => 0.3, :P => 0.5, :D => [15]),
+    sizedep_hydraulic_connection => Dict(:K_s => 0, :connection_shape => Cilinder())
 )
+
+func_connections = PlantFunctionality(module_defaults = module_defaults,
+    connecting_modules = connecting_modules, extra_defaults = extra_defaults
+)
+
+system = PlantModules.generate_system(struct_connections, func_connections, module_coupling, checkunits = false)
 
 sys_simpl = structural_simplify(system);
 prob = ODEProblem(sys_simpl, ModelingToolkit.missing_variable_defaults(sys_simpl), (0.0, 5*24))
