@@ -2,7 +2,7 @@ module PlantModules
 
 export Shape, Sphere, Cilinder, Cuboid
 export volume, cross_area
-export generate_system, alter_defaults
+export generate_system, PlantStructure, PlantFunctionality, alter_defaults
 export readXEG, convert_to_MTG, convert_to_PG
 export plotgraph, plotnode
 

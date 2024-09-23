@@ -218,22 +218,12 @@ multi_connection_eqs(node_MTK, connection_MTKs) = [
 
 # Default values #
 
-default_params = (
-    hydraulic_module = (T = 298.15, shape = Sphere(ϵ_D = [1.0], ϕ_D = [1.0]), Γ = 0.3),
-    constant_carbon_module = (),
-    environmental_module = (T = 298.15, W_max = 1e6),
-    Ψ_soil_module = (),
-    Ψ_air_module = (T = 298.15,),
-    hydraulic_connection = (K = 5,),
-    environmental_hydraulic_connection = (K_s = 50,),
-)
-
-default_u0s = (
-    hydraulic_module = (P = 0.5, D = [15],),
-    constant_carbon_module = (M = 25e-6,),
-    environmental_module = (W_r = 1.0,),
-    Ψ_soil_module = (),
-    Ψ_air_module = (),
-    hydraulic_connection = (),
-    environmental_hydraulic_connection = (),
+default_values = Dict(
+    hydraulic_module => Dict(:T => 298.15, :shape => Sphere(ϵ_D = [1.0], ϕ_D = [1.0]), :Γ => 0.3, :P => 0.5, :D => [15]),
+    constant_carbon_module => Dict(:M => 25e-6),
+    environmental_module => Dict(:T => 298.15, :W_max => 1e6, :W_r => 1.0),
+    Ψ_soil_module => Dict(),
+    Ψ_air_module => Dict(:T => 298.15),
+    hydraulic_connection => Dict(:K => 5),
+    environmental_hydraulic_connection => Dict(:K_s => 50)
 )

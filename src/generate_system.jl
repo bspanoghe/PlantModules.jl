@@ -1,3 +1,27 @@
+struct PlantStructure
+	graphs::Vector
+	intergraph_connections::Vector
+end
+
+PlantStructure(graph) = PlantStructure([graph], Dict())
+
+struct PlantFunctionality
+	default_values::Dict{Function, Dict}
+	module_defaults::Dict{Symbol, Dict}
+	connecting_modules::Vector
+	connecting_eqs::Function
+end
+
+function PlantFunctionality(; default_values = PlantModules.default_values, module_defaults = Dict(),
+	connecting_modules, connecting_eqs = PlantModules.multi_connection_eqs, extra_defaults = Dict()
+	)
+	#! add input tests ?
+	
+	added_defaults = merge(default_values, extra_defaults)
+	
+	return PlantFunctionality(added_defaults, module_defaults, connecting_modules, connecting_eqs)
+end
+
 """
 	generate_system(default_params::NamedTuple, default_u0s::NamedTuple, module_defaults::NamedTuple,
 		module_coupling::Vector, struct_connections::Vector, func_connections::Vector; checkunits::Bool)
@@ -13,39 +37,36 @@ Creates a MTK system based on a set of structural and functional modules and how
 - `func_connections`: Additional functional information about the connections between structural modules.
 - `checkunits`: Should the model check the units of the given equations? Defaults to `true`.
 """
-function generate_system(default_params::NamedTuple, default_u0s::NamedTuple, module_defaults::NamedTuple,
-	module_coupling::Vector, struct_connections::Vector, func_connections::Vector; checkunits::Bool = true
+function generate_system(struct_connections::PlantStructure, func_connections::PlantFunctionality,
+	module_coupling::Dict{Symbol, Vector{Function}}; checkunits::Bool = true
 	)
 
-	graphs, intergraph_connections = struct_connections
-	connecting_modules, multi_connection_eqset = func_connections
-
 	MTK_system_dicts = get_MTK_system_dicts(
-		graphs, module_coupling, module_defaults, default_params, default_u0s, checkunits
+		struct_connections.graphs, func_connections.default_values, func_connections.module_defaults, module_coupling, checkunits
 	) # Vector of a dict per graph with (node id => node MTK system)
 	MTK_systems = vcat(collect.(values.(MTK_system_dicts))...) # node MTK systems
 
 	connection_MTKs = ODESystem[] # MTK systems of edges
 	connection_eqsets = Equation[] # equations linking nodes with edges
 
-	for (graphnr, graph) in enumerate(graphs) # go over all graphs
+	for (graphnr, graph) in enumerate(struct_connections.graphs) # go over all graphs
 		for node in PlantModules.nodes(graph) # go over every node in the graph
 			
 			node_id = PlantModules.id(node)
-			nb_nodes, nb_node_graphnrs = get_nb_nodes(node, graphs, graphnr, intergraph_connections) # collect neighbour nodes
+			nb_nodes, nb_node_graphnrs = get_nb_nodes(node, struct_connections.graphs, graphnr, struct_connections.intergraph_connections) # collect neighbour nodes
 			current_connection_MTKs = Vector{ODESystem}(undef, length(nb_nodes)) # MTKs of current node's connections
 
 			for (nb_idx, (nb_node, nb_node_graphnr)) in enumerate(zip(nb_nodes, nb_node_graphnrs)) # go over all neighbours of the node
-				connecting_module, reverse_order = get_connecting_module(node, nb_node, connecting_modules)
+				connecting_module, reverse_order = get_connecting_module(node, nb_node, func_connections.connecting_modules)
 				connection_MTK, connection_eqset = get_connection_info( 
 					node, graphnr, nb_node, nb_node_graphnr, connecting_module,
-					reverse_order, default_params, default_u0s, MTK_system_dicts
+					reverse_order, func_connections.default_values, MTK_system_dicts
 				)
 				current_connection_MTKs[nb_idx] = connection_MTK
 				append!(connection_eqsets, connection_eqset)
 			end
 			append!(connection_MTKs, current_connection_MTKs)
-			append!(connection_eqsets, multi_connection_eqset(MTK_system_dicts[graphnr][node_id], current_connection_MTKs))
+			append!(connection_eqsets, func_connections.connecting_eqs(MTK_system_dicts[graphnr][node_id], current_connection_MTKs))
 		end
 	end
 
@@ -57,28 +78,27 @@ function generate_system(default_params::NamedTuple, default_u0s::NamedTuple, mo
 end
 
 # get node idx => node MTK system
-function get_MTK_system_dicts(graphs, module_coupling, module_defaults, default_params, default_u0s, checkunits) 
+function get_MTK_system_dicts(graphs, default_values, module_defaults, module_coupling, checkunits) 
 	return [
 		[PlantModules.id(node) => 
-			getMTKsystem(node, module_coupling, module_defaults, default_params, default_u0s, checkunits)
+			getMTKsystem(node, default_values, module_defaults, module_coupling, checkunits)
 			for node in PlantModules.nodes(graph)
 		] |> Dict for graph in graphs
 	]
 end
 
 # Get MTK system corresponding with node
-function getMTKsystem(node, module_coupling, module_defaults, default_params, default_u0s, checkunits)
+function getMTKsystem(node, default_values, module_defaults, module_coupling, checkunits)
 	structmodule = PlantModules.structmod(node)
-	func_modules = [coupling.first for coupling in module_coupling if structmodule in coupling.second]
+	func_modules = module_coupling[structmodule]
 
 	component_systems = Vector{ODESystem}(undef, length(func_modules)) #! error if no func_modules found for structural module
 
 	for (modulenum, func_module) in enumerate(func_modules)
-		nodeparams = getnodeparamu0s(node, structmodule, func_module, module_defaults, default_params)
-		nodeu0s = getnodeparamu0s(node, structmodule, func_module, module_defaults, default_u0s)
+		nodevalues = getnodevalues(node, structmodule, func_module, module_defaults, default_values)
 
 		component_systems[modulenum] = func_module(; :name => Symbol(string(structmodule) * string(PlantModules.id(node))),
-			Pair.(keys(nodeparams), values(nodeparams))..., Pair.(keys(nodeu0s), values(nodeu0s))...)
+			Pair.(keys(nodevalues), values(nodevalues))...)
 	end
 
 	MTKsystem = component_systems[1]
@@ -91,27 +111,27 @@ function getMTKsystem(node, module_coupling, module_defaults, default_params, de
 end
 
 # get correct parameter/initial values for node between those defined in the model defaults, module defaults and node values
-function getnodeparamu0s(node, structmodule, func_module, module_defaults, default_paramu0s)
-	if !haskey(default_paramu0s, Symbol(func_module))
-		return Dict() # no parameters specified in default_paramu0s => functional module has no parameters/initial values
-	end
+function getnodevalues(node, structmodule, func_module, module_defaults, default_values)
 
-	paramu0s = default_paramu0s[Symbol(func_module)] |> x -> Dict{Any, Any}(Pair.(keys(x), values(x))) # PlantModules defaults
-		#! excluding {Any, Any} causes the Dict to overspecialize on a type sometimes, better fix available?
-	paramu0names = keys(paramu0s)
-
+	node_defaults = get(default_values, func_module, Dict())
+	node_module_defaults = module_defaults[structmodule]
 	node_attributes = PlantModules.attributes(node)
-	nodemoduledefaults = module_defaults[structmodule]
 
-	for paramu0name in paramu0names
-		if paramu0name in keys(node_attributes) # Change to node-specific value
-			paramu0s[paramu0name] = node_attributes[paramu0name]
-		elseif paramu0name in keys(nodemoduledefaults) # Change to module-wide defaults
-			paramu0s[paramu0name] = nodemoduledefaults[paramu0name]
+	nodevalues = overwrite(node_defaults, node_module_defaults, node_attributes)
+	return nodevalues
+end
+
+function overwrite(dicts::Dict...)
+	maindict = dicts[1]
+	for dict in dicts[2:end]
+		for key in keys(dict)
+			if haskey(maindict, key)
+				maindict[key] = dict[key]
+			end
 		end
 	end
 
-	return paramu0s
+	return maindict
 end
 
 # extended version of ModelingToolkit.extend to include unitful checks
@@ -173,7 +193,7 @@ end
 
 # get MTK system of connection between a node and its neighbour node AND the equations connecting the edge with the nodes
 function get_connection_info(node, graphnr, nb_node, nb_node_graphnr, connecting_module, reverse_order,
-	default_params, default_u0s, MTK_system_dicts
+	default_values, MTK_system_dicts
 	)
 
 	structmodule = PlantModules.structmod(node)
@@ -181,11 +201,8 @@ function get_connection_info(node, graphnr, nb_node, nb_node_graphnr, connecting
 
 	connector_func, connection_specific_values = connecting_module.second
 	
-	default_conn_info = merge( # merge parameter and initial values. #! if the default values are empty, assume there are none?
-		get(default_params, Symbol(connector_func), ()),
-		get(default_u0s, Symbol(connector_func), ())
-	)
-	conn_info = merge(default_conn_info, connection_specific_values)
+	default_values_conn = get(default_values, connector_func, Dict())
+	conn_info = merge(default_values_conn, connection_specific_values)
 
 	connection_MTK, get_connection_eqset = connector_func(;
 		name = Symbol(string(structmodule) * string(PlantModules.id(node)) * "_" *
@@ -219,31 +236,26 @@ end
 # get neighbouring nodes from different graphs
 ## go over all intergraph connections
 function get_intergraph_neighbours(node, node_graphnr, graphs, intergraph_connections::Vector)
-
-	# Get intergraph connections involving the graph `node` belongs to
-	node_intergraph_connections_plus_igidxs = [(intergraph_connection, findfirst(node_graphnr .== intergraph_connection[1]))
-		for intergraph_connection in intergraph_connections 
-		if node_graphnr in intergraph_connection[1]
-	] # igidx is index of the node's graph in the intergraph connection
-
 	nb_nodes = []
 	nb_node_graphnrs = []
 	
-	# Go over all connected graphs and add nodes to neighbouring nodes if the specified condition is met
-	for (node_intergraph_connection, igidx) in node_intergraph_connections_plus_igidxs
-		nb_igidx = 3-igidx # 2 if igidx == 1 and 1 if igidx == 2
-		nb_graphnr = node_intergraph_connection[1][nb_igidx]
-		nb_graph = graphs[nb_graphnr]
-		connection = node_intergraph_connection[2]
-		if connection isa Tuple
-			_nb_nodes = _get_intergraph_neighbours(node, nb_graph, connection[igidx], connection[nb_igidx])
-		else
-			nb_first = nb_igidx == 1
-			_nb_nodes = _get_intergraph_neighbours(node, nb_graph, connection, nb_first)
+	# Go over all graphs and add nodes to neighbouring nodes if the graphs are connected
+	for intergraph_connection in intergraph_connections
+		if node_graphnr in first(intergraph_connection)
+			node_idx, nb_idx = first(intergraph_connection)[1] == node_graphnr ? (1, 2) : (2, 1)
+			nb_graphnr = first(intergraph_connection)[nb_idx]
+			nb_graph = graphs[nb_graphnr]
+			connection = intergraph_connection[2]
+			if connection isa Tuple
+				_nb_nodes = _get_intergraph_neighbours(node, nb_graph, connection[node_idx], connection[nb_idx])
+			else
+				nb_first = nb_idx == 1
+				_nb_nodes = _get_intergraph_neighbours(node, nb_graph, connection, nb_first)
+			end
+			
+			append!(nb_nodes, _nb_nodes)
+			append!(nb_node_graphnrs, repeat([nb_graphnr], length(_nb_nodes)))
 		end
-		
-		append!(nb_nodes, _nb_nodes)
-		append!(nb_node_graphnrs, repeat([nb_graphnr], length(_nb_nodes)))
 	end
 
 	return nb_nodes, nb_node_graphnrs
