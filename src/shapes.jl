@@ -21,16 +21,12 @@ A spherical compartment shape, defined by a single dimension: the radius.
 struct Sphere{T}<:Shape
     ϵ_D::T
     ϕ_D::T
-    function Sphere(; ϵ_D::Vector, ϕ_D::Vector)
+    function Sphere(; ϵ_D::Vector = [1.0], ϕ_D::Vector = [1.0])
         length(ϵ_D) != 1 && error("An array of length $(length(ϵ_D)) was given for ϵ_D while length 1 was expected for shape Sphere.")
         length(ϕ_D) != 1 && error("An array of length $(length(ϕ_D)) was given for ϕ_D while length 1 was expected for shape Sphere.")
 
         return new{typeof(ϵ_D)}(ϵ_D, ϕ_D)
     end
-end
-
-function Sphere()
-    return Sphere(ϵ_D = [0.0], ϕ_D = [0.0])
 end
 
 """
@@ -45,16 +41,12 @@ A cilindrical compartment shape, defined by two dimensions: the radius and the l
 struct Cilinder{T}<:Shape
     ϵ_D::T
     ϕ_D::T
-    function Cilinder(; ϵ_D::Vector, ϕ_D::Vector)
+    function Cilinder(; ϵ_D::Vector = [1.0, 1.0], ϕ_D::Vector = [1.0, 1.0])
         length(ϵ_D) != 2 && error("An array of length $(length(ϵ_D)) was given for ϵ_D while length 2 was expected for shape Cilinder.")
         length(ϕ_D) != 2 && error("An array of length $(length(ϕ_D)) was given for ϕ_D while length 2 was expected for shape Cilinder.")
 
         return new{typeof(ϵ_D)}(ϵ_D, ϕ_D)
     end
-end
-
-function Cilinder()
-    return Cilinder(ϵ_D = [0.0, 0.0], ϕ_D = [0.0, 0.0])
 end
 
 """
@@ -69,16 +61,12 @@ A cuboidal compartment shape, defined by three dimensions: the length, the width
 struct Cuboid{T}<:Shape
     ϵ_D::T
     ϕ_D::T
-    function Cuboid(; ϵ_D::Vector, ϕ_D::Vector)
+    function Cuboid(; ϵ_D::Vector = [1.0, 1.0, 1.0], ϕ_D::Vector = [1.0, 1.0, 1.0])
         length(ϵ_D) != 3 && error("An array of length $(length(ϵ_D)) was given for ϵ_D while length 3 was expected for shape Cuboid.")
         length(ϕ_D) != 3 && error("An array of length $(length(ϕ_D)) was given for ϕ_D while length 3 was expected for shape Cuboid.")
 
         return new{typeof(ϵ_D)}(ϵ_D, ϕ_D)
     end
-end
-
-function Cuboid()
-    return Cuboid(ϵ_D = [0.0, 0.0, 0.0], ϕ_D = [0.0, 0.0, 0.0])
 end
 
 """
