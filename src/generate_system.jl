@@ -1,3 +1,12 @@
+"""
+	PlantFunctionality
+
+A container for functional parameters to be used in the function `generate_system`.
+
+# Fields
+- `graphs`: A vector of graphs representing the plants and their environment.
+- `intergraph_connections`: A vector of pairs between 2 indexes of above graphs and how they are linked.
+"""
 struct PlantStructure
 	graphs::Vector
 	intergraph_connections::Vector
@@ -12,8 +21,22 @@ struct PlantFunctionality
 	connecting_eqs::Function
 end
 
-function PlantFunctionality(; default_values = PlantModules.default_values, module_defaults = Dict(),
+"""
+	PlantFunctionality(; default_values = PlantModules.default_values, module_defaults = Dict(),
 	connecting_modules, connecting_eqs = PlantModules.multi_connection_eqs, extra_defaults = Dict()
+	)
+
+Creates a container for functional parameters to be used in the function `generate_system`.
+
+# Arguments
+- `default_values`: Model-wide default values of parameters and initial values.
+- `module_defaults`: Module-specific default values of parameters and initial values.
+- `connecting_modules`: The ODESystem to use for edges between specified nodes.
+- `connecting_eqs`: A function returning a vector of equations linking a node and all its edges.
+- `extra_defaults`: Values to add to `default_values`
+"""
+function PlantFunctionality(; default_values::Dict = PlantModules.default_values, module_defaults::Dict = Dict(),
+	connecting_modules::Vector, connecting_eqs::Function = PlantModules.multi_connection_eqs, extra_defaults::Dict = Dict()
 	)
 	#! add input tests ?
 	
@@ -38,7 +61,7 @@ Creates a MTK system based on a set of structural and functional modules and how
 - `checkunits`: Should the model check the units of the given equations? Defaults to `true`.
 """
 function generate_system(struct_connections::PlantStructure, func_connections::PlantFunctionality,
-	module_coupling::Dict{Symbol, Vector{Function}}; checkunits::Bool = true
+	module_coupling::Dict; checkunits::Bool = true
 	)
 
 	MTK_system_dicts = get_MTK_system_dicts(
@@ -192,8 +215,8 @@ function get_connecting_module(node, nb_node, connecting_modules)
 end
 
 # get MTK system of connection between a node and its neighbour node AND the equations connecting the edge with the nodes
-function get_connection_info(node, graphnr, nb_node, nb_node_graphnr, connecting_module, reverse_order,
-	default_values, MTK_system_dicts
+function get_connection_info(node, graphnr, nb_node, nb_node_graphnr, connecting_module,
+	reverse_order, default_values, MTK_system_dicts
 	)
 
 	structmodule = PlantModules.structmod(node)
