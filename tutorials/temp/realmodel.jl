@@ -1,11 +1,11 @@
+using Revise, BenchmarkTools, Infiltrator
 using Pkg; Pkg.activate("./tutorials")
-include("../../src/PlantModules.jl"); using .PlantModules
+using PlantModules
 using PlantGraphs, MultiScaleTreeGraph
-using ModelingToolkit, DifferentialEquations, Unitful
-using PlantBiophysics, PlantBiophysics.PlantMeteo, PlantSimEngine
+using ModelingToolkit, OrdinaryDiffEq, Unitful
+using PlantBiophysics, PlantBiophysics.PlantMeteo#, PlantSimEngine
 using Memoization
 using Plots; import GLMakie.draw
-using BenchmarkTools
 
 # Structural modules #
 
@@ -69,8 +69,8 @@ function create_MWE()
 	mtg = delete_node!(mtg)
 	mtg = delete_node!(mtg)
 
-	lil_branch = descendants(mtg[1][1][1][1][1][1][1][1][1][1][1][1], self = true)
-	mtg = delete_nodes!(mtg, filter_fun = node -> node in lil_branch)
+	# lil_branch = descendants(mtg[1][1][1][1][1][1][1][1][1][1][1][1], self = true)
+	# mtg = delete_nodes!(mtg, filter_fun = node -> node in lil_branch)
 
 	# bigger_branch = descendants(mtg[2][1][1][1][1][1][1][1][1], self = true)
 	# mtg = delete_nodes!(mtg, filter_fun = node -> node in bigger_branch)
@@ -81,11 +81,11 @@ function create_MWE()
 	return mtg
 end
 
-# mtg = create_MWE()
+mtg = create_MWE()
 # length(mtg)
 # convert_to_PG(mtg) |> draw
 
-mtg = get_mtg()
+# mtg = get_mtg()
 # [prunetree!(mtg, 40) for _ in 1:3]; # yes bueno
 
 # DataFrame(mtg, [:D])
@@ -138,7 +138,7 @@ graphs = [mtg, soil_graph, air_graph]
 ## connections
 
 intergraph_connections = [[1, 2] => (mtg, :Soil), [1, 3] => (:Leaf, :Air)]
-struct_connections = [graphs, intergraph_connections]
+struct_connections = PlantStructure(graphs, intergraph_connections)
 
 # Functional modules #
 
@@ -232,68 +232,62 @@ function waterdependent_hydraulic_connection(; name, K_max)
     return ODESystem(eqs, t; name), get_connection_eqset
 end
 
-
-## Connect them to structure
-
-module_coupling = [ #! photosynthesis_module for leaf
-	PlantModules.hydraulic_module => [:Internode, :Shoot, :Leaf],
-	PlantModules.constant_carbon_module => [:Internode, :Shoot, :Leaf],
-	PlantModules.environmental_module => [:Soil, :Air],
-	PlantModules.Ψ_soil_module => [:Soil],
-	PlantModules.Ψ_air_module => [:Air],
-]
-
-connecting_modules = [
-	(:Soil, :Internode) => (PlantModules.hydraulic_connection, [:K => 10]), #! waterdependent_hydraulic_connection
-    (:Internode, :Internode) => (PlantModules.hydraulic_connection, [:K => 2]),
-	(:Internode, :Shoot) => (PlantModules.hydraulic_connection, [:K => 2]),
-	(:Shoot, :Shoot) => (PlantModules.hydraulic_connection, [:K => 2]),
-	(:Shoot, :Leaf) => (PlantModules.hydraulic_connection, [:K => 1]),
-	(:Internode, :Leaf) => (PlantModules.hydraulic_connection, [:K => 1]),
-    (:Leaf, :Air) => (PlantModules.hydraulic_connection, [:K => 1e-3])
-]
-func_connections = [connecting_modules, PlantModules.multi_connection_eqs]
-
-## Tweak parameters
-
 C_stem = 300e-6
 C_shoot = 350e-6
 C_leaf = 400e-6
 
-default_params = merge(PlantModules.default_params, 
-	(photosynthesis_module = (shape = Cuboid(ϵ_D = [0, 0, 0], ϕ_D = [0, 0, 0]), T = 293.15),),
-	(waterdependent_hydraulic_connection = (K_max = 0,),), 
-	#! add check to make sure they're NamedTuples => (K_max = 0) throws a weird error
+extra_defaults = Dict( 
+	photosynthesis_module => Dict(:shape => Cuboid(ϵ_D = [0, 0, 0], ϕ_D = [0, 0, 0]), :T => 293.15, :M => 0),
+	waterdependent_hydraulic_connection => Dict(:K_max => 0), 
 )
 
-default_u0s = merge(PlantModules.default_u0s,
-	(photosynthesis_module = (M = 0,),),
-	(waterdependent_hydraulic_connection = (),)
+module_defaults = Dict(
+	:Internode => Dict(:shape => Cilinder(ϵ_D = [10.0, 300.0], ϕ_D = [1e-3, 1e-5]), :M => C_stem),
+	:Shoot => Dict(:shape => Cilinder(ϵ_D = [10.0, 300.0], ϕ_D = [3e-3, 3e-5]), :M => C_shoot),
+	:Leaf => Dict(:shape => Cuboid(ϵ_D = [15.0, 10.0, 1000.0], ϕ_D = [3e-3, 3e-3, 1e-5]), :M => C_leaf),
+	:Soil => Dict(:W_max => 10000.0, :T => 293.15, :W_r => 0.9),
+	:Air => Dict(:W_r => 0.8)
 )
 
-module_defaults = (
-	Internode = (shape = Cilinder(ϵ_D = [10.0, 300.0], ϕ_D = [1e-3, 1e-5]), M = C_stem),
-	Shoot = (shape = Cilinder(ϵ_D = [10.0, 300.0], ϕ_D = [3e-3, 3e-5]), M = C_shoot),
-	Leaf = (shape = Cuboid(ϵ_D = [15.0, 10.0, 1000.0], ϕ_D = [3e-3, 3e-3, 1e-5]), M = C_leaf),
-	Soil = (W_max = 10000.0, T = 293.15, W_r = 0.9),
-	Air = (W_r = 0.8,)
+connecting_modules = [
+	(:Soil, :Internode) => (PlantModules.hydraulic_connection, Dict(:K => 10)), #! waterdependent_hydraulic_connection
+    (:Internode, :Internode) => (PlantModules.hydraulic_connection, Dict(:K => 2)),
+	(:Internode, :Shoot) => (PlantModules.hydraulic_connection, Dict(:K => 2)),
+	(:Shoot, :Shoot) => (PlantModules.hydraulic_connection, Dict(:K => 2)),
+	(:Shoot, :Leaf) => (PlantModules.hydraulic_connection, Dict(:K => 1)),
+	(:Internode, :Leaf) => (PlantModules.hydraulic_connection, Dict(:K => 1)),
+    (:Leaf, :Air) => (PlantModules.hydraulic_connection, Dict(:K => 1e-3))
+]
+
+func_connections = PlantFunctionality(module_defaults = module_defaults, 
+	connecting_modules = connecting_modules, extra_defaults = extra_defaults
+)
+
+## Connect them to structure
+
+module_coupling = Dict( #! photosynthesis_module for leaf
+	:Internode => [PlantModules.hydraulic_module, PlantModules.constant_carbon_module],
+	:Shoot => [PlantModules.hydraulic_module, PlantModules.constant_carbon_module],
+	:Leaf => [PlantModules.hydraulic_module, PlantModules.constant_carbon_module],
+	:Soil => [PlantModules.environmental_module, PlantModules.Ψ_soil_module],
+	:Air => [PlantModules.environmental_module, PlantModules.Ψ_air_module],
 )
 
 # Gettem #
 
-system = PlantModules.generate_system(default_params, default_u0s,
-	module_defaults, module_coupling, struct_connections, func_connections, checkunits = false
-)
+system = PlantModules.generate_system(struct_connections, func_connections, module_coupling, checkunits = false)
 
 sys_simpl = structural_simplify(system)
-prob = ODEProblem(sys_simpl,
-	ModelingToolkit.missing_variable_defaults(sys_simpl), (0.0, 1e-3)
-)
+prob = ODEProblem(sys_simpl, ModelingToolkit.missing_variable_defaults(sys_simpl), (0.0, 5*24))
 @time sol = solve(prob);
 # @btime sol = solve(prob);
 
 PlantModules.plotgraph(sol, graphs[1], func_varname = :W, struct_module = :Leaf)
 PlantModules.plotgraph(sol, graphs[1], func_varname = :W, struct_module = :Internode)
+
+PlantModules.plotgraph(sol, graphs[1], func_varname = :Ψ, struct_module = :Internode)
+
+
 PlantModules.plotgraph(sol, graphs[2], func_varname = :W)
 PlantModules.plotgraph(sol, graphs[3], func_varname = :W)
 

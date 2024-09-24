@@ -1,9 +1,9 @@
-using Revise, BenchmarkTools, Infiltrator
+using BenchmarkTools, Infiltrator
 using Pkg; Pkg.activate("./tutorials")
 using PlantModules
 using PlantGraphs
 # using MultiScaleTreeGraph
-using ModelingToolkit, DifferentialEquations, Unitful
+using ModelingToolkit, OrdinaryDiffEq, Unitful
 using Plots; import GLMakie.draw
 
 
@@ -56,13 +56,13 @@ rule2 = Rule(Stem,
 axiom = Stem([0.5, 5.0]) + (Leaf([3.0, 1.0, 0.1]), Leaf([5.0, 3.0, 0.1]))
 
 plant = Graph(axiom = axiom, rules = (rule1,))
-num_iterations = 4
+num_iterations = 6
 for _ in 1:num_iterations
     rewrite!(plant)
 	growify!(plant, 1.03)
 end
 
-draw(plant)
+# draw(plant)
 convert_to_MTG(plant) |> PlantModules.MultiScaleTreeGraph.DataFrame
 
 ## Environment
@@ -173,49 +173,46 @@ prob = ODEProblem(sys_simpl, ModelingToolkit.missing_variable_defaults(sys_simpl
 # Plotting
 
 plotgraph(sol, graphs[1], func_varname = :W)
-plotgraph(sol, graphs[1], func_varname = :W, ylims = (0, 1))
+plotgraph(sol, graphs[1], func_varname = :Ψ, struct_module = :Stem, ylims = (-0.15, -0.05))
 
-plotgraph(sol, graphs[1], func_varname = :D, ylims = (0, 1))
+# Variable K
 
-plotgraph(sol, graphs[1], func_varname = :P)
-plotgraph(sol, graphs[1], func_varname = :M)
+function K_s_module(; name, K_s, shape::PlantModules.Shape)
+    num_D = length(shape.ϵ_D)
 
-plotgraph(sol, graphs[2], func_varname = :W)
-plotgraph(sol, graphs[1:2], func_varname = :Ψ)
-plotgraph(sol, graphs[1:2], func_varname = :Ψ, struct_module = :Stem, ylims = (-0.1, 0))
-plotgraph(sol, graphs[1], func_varname = :ΣF)
-
-plotnode(sol, PlantModules.root(plant), func_varname = :W)
-plotnode(sol, PlantModules.nodes(plant)[end], func_varname = :D)
-
-
-
-
-
-
-function sizedep_hydraulic_connection(; name, K_s, connection_shape)
     @parameters (
         K_s = K_s, [description = "Specific hydraulic conductivity of connection", unit = u"g / hr / MPa / cm^2"],
     )
     @variables (
-        F(t), [description = "Water flux from compartment 2 to compartment 1", unit = u"g / hr"],
         K(t), [description = "Hydraulic conductivity of connection", unit = u"g / hr / MPa"],
-        Ψ_1(t), [description = "Total water potential of compartment 1", unit = u"MPa"],
-        Ψ_2(t), [description = "Total water potential of compartment 2", unit = u"MPa"],
-		D_1(t)[1:num_D], [description = "Dimensions of compartment 1", unit = u"cm^2"],
-		D_2(t)[1:num_D], [description = "Dimensions of compartment 2", unit = u"cm^2"],
+		D(t)[1:num_D], [description = "Dimensions of compartment", unit = u"cm"],
     )
 
     eqs = [
-        F ~ K * (Ψ_2 - Ψ_1)
-		K ~ K_s * (PlantModules.cross_area(connection_shape, D_1) + PlantModules.cross_area(connection_shape, D_2))/2
+		K ~ K_s * PlantModules.cross_area(shape, D)
+    ]
+
+    return ODESystem(eqs, t; name)
+end
+
+function sizedep_hydraulic_connection(; name)
+    @variables (
+        F(t), [description = "Water flux from compartment 2 to compartment 1", unit = u"g / hr"],
+        K_1(t), [description = "Hydraulic conductivity of compartment 1", unit = u"g / hr / MPa"],
+        K_2(t), [description = "Hydraulic conductivity of compartment 2", unit = u"g / hr / MPa"],
+        Ψ_1(t), [description = "Total water potential of compartment 1", unit = u"MPa"],
+        Ψ_2(t), [description = "Total water potential of compartment 2", unit = u"MPa"],
+    )
+
+    eqs = [
+        F ~ mean([K_1, K_2]) * (Ψ_2 - Ψ_1) #! min?
     ]
 
     get_connection_eqset(node_MTK, nb_node_MTK, connection_MTK, reverse_order) = [ 
         connection_MTK.Ψ_1 ~ node_MTK.Ψ,
         connection_MTK.Ψ_2 ~ nb_node_MTK.Ψ,
-		connection_MTK.D_1 ~ node_MTK.D,
-        connection_MTK.D_2 ~ nb_node_MTK.D,
+		connection_MTK.K_1 ~ node_MTK.K,
+        connection_MTK.K_2 ~ nb_node_MTK.K,
     ]
 
     return ODESystem(eqs, t; name), get_connection_eqset
@@ -223,20 +220,22 @@ end
 
 connecting_modules = [
 	(:Soil, :Stem) => (PlantModules.hydraulic_connection, Dict(:K => 80)),
-	(:Stem, :Stem) => (sizedep_hydraulic_connection, Dict(:K_s => 80, :connection_shape => Cilinder())),
-	(:Stem, :Leaf) => (PlantModules.hydraulic_connection, Dict(:K => 40)),
+	(:Stem, :Stem) => (sizedep_hydraulic_connection, Dict()),
+	(:Stem, :Leaf) => (sizedep_hydraulic_connection, Dict()),
 	(:Leaf, :Air) => (PlantModules.hydraulic_connection, Dict(:K => 1e-3)),
 	(:Soil, :Air) => (PlantModules.hydraulic_connection, Dict(:K => 5e-3)) #! check value
 ]
 
 extra_defaults = Dict(
     simpler_hydraulic_module => Dict(:T => 298.15, :shape => Sphere(ϵ_D = [1.0], ϕ_D = [1.0]), :Γ => 0.3, :P => 0.5, :D => [15]),
-    sizedep_hydraulic_connection => Dict(:K_s => 0, :connection_shape => Cilinder())
+    K_s_module => Dict(:K_s => 100, :shape => Cilinder())
 )
 
 func_connections = PlantFunctionality(module_defaults = module_defaults,
     connecting_modules = connecting_modules, extra_defaults = extra_defaults
 )
+
+module_coupling[:Stem] = module_coupling[:Leaf] = [PlantModules.hydraulic_module, PlantModules.constant_carbon_module, K_s_module]
 
 system = PlantModules.generate_system(struct_connections, func_connections, module_coupling, checkunits = false)
 
@@ -244,35 +243,7 @@ sys_simpl = structural_simplify(system);
 prob = ODEProblem(sys_simpl, ModelingToolkit.missing_variable_defaults(sys_simpl), (0.0, 5*24))
 @time sol = solve(prob);
 
-
 plotgraph(sol, graphs[1], func_varname = :W)
-plotgraph(sol, graphs[1], func_varname = :Ψ, struct_module = :Stem, ylims = (-0.1, 0))
+plotgraph(sol, graphs[1], func_varname = :Ψ, struct_module = :Stem, ylims = (-0.25, -0.15))
 
-for (idx, system) in enumerate(sol.prob.f.sys.systems)
-    if occursin("_", string(system.name))
-        println(idx)
-    end
-end
-
-
-
-import ModelingToolkit: get_unknowns, get_name
-
-get_MTKunknown_symbol(s::SymbolicUtils.Symbolic) = s.metadata[ModelingToolkit.VariableSource][2]
-
-## Pry the ODE system corresponding with given node out of the ODE solution
-function getnodesystem(sol::ODESolution, node)
-    system = getfield(sol.prob.f, :sys)
-    nodename = string(PlantModules.structmod(node)) * string(PlantModules.id(node))
-    nodesystem = [subsys for subsys in getproperty(system, :systems) if get_name(subsys) == Symbol(nodename)][1]
-    return nodesystem
-end
-
-nodesystem = getnodesystem(sol, PlantModules.root(graphs[1]))
-func_varnames = [get_MTKunknown_symbol(unknown) for unknown in get_unknowns(nodesystem)] |> unique
-
-@which sol[getproperty(nodesystem, :Ψ)]
-
-for func_varname in func_varnames
-    println(func_varname); @time sol[getproperty(nodesystem, func_varname)]
-end
+sol[sol.prob.f.sys.systems[1].M]
