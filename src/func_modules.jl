@@ -143,6 +143,41 @@ function Ψ_air_module(; name, T)
 	return ODESystem(eqs, t; name)
 end
 
+#! documentation
+function sizedep_K_module(; name, K_s, shape::PlantModules.Shape)
+    num_D = length(shape.ϵ_D)
+
+    @parameters (
+        K_s = K_s, [description = "Specific hydraulic conductivity of connection", unit = u"g / hr / MPa / cm^2"],
+    )
+    @variables (
+        K(t), [description = "Hydraulic conductivity of connection", unit = u"g / hr / MPa"],
+		D(t)[1:num_D], [description = "Dimensions of compartment", unit = u"cm"],
+    )
+
+    eqs = [
+		K ~ K_s * PlantModules.cross_area(shape, D)
+    ]
+
+    return ODESystem(eqs, t; name)
+end
+
+#! documentation
+function constant_K_module(; name, K)
+    @parameters (
+        K_val = K, [description = "Value for the hydraulic conductivity of connection", unit = u"g / hr / MPa / cm^2"],
+    )
+    @variables (
+        K(t), [description = "Hydraulic conductivity of connection", unit = u"g / hr / MPa"],
+    )
+
+    eqs = [
+		K ~ K_val
+    ]
+
+    return ODESystem(eqs, t; name)
+end
+
 # Module connections #
 
 ## Connection information
@@ -219,7 +254,7 @@ multi_connection_eqs(node_MTK, connection_MTKs) = [
 # Default values #
 
 default_values = Dict(
-    hydraulic_module => Dict(:T => 298.15, :shape => Sphere(ϵ_D = [1.0], ϕ_D = [1.0]), :Γ => 0.3, :P => 0.5, :D => [15]),
+    hydraulic_module => Dict(:T => 298.15, :shape => Sphere(ϵ_D = [1.0], ϕ_D = [0.001]), :Γ => 0.3, :P => 0.5, :D => [15]),
     constant_carbon_module => Dict(:M => 25e-6),
     environmental_module => Dict(:T => 298.15, :W_max => 1e6, :W_r => 1.0),
     Ψ_soil_module => Dict(),
