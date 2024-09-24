@@ -52,7 +52,7 @@ function plotnode(sol::ODESolution, node; func_varname::Symbol = Symbol(""), kwa
         end
     end
   
-    return only(plots)
+    return length(plots) == 1 ? only(plots) : plots
 end
 
 """
@@ -121,5 +121,5 @@ function plotgraph(sol::ODESolution, graph; struct_module::Symbol = Symbol(""), 
         push!(plots, plot(xs, ys, group = groups, title = "$func_varname"; kwargs...))
     end
 
-    return only(plots)
+    return length(plots) == 1 ? only(plots) : plots
 end
