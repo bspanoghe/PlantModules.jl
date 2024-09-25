@@ -145,7 +145,7 @@ function getnodevalues(node, structmodule, func_module, module_defaults, default
 end
 
 function overwrite(dicts::Dict...)
-	maindict = dicts[1]
+	maindict = convert(Dict{Symbol, Any}, dicts[1])
 	for dict in dicts[2:end]
 		for key in keys(dict)
 			if haskey(maindict, key)
