@@ -165,7 +165,7 @@ end
 #! documentation
 function constant_K_module(; name, K)
     @parameters (
-        K_val = K, [description = "Value for the hydraulic conductivity of connection", unit = u"g / hr / MPa / cm^2"],
+        K_val = K, [description = "Value for the hydraulic conductivity of connection", unit = u"g / hr / MPa"],
     )
     @variables (
         K(t), [description = "Hydraulic conductivity of connection", unit = u"g / hr / MPa"],
@@ -187,61 +187,25 @@ end
 
 Returns a ModelingToolkit ODESystem describing a water flow connection between two hydraulics-based functional modules. 
 """
-function hydraulic_connection(; name, K)
-    @parameters (
-        K = K, [description = "Hydraulic conductivity of connection", unit = u"g / hr / MPa"],
-    )
+function hydraulic_connection(; name)
     @variables (
         F(t), [description = "Water flux from compartment 2 to compartment 1", unit = u"g / hr"],
+        K_1(t), [description = "Hydraulic conductivity of compartment 1", unit = u"g / hr / MPa"],
+        K_2(t), [description = "Hydraulic conductivity of compartment 2", unit = u"g / hr / MPa"],
         Ψ_1(t), [description = "Total water potential of compartment 1", unit = u"MPa"],
         Ψ_2(t), [description = "Total water potential of compartment 2", unit = u"MPa"],
     )
 
     eqs = [
-        F ~ K * (Ψ_2 - Ψ_1)
+        F ~ min(K_1, K_2) * (Ψ_2 - Ψ_1) #! mean?
     ]
 
     get_connection_eqset(node_MTK, nb_node_MTK, connection_MTK, reverse_order) = [ 
         connection_MTK.Ψ_1 ~ node_MTK.Ψ,
         connection_MTK.Ψ_2 ~ nb_node_MTK.Ψ,
-    ] # symmetric connections don't need to change if the order is reversed
-
-    return ODESystem(eqs, t; name), get_connection_eqset
-end
-
-function environmental_hydraulic_connection(; name, K_s)
-    @parameters (
-        K_s(t) = K_s, [description = "Specific hydraulic conductivity of connection", unit = u"g / hr / MPa / cm^2"],
-    )
-    @variables (
-        F(t), [description = "Water flux from compartment 2 to compartment 1", unit = u"g / hr"],
-        Ψ_1(t), [description = "Total water potential of compartment 1", unit = u"MPa"],
-        Ψ_2(t), [description = "Total water potential of compartment 2", unit = u"MPa"],
-        D_1(t)[1:num_D], [description = "Dimensions of compartment 1", unit = u"cm"],
-        SA(t), [description = "Surface area of connection", unit = u"cm^2"],
-    )
-
-    eqs = [
-        F ~ K_s * SA * (Ψ_2 - Ψ_1)
-        SA ~ surface_area(D_1)
+		connection_MTK.K_1 ~ node_MTK.K,
+        connection_MTK.K_2 ~ nb_node_MTK.K,
     ]
-
-    get_connection_eqset(node_MTK, nb_node_MTK, connection_MTK, reverse_order) = begin
-        if !reverse_order
-            [
-                connection_MTK.Ψ_1 ~ node_MTK.Ψ,
-                connection_MTK.Ψ_2 ~ nb_node_MTK.Ψ,
-                connection_MTK.D_1 ~ node_MTK.D,
-            ]
-        else
-            [
-                connection_MTK.Ψ_1 ~ node_MTK.Ψ,
-                connection_MTK.Ψ_2 ~ nb_node_MTK.Ψ,
-                connection_MTK.D_1 ~ nb_node_MTK.D,
-            ]
-        end
-    end
-
     return ODESystem(eqs, t; name), get_connection_eqset
 end
 
@@ -253,12 +217,15 @@ multi_connection_eqs(node_MTK, connection_MTKs) = [
 
 # Default values #
 
+default_shape = Sphere(ϵ_D = [1.0], ϕ_D = [0.001])
+
 default_values = Dict(
-    hydraulic_module => Dict(:T => 298.15, :shape => Sphere(ϵ_D = [1.0], ϕ_D = [0.001]), :Γ => 0.3, :P => 0.5, :D => [15]),
+    hydraulic_module => Dict(:T => 298.15, :shape => default_shape, :Γ => 0.3, :P => 0.5, :D => [15]),
     constant_carbon_module => Dict(:M => 25e-6),
     environmental_module => Dict(:T => 298.15, :W_max => 1e6, :W_r => 1.0),
     Ψ_soil_module => Dict(),
     Ψ_air_module => Dict(:T => 298.15),
-    hydraulic_connection => Dict(:K => 5),
-    environmental_hydraulic_connection => Dict(:K_s => 50)
+    sizedep_K_module => Dict(:K_s => 10, :shape => default_shape),
+    constant_K_module => Dict(:K => 5),
+    hydraulic_connection => Dict(),
 )
