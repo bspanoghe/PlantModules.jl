@@ -14,6 +14,7 @@ plant_graph = readXEG("tutorials/temp/structures/beech10.xeg") #! change to beec
 # convert_to_PG(plant_graph) |> draw
 
 function get_mtg()
+	plant_graph = readXEG("tutorials/temp/structures/beech.xeg")
 	mtg = convert_to_MTG(plant_graph)
 
 	### Setting attributes right
@@ -64,10 +65,10 @@ end
 
 function create_MWE()
 	mtg = get_mtg()
-	[prunetree!(mtg, 60) for _ in 1:3]; # no work
-	mtg = delete_node!(mtg)
-	mtg = delete_node!(mtg)
-	mtg = delete_node!(mtg)
+	[prunetree!(mtg, 60) for _ in 1:2]; # no work
+	# mtg = delete_node!(mtg)
+	# mtg = delete_node!(mtg)
+	# mtg = delete_node!(mtg)
 
 	# lil_branch = descendants(mtg[1][1][1][1][1][1][1][1][1][1][1][1], self = true)
 	# mtg = delete_nodes!(mtg, filter_fun = node -> node in lil_branch)
@@ -82,6 +83,7 @@ function create_MWE()
 end
 
 mtg = create_MWE()
+length(mtg)
 # length(mtg)
 # convert_to_PG(mtg) |> draw
 
@@ -165,7 +167,6 @@ end
 @register_symbolic get_assimilation_rate(PAR_flux, T, LAI, k)
 
 import .PlantModules: t, d
-leafarea(::Cuboid, D::AbstractArray) = D[1] * D[2]
 
 function photosynthesis_module(; name, T, M, shape)
 	@constants (
@@ -188,48 +189,27 @@ function photosynthesis_module(; name, T, M, shape)
     eqs = [
 		PF ~ get_PAR_flux(t)
 		A ~ get_assimilation_rate(PF, T, LAI, k)
-        d(M) ~ uc1 * A * leafarea(shape, D) / volume(shape, D) - carbon_decay_rate*M # convert µmol => mol and s^-1 => hr^-1
+        d(M) ~ uc1 * A * cross_area(shape, D) / volume(shape, D) - carbon_decay_rate*M # convert µmol => mol and s^-1 => hr^-1
 		#! change carbon decay rate into maintenance term (~ compartment size) and growth term (~ compartment growth)
 		#! add buffer term? (#starch)
     ]
     return ODESystem(eqs, t; name, checks = false) #! checks back to true?
 end
 
-function waterdependent_hydraulic_connection(; name, K_max)
+function waterdependent_K_module(; name, K_max)
 	@parameters (
 		K_max = K_max, [description = "Hydraulic conductivity of connection at maximum water content", unit = u"g / hr / MPa"],
 	)
     @variables (
-        F(t), [description = "Water flux from compartment 2 to compartment 1", unit = u"g / hr"],
-        Ψ_1(t), [description = "Total water potential of compartment 1", unit = u"MPa"],
-        Ψ_2(t), [description = "Total water potential of compartment 2", unit = u"MPa"],
-		W_r_1(t), [description = "Relative water content of compartment 1", unit = u"g / g"],
+		W_r(t), [description = "Relative water content of compartment", unit = u"g / g"],
 		K(t), [description = "Hydraulic conductivity of connection", unit = u"g / hr / MPa"],
-
     )
 
     eqs = [
-        F ~ K * (Ψ_2 - Ψ_1)
-		K ~ K_max * exp(-5*(1-W_r_1)^3)
+		K ~ K_max * exp(-5*(1-W_r)^3)
     ]
 
-    get_connection_eqset(node_MTK, nb_node_MTK, connection_MTK, reverse_order) = begin
-		if !reverse_order 
-			return [	
-			connection_MTK.Ψ_1 ~ node_MTK.Ψ,
-			connection_MTK.Ψ_2 ~ nb_node_MTK.Ψ,
-			connection_MTK.W_r_1 ~ node_MTK.W_r
-    		]
-		else
-			return [
-			connection_MTK.Ψ_1 ~ node_MTK.Ψ,
-			connection_MTK.Ψ_2 ~ nb_node_MTK.Ψ,
-			connection_MTK.W_r_1 ~ nb_node_MTK.W_r
-			]
-		end
-	end
-
-    return ODESystem(eqs, t; name), get_connection_eqset
+    return ODESystem(eqs, t; name)
 end
 
 C_stem = 300e-6
@@ -238,7 +218,7 @@ C_leaf = 400e-6
 
 extra_defaults = Dict( 
 	photosynthesis_module => Dict(:shape => Cuboid(ϵ_D = [0, 0, 0], ϕ_D = [0, 0, 0]), :T => 293.15, :M => 0),
-	waterdependent_hydraulic_connection => Dict(:K_max => 0), 
+	waterdependent_K_module => Dict(:K_max => 10), 
 )
 
 module_defaults = Dict(
@@ -250,13 +230,13 @@ module_defaults = Dict(
 )
 
 connecting_modules = [
-	(:Soil, :Internode) => (PlantModules.hydraulic_connection, Dict(:K => 10)), #! waterdependent_hydraulic_connection
-    (:Internode, :Internode) => (PlantModules.hydraulic_connection, Dict(:K => 2)),
-	(:Internode, :Shoot) => (PlantModules.hydraulic_connection, Dict(:K => 2)),
-	(:Shoot, :Shoot) => (PlantModules.hydraulic_connection, Dict(:K => 2)),
-	(:Shoot, :Leaf) => (PlantModules.hydraulic_connection, Dict(:K => 1)),
-	(:Internode, :Leaf) => (PlantModules.hydraulic_connection, Dict(:K => 1)),
-    (:Leaf, :Air) => (PlantModules.hydraulic_connection, Dict(:K => 1e-3))
+	(:Soil, :Internode) => (hydraulic_connection, Dict()),
+    (:Internode, :Internode) => (hydraulic_connection, Dict()),
+	(:Internode, :Shoot) => (hydraulic_connection, Dict()),
+	(:Shoot, :Shoot) => (hydraulic_connection, Dict()),
+	(:Shoot, :Leaf) => (hydraulic_connection, Dict()),
+	(:Internode, :Leaf) => (hydraulic_connection, Dict()),
+    (:Leaf, :Air) => (hydraulic_connection, Dict())
 ]
 
 func_connections = PlantFunctionality(module_defaults = module_defaults, 
@@ -266,11 +246,11 @@ func_connections = PlantFunctionality(module_defaults = module_defaults,
 ## Connect them to structure
 
 module_coupling = Dict( #! photosynthesis_module for leaf
-	:Internode => [PlantModules.hydraulic_module, PlantModules.constant_carbon_module],
-	:Shoot => [PlantModules.hydraulic_module, PlantModules.constant_carbon_module],
-	:Leaf => [PlantModules.hydraulic_module, PlantModules.constant_carbon_module],
-	:Soil => [PlantModules.environmental_module, PlantModules.Ψ_soil_module],
-	:Air => [PlantModules.environmental_module, PlantModules.Ψ_air_module],
+	:Internode => [hydraulic_module, constant_carbon_module, sizedep_K_module],
+	:Shoot => [hydraulic_module, constant_carbon_module, sizedep_K_module],
+	:Leaf => [hydraulic_module, constant_carbon_module, sizedep_K_module],
+	:Soil => [environmental_module, Ψ_soil_module, waterdependent_K_module],
+	:Air => [environmental_module, Ψ_air_module, constant_K_module],
 )
 
 # Gettem #

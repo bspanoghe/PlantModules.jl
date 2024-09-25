@@ -2,7 +2,6 @@ using BenchmarkTools, Infiltrator
 using Pkg; Pkg.activate("./tutorials")
 using PlantModules
 using PlantGraphs
-# using MultiScaleTreeGraph
 using ModelingToolkit, OrdinaryDiffEq, Unitful
 using Plots; import GLMakie.draw
 
@@ -56,7 +55,7 @@ rule2 = Rule(Stem,
 axiom = Stem([0.5, 5.0]) + (Leaf([3.0, 1.0, 0.1]), Leaf([5.0, 3.0, 0.1]))
 
 plant = Graph(axiom = axiom, rules = (rule1,))
-num_iterations = 6
+num_iterations = 4
 for _ in 1:num_iterations
     rewrite!(plant)
 	growify!(plant, 1.03)
@@ -79,93 +78,39 @@ struct_connections = PlantStructure(graphs, intergraph_connections)
 
 # Functional processes
 
-@independent_variables t, [description = "Time", unit = u"hr"]; #! add documentation
-d = Differential(t);
-
-function simpler_hydraulic_module(; name, T, shape::PlantModules.Shape, Γ, P, D)
-    num_D = length(shape.ϵ_D)
-    @constants (
-        P_0 = 0.0, [description = "Minimum pressure", unit = u"MPa"],
-        R = 8.314, [description = "Ideal gas constant", unit = u"MPa * cm^3 / K / mol"], # Pa = J/m^3 => J = Pa * m^3 = MPa * cm^3
-    )
-    @parameters (
-        T = T, [description = "Temperature", unit = u"K"],
-        ϵ_D[1:num_D] = shape.ϵ_D, [description = "Dimensional elastic modulus", unit = u"MPa"],
-        ϕ_D[1:num_D] = shape.ϕ_D, [description = "Dimensional extensibility", unit = u"MPa^-1 * hr^-1"],
-        Γ = Γ, [description = "Critical turgor pressure", unit = u"MPa"],
-        ρ_w = 1.0, [description = "Density of water", unit = u"g / cm^3"],
-        MPa_unit = 1.0, [description = "Dummy variable for correcting units", unit = u"MPa"], #!
-    )
-    @variables (
-        Ψ(t), [description = "Total water potential", unit = u"MPa"],
-        Π(t), [description = "Osmotic water potential", unit = u"MPa"],
-        P(t) = P, [description = "Hydrostatic potential", unit = u"MPa"],
-        M(t), [description = "Osmotically active metabolite content", unit = u"mol / cm^3"], # m^3 so units match in second equation () #! extend validation function so L is ok?
-        W(t) = PlantModules.volume(shape, D) * ρ_w, [description = "Water content", unit = u"g"],
-        D(t)[1:num_D] = D, [description = "Dimensions of compartment", unit = u"cm"],
-        V(t) = PlantModules.volume(shape, D), [description = "Volume of compartment", unit = u"cm^3"],
-        ΣF(t), [description = "Net incoming water flux", unit = u"g / hr"],
-        
-        ΔP(t), [description = "Change in hydrostatic potential", unit = u"MPa / hr"],
-        ΔW(t), [description = "Change in water content", unit = u"g / hr"],
-        ΔD(t)[1:num_D], [description = "Change in dimensions of compartment", unit = u"cm / hr"],
-    )
-
-    eqs = [
-        Ψ ~ P - Π, # Water potential consists of a solute- and a pressure component
-        Π ~ R*T*M, # Solute component is determined by concentration of dissolved metabolites
-        ΔW ~ ΣF, # Water content changes due to flux (depending on water potentials as defined in connections)
-        V ~ W / ρ_w, # Volume is directly related to water content  
-        V ~ PlantModules.volume(shape, D), # Volume is also directly related to compartment dimensions
-        [ΔD[i] ~ D[i] * ϕ_D[i] * max(P - Γ, P_0) for i in eachindex(D)]..., # Compartment dimensions can only change due to a change in pressure
-
-        d(W) ~ ΔW,
-        [d(D[i]) ~ ΔD[i] for i in eachindex(D)]...,
-    ]
-    # return ODESystem(eqs, t; name, continuous_events = [P ~ Γ]) #!
-    return ODESystem(eqs, t; name)
-end
-
-extra_defaults = Dict(
-    simpler_hydraulic_module => Dict(:T => 298.15, :shape => Sphere(ϵ_D = [1.0], ϕ_D = [1.0]), :Γ => 0.3, :P => 0.5, :D => [15])
-)
-
 C_root = 300e-6
 C_stem = 400e-6
 C_leaf = 450e-6
 
 module_defaults = Dict(
-	:Stem => Dict(:shape => PlantModules.Cilinder(ϵ_D = [2.0, 4.5], ϕ_D = 1e-3 .* [8, 3]), :D => [1.5, 10], :M => C_stem),
-	:Leaf => Dict(:shape => PlantModules.Cuboid(ϵ_D = [1.5, 1.5, 10.0], ϕ_D = 1e-3 .* [3, 3, 0.1]), :M => C_leaf),
-	:Soil => Dict(:W_max => 10000.0, :T => 288.15),
-	:Air => Dict(:W_r => 0.8)
+	:Stem => Dict(:shape => PlantModules.Cilinder(ϵ_D = [2.0, 4.5], ϕ_D = 1e-3 .* [8, 3]), :D => [1.5, 10], :M => C_stem, :K_s => 10),
+	:Leaf => Dict(:shape => PlantModules.Cuboid(ϵ_D = [1.5, 1.5, 10.0], ϕ_D = 1e-3 .* [3, 3, 0.1]), :M => C_leaf, :K_s => 0.1),
+	:Soil => Dict(:W_max => 10000.0, :T => 288.15, :K => 10),
+	:Air => Dict(:W_r => 0.8, :K => 1e-5)
 )
 
 connecting_modules = [
-	(:Soil, :Stem) => (PlantModules.hydraulic_connection, Dict(:K => 80)),
-	(:Stem, :Stem) => (PlantModules.hydraulic_connection, Dict(:K => 80)),
-	(:Stem, :Leaf) => (PlantModules.hydraulic_connection, Dict(:K => 40)),
-	(:Leaf, :Air) => (PlantModules.hydraulic_connection, Dict(:K => 1e-3)),
-	(:Soil, :Air) => (PlantModules.hydraulic_connection, Dict(:K => 5e-3)) #! check value
-] # values based on https://www.mdpi.com/2073-4441/10/8/1036
+	(:Soil, :Stem) => (PlantModules.hydraulic_connection, Dict()),
+	(:Stem, :Stem) => (PlantModules.hydraulic_connection, Dict()),
+	(:Stem, :Leaf) => (PlantModules.hydraulic_connection, Dict()),
+	(:Leaf, :Air) => (PlantModules.hydraulic_connection, Dict()),
+	(:Soil, :Air) => (PlantModules.hydraulic_connection, Dict())
+]
 
-func_connections = PlantFunctionality(module_defaults = module_defaults,
-    connecting_modules = connecting_modules, extra_defaults = extra_defaults
-)
+func_connections = PlantFunctionality(module_defaults = module_defaults, connecting_modules = connecting_modules)
 
 # Coupling 
 
 module_coupling = Dict(
-    :Stem => [PlantModules.hydraulic_module, PlantModules.constant_carbon_module],
-    :Leaf => [PlantModules.hydraulic_module, PlantModules.constant_carbon_module],
-    :Soil => [PlantModules.environmental_module, PlantModules.Ψ_soil_module],
-    :Air => [PlantModules.environmental_module, PlantModules.Ψ_air_module],
+    :Stem => [hydraulic_module, constant_carbon_module, sizedep_K_module],
+    :Leaf => [hydraulic_module, constant_carbon_module, sizedep_K_module],
+    :Soil => [environmental_module, Ψ_soil_module, constant_K_module],
+    :Air => [environmental_module, Ψ_air_module, constant_K_module],
 )
 
 # Rev her up
 
 system = PlantModules.generate_system(struct_connections, func_connections, module_coupling, checkunits = false)
-
 sys_simpl = structural_simplify(system);
 prob = ODEProblem(sys_simpl, ModelingToolkit.missing_variable_defaults(sys_simpl), (0.0, 5*24))
 @time sol = solve(prob);
@@ -175,75 +120,5 @@ prob = ODEProblem(sys_simpl, ModelingToolkit.missing_variable_defaults(sys_simpl
 plotgraph(sol, graphs[1], func_varname = :W)
 plotgraph(sol, graphs[1], func_varname = :Ψ, struct_module = :Stem, ylims = (-0.15, -0.05))
 
-# Variable K
-
-function K_s_module(; name, K_s, shape::PlantModules.Shape)
-    num_D = length(shape.ϵ_D)
-
-    @parameters (
-        K_s = K_s, [description = "Specific hydraulic conductivity of connection", unit = u"g / hr / MPa / cm^2"],
-    )
-    @variables (
-        K(t), [description = "Hydraulic conductivity of connection", unit = u"g / hr / MPa"],
-		D(t)[1:num_D], [description = "Dimensions of compartment", unit = u"cm"],
-    )
-
-    eqs = [
-		K ~ K_s * PlantModules.cross_area(shape, D)
-    ]
-
-    return ODESystem(eqs, t; name)
-end
-
-function sizedep_hydraulic_connection(; name)
-    @variables (
-        F(t), [description = "Water flux from compartment 2 to compartment 1", unit = u"g / hr"],
-        K_1(t), [description = "Hydraulic conductivity of compartment 1", unit = u"g / hr / MPa"],
-        K_2(t), [description = "Hydraulic conductivity of compartment 2", unit = u"g / hr / MPa"],
-        Ψ_1(t), [description = "Total water potential of compartment 1", unit = u"MPa"],
-        Ψ_2(t), [description = "Total water potential of compartment 2", unit = u"MPa"],
-    )
-
-    eqs = [
-        F ~ mean([K_1, K_2]) * (Ψ_2 - Ψ_1) #! min?
-    ]
-
-    get_connection_eqset(node_MTK, nb_node_MTK, connection_MTK, reverse_order) = [ 
-        connection_MTK.Ψ_1 ~ node_MTK.Ψ,
-        connection_MTK.Ψ_2 ~ nb_node_MTK.Ψ,
-		connection_MTK.K_1 ~ node_MTK.K,
-        connection_MTK.K_2 ~ nb_node_MTK.K,
-    ]
-
-    return ODESystem(eqs, t; name), get_connection_eqset
-end
-
-connecting_modules = [
-	(:Soil, :Stem) => (PlantModules.hydraulic_connection, Dict(:K => 80)),
-	(:Stem, :Stem) => (sizedep_hydraulic_connection, Dict()),
-	(:Stem, :Leaf) => (sizedep_hydraulic_connection, Dict()),
-	(:Leaf, :Air) => (PlantModules.hydraulic_connection, Dict(:K => 1e-3)),
-	(:Soil, :Air) => (PlantModules.hydraulic_connection, Dict(:K => 5e-3)) #! check value
-]
-
-extra_defaults = Dict(
-    simpler_hydraulic_module => Dict(:T => 298.15, :shape => Sphere(ϵ_D = [1.0], ϕ_D = [1.0]), :Γ => 0.3, :P => 0.5, :D => [15]),
-    K_s_module => Dict(:K_s => 100, :shape => Cilinder())
-)
-
-func_connections = PlantFunctionality(module_defaults = module_defaults,
-    connecting_modules = connecting_modules, extra_defaults = extra_defaults
-)
-
-module_coupling[:Stem] = module_coupling[:Leaf] = [PlantModules.hydraulic_module, PlantModules.constant_carbon_module, K_s_module]
-
-system = PlantModules.generate_system(struct_connections, func_connections, module_coupling, checkunits = false)
-
-sys_simpl = structural_simplify(system);
-prob = ODEProblem(sys_simpl, ModelingToolkit.missing_variable_defaults(sys_simpl), (0.0, 5*24))
-@time sol = solve(prob);
-
-plotgraph(sol, graphs[1], func_varname = :W)
-plotgraph(sol, graphs[1], func_varname = :Ψ, struct_module = :Stem, ylims = (-0.25, -0.15))
-
-sol[sol.prob.f.sys.systems[1].M]
+plotgraph(sol, graphs[1], func_varname = :K)
+plotgraph(sol, graphs[2], func_varname = :W)
