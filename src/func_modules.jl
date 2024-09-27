@@ -148,10 +148,10 @@ function sizedep_K_module(; name, K_s, shape::PlantModules.Shape)
     num_D = length(shape.ϵ_D)
 
     @parameters (
-        K_s = K_s, [description = "Specific hydraulic conductivity of connection", unit = u"g / hr / MPa / cm^2"],
+        K_s = K_s, [description = "Specific hydraulic conductivity of compartment", unit = u"g / hr / MPa / cm^2"],
     )
     @variables (
-        K(t), [description = "Hydraulic conductivity of connection", unit = u"g / hr / MPa"],
+        K(t), [description = "Hydraulic conductivity of compartment", unit = u"g / hr / MPa"],
 		D(t)[1:num_D], [description = "Dimensions of compartment", unit = u"cm"],
     )
 
@@ -165,10 +165,10 @@ end
 #! documentation
 function constant_K_module(; name, K)
     @parameters (
-        K_val = K, [description = "Value for the hydraulic conductivity of connection", unit = u"g / hr / MPa"],
+        K_val = K, [description = "Value for the hydraulic conductivity of compartment", unit = u"g / hr / MPa"],
     )
     @variables (
-        K(t), [description = "Hydraulic conductivity of connection", unit = u"g / hr / MPa"],
+        K(t), [description = "Hydraulic conductivity of compartment", unit = u"g / hr / MPa"],
     )
 
     eqs = [
