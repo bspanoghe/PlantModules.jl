@@ -198,7 +198,7 @@ end
 
 function waterdependent_K_module(; name, K_max)
 	@parameters (
-		K_max = K_max, [description = "Hydraulic conductivity of connection at maximum water content", unit = u"g / hr / MPa"],
+		K_max = K_max, [description = "Hydraulic conductivity of compartment at maximum water content", unit = u"g / hr / MPa"],
 	)
     @variables (
 		W_r(t), [description = "Relative water content of compartment", unit = u"g / g"],
@@ -224,7 +224,7 @@ extra_defaults = Dict(
 module_defaults = Dict(
 	:Internode => Dict(:shape => Cilinder(ϵ_D = [10.0, 300.0], ϕ_D = [1e-3, 1e-5]), :M => C_stem),
 	:Shoot => Dict(:shape => Cilinder(ϵ_D = [10.0, 300.0], ϕ_D = [3e-3, 3e-5]), :M => C_shoot),
-	:Leaf => Dict(:shape => Cuboid(ϵ_D = [15.0, 10.0, 1000.0], ϕ_D = [3e-3, 3e-3, 1e-5]), :M => C_leaf),
+	:Leaf => Dict(:shape => Cuboid(ϵ_D = [15.0, 10.0, 1000.0], ϕ_D = [3e-3, 3e-3, 1e-5]), :M => C_leaf, :K_s => 0.01),
 	:Soil => Dict(:W_max => 10000.0, :T => 293.15, :W_r => 0.9),
 	:Air => Dict(:W_r => 0.8)
 )
@@ -234,7 +234,7 @@ connecting_modules = [
     (:Internode, :Internode) => (hydraulic_connection, Dict()),
 	(:Internode, :Shoot) => (hydraulic_connection, Dict()),
 	(:Shoot, :Shoot) => (hydraulic_connection, Dict()),
-	(:Shoot, :Leaf) => (hydraulic_connection, Dict()),
+	(:Shoot, :Leaf) => (const_hydraulic_connection, Dict(:K => 10)),
 	(:Internode, :Leaf) => (hydraulic_connection, Dict()),
     (:Leaf, :Air) => (hydraulic_connection, Dict())
 ]
