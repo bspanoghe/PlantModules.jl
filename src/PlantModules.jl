@@ -3,7 +3,7 @@ module PlantModules
 export Shape, Sphere, Cilinder, Cuboid
 export volume, cross_area, surface_area
 export generate_system, PlantStructure, PlantFunctionality, alter_defaults
-export hydraulic_module, constant_carbon_module, environmental_module, Ψ_soil_module, Ψ_air_module, sizedep_K_module, constant_K_module, hydraulic_connection
+export hydraulic_module, constant_carbon_module, environmental_module, Ψ_soil_module, Ψ_air_module, sizedep_K_module, constant_K_module, hydraulic_connection, const_hydraulic_connection
 export readXEG, convert_to_MTG, convert_to_PG
 export plotgraph, plotnode
 
@@ -20,6 +20,5 @@ include("generate_system.jl")
 include("shapes.jl")
 include("func_modules.jl")
 include("plotting.jl")
-include("qualityoflife.jl")
 
 end # module
