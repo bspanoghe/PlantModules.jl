@@ -156,7 +156,7 @@ function sizedep_K_module(; name, K_s, shape::PlantModules.Shape)
     )
 
     eqs = [
-		K ~ K_s * PlantModules.cross_area(shape, D)
+		K ~ K_s * cross_area(shape, D)
     ]
 
     return ODESystem(eqs, t; name)
@@ -185,7 +185,9 @@ end
 """
     hydraulic_connection(; name)
 
-Returns a ModelingToolkit ODESystem describing a water flow connection between two hydraulics-based functional modules. 
+Returns a ModelingToolkit ODESystem describing a water flow connection between two hydraulics-based compartments.
+
+This module assumes the compartments have a specified hydraulic conductivities.
 """
 function hydraulic_connection(; name)
     @variables (
@@ -209,6 +211,35 @@ function hydraulic_connection(; name)
     return ODESystem(eqs, t; name), get_connection_eqset
 end
 
+"""
+    const_hydraulic_connection(; name, K)
+
+Returns a ModelingToolkit ODESystem describing a water flow connection between two hydraulics-based functional modules.
+
+This module specifies a constant hydraulic conductivity between the compartments.
+"""
+function const_hydraulic_connection(; name, K)
+    @parameters (
+        K = K, [description = "Hydraulic conductivity of compartment", unit = u"g / hr / MPa"],
+    )
+
+    @variables (
+        F(t), [description = "Water flux from compartment 2 to compartment 1", unit = u"g / hr"],
+        Ψ_1(t), [description = "Total water potential of compartment 1", unit = u"MPa"],
+        Ψ_2(t), [description = "Total water potential of compartment 2", unit = u"MPa"],
+    )
+
+    eqs = [
+        F ~ K * (Ψ_2 - Ψ_1) #! mean?
+    ]
+
+    get_connection_eqset(node_MTK, nb_node_MTK, connection_MTK, reverse_order) = [ 
+        connection_MTK.Ψ_1 ~ node_MTK.Ψ,
+        connection_MTK.Ψ_2 ~ nb_node_MTK.Ψ,
+    ]
+    return ODESystem(eqs, t; name), get_connection_eqset
+end
+
 ## Node behaviour in function of all their connections
 
 multi_connection_eqs(node_MTK, connection_MTKs) = [
@@ -217,12 +248,12 @@ multi_connection_eqs(node_MTK, connection_MTKs) = [
 
 # Default values #
 
-default_shape = Sphere(ϵ_D = [1.0], ϕ_D = [0.001])
+default_shape = Cilinder(ϵ_D = [10, 100], ϕ_D = [1e-3, 1e-5])
 
 default_values = Dict(
-    hydraulic_module => Dict(:T => 298.15, :shape => default_shape, :Γ => 0.3, :P => 0.5, :D => [15]),
+    hydraulic_module => Dict(:T => 298.15, :shape => default_shape, :Γ => 0.3, :P => 1.0, :D => [5.0, 0.5]),
     constant_carbon_module => Dict(:M => 25e-6),
-    environmental_module => Dict(:T => 298.15, :W_max => 1e6, :W_r => 1.0),
+    environmental_module => Dict(:T => 298.15, :W_max => 1e6, :W_r => 0.8),
     Ψ_soil_module => Dict(),
     Ψ_air_module => Dict(:T => 298.15),
     sizedep_K_module => Dict(:K_s => 10, :shape => default_shape),
