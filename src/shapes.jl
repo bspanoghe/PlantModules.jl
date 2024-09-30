@@ -25,7 +25,7 @@ struct Sphere{T}<:Shape
         length(ϵ_D) != 1 && error("An array of length $(length(ϵ_D)) was given for ϵ_D while length 1 was expected for shape Sphere.")
         length(ϕ_D) != 1 && error("An array of length $(length(ϕ_D)) was given for ϕ_D while length 1 was expected for shape Sphere.")
 
-        return new{typeof(ϵ_D)}(ϵ_D, ϕ_D)
+        return new{promote_type(typeof(ϵ_D), typeof(ϕ_D))}(promote(ϵ_D, ϕ_D)...)
     end
 end
 
@@ -45,7 +45,7 @@ struct Cilinder{T}<:Shape
         length(ϵ_D) != 2 && error("An array of length $(length(ϵ_D)) was given for ϵ_D while length 2 was expected for shape Cilinder.")
         length(ϕ_D) != 2 && error("An array of length $(length(ϕ_D)) was given for ϕ_D while length 2 was expected for shape Cilinder.")
 
-        return new{typeof(ϵ_D)}(ϵ_D, ϕ_D)
+        return new{promote_type(typeof(ϵ_D), typeof(ϕ_D))}(promote(ϵ_D, ϕ_D)...)
     end
 end
 
@@ -65,7 +65,7 @@ struct Cuboid{T}<:Shape
         length(ϵ_D) != 3 && error("An array of length $(length(ϵ_D)) was given for ϵ_D while length 3 was expected for shape Cuboid.")
         length(ϕ_D) != 3 && error("An array of length $(length(ϕ_D)) was given for ϕ_D while length 3 was expected for shape Cuboid.")
 
-        return new{typeof(ϵ_D)}(ϵ_D, ϕ_D)
+        return new{promote_type(typeof(ϵ_D), typeof(ϕ_D))}(promote(ϵ_D, ϕ_D)...)
     end
 end
 
@@ -103,7 +103,7 @@ cross_area(s::Shape, ::AbstractArray) = error("Function `cross_area` is not defi
 """
     cross_area(::Sphere, D::AbstractArray)
 
-Calculate the cross-sectional area of a sphere, defined as the area of a circle with its radius.
+Calculate the cross-sectional area of a sphere, defined as the area of a circle with the same radius.
 """
 cross_area(::Sphere, D::AbstractArray) = D[1]^2 * pi # Write dimensions in the order: radius
 """
@@ -115,9 +115,9 @@ cross_area(::Cilinder, D::AbstractArray) = D[1]^2 * pi # Write dimensions in the
 """
     cross_area(::Cuboid, D::AbstractArray)
 
-Calculate the cross-sectional area of a cuboid, defined as the product of its **last** two dimensions.
+Calculate the cross-sectional area of a cuboid, defined as the product of its first two dimensions.
 """
-cross_area(::Cuboid, D::AbstractArray) = D[2] * D[3] # Write dimensions in the order: length - width - height
+cross_area(::Cuboid, D::AbstractArray) = D[1] * D[2] # Write dimensions in the order: length - width - height
 
 
 """
