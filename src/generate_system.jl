@@ -36,11 +36,15 @@ Creates a container for functional parameters to be used in the function `genera
 - `extra_defaults`: Values to add to `default_values`
 """
 function PlantFunctionality(; default_values::Dict = PlantModules.default_values, module_defaults::Dict = Dict(),
-	connecting_modules::Vector, connecting_eqs::Function = PlantModules.multi_connection_eqs, extra_defaults::Dict = Dict()
+	connecting_modules::Vector, connecting_eqs::Function = PlantModules.multi_connection_eqs, 
+	default_changes::Dict = Dict(), extra_defaults::Dict = Dict()
 	)
 	#! add input tests ?
-	
-	added_defaults = merge(default_values, extra_defaults)
+	changed_defaults = deepcopy(default_values)
+	for func_module in keys(changed_defaults)
+		changed_defaults[func_module] = overwrite(changed_defaults[func_module], default_changes)
+	end
+	added_defaults = merge(changed_defaults, extra_defaults)
 	
 	return PlantFunctionality(added_defaults, module_defaults, connecting_modules, connecting_eqs)
 end
@@ -137,15 +141,17 @@ end
 function getnodevalues(node, structmodule, func_module, module_defaults, default_values)
 
 	node_defaults = get(default_values, func_module, Dict())
-	node_module_defaults = module_defaults[structmodule]
+	node_module_defaults = get(module_defaults, structmodule, Dict())
 	node_attributes = PlantModules.attributes(node)
 
 	nodevalues = overwrite(node_defaults, node_module_defaults, node_attributes)
 	return nodevalues
 end
 
+# overwrites values of first Dict with those in following Dicts 
 function overwrite(dicts::Dict...)
-	maindict = convert(Dict{Symbol, Any}, dicts[1])
+	commontype = promote_type(valtype.(dicts)...)
+	maindict = convert(Dict{Symbol, commontype}, dicts[1])
 	for dict in dicts[2:end]
 		for key in keys(dict)
 			if haskey(maindict, key)
