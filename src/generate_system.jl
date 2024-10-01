@@ -42,7 +42,7 @@ function PlantFunctionality(; default_values::Dict = PlantModules.default_values
 	#! add input tests ?
 	changed_defaults = deepcopy(default_values)
 	for func_module in keys(changed_defaults)
-		changed_defaults[func_module] = overwrite(changed_defaults[func_module], default_changes)
+		changed_defaults[func_module] = overwrite!(changed_defaults[func_module], default_changes)
 	end
 	added_defaults = merge(changed_defaults, extra_defaults)
 	
@@ -144,12 +144,12 @@ function getnodevalues(node, structmodule, func_module, module_defaults, default
 	node_module_defaults = get(module_defaults, structmodule, Dict())
 	node_attributes = PlantModules.attributes(node)
 
-	nodevalues = overwrite(node_defaults, node_module_defaults, node_attributes)
+	nodevalues = overwrite!(deepcopy(node_defaults), node_module_defaults, node_attributes)
 	return nodevalues
 end
 
 # overwrites values of first Dict with those in following Dicts 
-function overwrite(dicts::Dict...)
+function overwrite!(dicts::Dict...)
 	commontype = promote_type(valtype.(dicts)...)
 	maindict = convert(Dict{Symbol, commontype}, dicts[1])
 	for dict in dicts[2:end]
