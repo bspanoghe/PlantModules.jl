@@ -14,10 +14,10 @@ function getnodesystem(sol::ODESolution, node)
 end
 
 ## Get all ODE systems corresponding with nodes off a certain structural module from an ODE solution
-function getnodesystems(sol::ODESolution, graphnodes, struct_module::Symbol)
-    matching_nodes = [node for node in graphnodes if PlantModules.structmod(node) == struct_module]
+function getnodesystems(sol::ODESolution, graphnodes, structmod::Symbol)
+    matching_nodes = [node for node in graphnodes if PlantModules.structmod(node) == structmod]
     if isempty(matching_nodes)
-        error("No structural module $(struct_module) found in graph")
+        error("No structural module $(structmod) found in graph")
     end
     return [getnodesystem(sol, node) for node in matching_nodes]
 end
@@ -26,29 +26,29 @@ get_graphnodes(graph) = PlantModules.nodes(graph)
 get_graphnodes(graph::Vector) = reduce(vcat, get_graphnodes.(graph))
 
 """
-    plotnode(sol::ODESolution, node; func_varname::Symbol)
+    plotnode(sol::ODESolution, node; varname::Symbol)
 
 Returns a plot for every functional variable of the given node for the given solution `sol`.
 Optionally, the user can give the name of a functional variable to only return a plot of this variable.
 """
-function plotnode(sol::ODESolution, node; func_varname::Symbol = Symbol(""), kwargs...)
+function plotnode(sol::ODESolution, node; varname::Symbol = Symbol(""), kwargs...)
     nodesystem = getnodesystem(sol, node)
     indep_values = copy(sol[independent_variable(sol.prob.f.sys)]) # values of indepedent variable
 
-    if func_varname == Symbol("") # No functional variable name given => show all
-        func_varnames = [get_MTKunknown_symbol(unknown) for unknown in get_unknowns(nodesystem)] |> unique
+    if varname == Symbol("") # No functional variable name given => show all
+        varnames = [get_MTKunknown_symbol(unknown) for unknown in get_unknowns(nodesystem)] |> unique
     else
-        func_varnames = [func_varname]
+        varnames = [varname]
     end
 
-    var_values_vec = [sol[getproperty(nodesystem, func_varname)] for func_varname in func_varnames]
-    plots = Vector{Plots.Plot}(undef, length(func_varnames))
+    var_values_vec = [sol[getproperty(nodesystem, varname)] for varname in varnames]
+    plots = Vector{Plots.Plot}(undef, length(varnames))
 
-    for (i, (var_values, func_varname)) in enumerate(zip(var_values_vec, func_varnames))
+    for (i, (var_values, varname)) in enumerate(zip(var_values_vec, varnames))
         if var_values isa Vector # multidimensional variable (e.g. vector of dimensions D)
-            plots[i] = plot(indep_values, reduce(hcat, var_values)', title = "$func_varname"; kwargs...)
+            plots[i] = plot(indep_values, reduce(hcat, var_values)', title = "$varname"; kwargs...)
         else
-            plots[i] = plot(indep_values, var_values, title = "$func_varname"; kwargs...)
+            plots[i] = plot(indep_values, var_values, title = "$varname"; kwargs...)
         end
     end
   
@@ -56,43 +56,43 @@ function plotnode(sol::ODESolution, node; func_varname::Symbol = Symbol(""), kwa
 end
 
 """
-    plotgraph(sol::ODESolution, graph; struct_module::Symbol, func_varname::Symbol)
+    plotgraph(sol::ODESolution, graph; structmod::Symbol, varname::Symbol)
 
 Returns a plot for every functional variable for every node of the given graph for the given solution `sol`.
 Optionally, the user can give the name of a functional variable to only return a plot of this variable,
 give the name of a structural module to limit considered nodes to those of this type, or both.
 """
-function plotgraph(sol::ODESolution, graph; struct_module::Symbol = Symbol(""), func_varname::Symbol = Symbol(""), kwargs...)
+function plotgraph(sol::ODESolution, graph; structmod::Symbol = Symbol(""), varname::Symbol = Symbol(""), kwargs...)
 
     indep_values = copy(sol[independent_variable(sol.prob.f.sys)]) # values of indepedent variable
     append!(indep_values, NaN) # NaN used to cause linebreaks in plot
     plot_data = Dict{Symbol, Dict{Symbol, Vector{Float64}}}()
     graphnodes = get_graphnodes(graph)
 
-    if struct_module == Symbol("")
-        struct_modules = graphnodes .|> PlantModules.structmod |> unique
+    if structmod == Symbol("")
+        structmods = graphnodes .|> PlantModules.structmod |> unique
     else
-        struct_modules = [struct_module]
+        structmods = [structmod]
     end
 
-    for struct_module in struct_modules
-        nodesystems = getnodesystems(sol, graphnodes, struct_module)
+    for structmod in structmods
+        nodesystems = getnodesystems(sol, graphnodes, structmod)
 
-        if func_varname == Symbol("")
-            func_varnames = [get_MTKunknown_symbol(unknown) for unknown in get_unknowns(nodesystems[1])] |> unique
+        if varname == Symbol("")
+            varnames = [get_MTKunknown_symbol(unknown) for unknown in get_unknowns(nodesystems[1])] |> unique
         else
-            func_varnames = [func_varname]
+            varnames = [varname]
         end
 
-        for func_varname in func_varnames
-            if !haskey(plot_data, func_varname)
-                plot_data[func_varname] = Dict{Symbol, Vector{Float64}}()
+        for varname in varnames
+            if !haskey(plot_data, varname)
+                plot_data[varname] = Dict{Symbol, Vector{Float64}}()
             end
 
-            var_data = get!(plot_data[func_varname], struct_module, Float64[])
+            var_data = get!(plot_data[varname], structmod, Float64[])
 
             for nodesystem in nodesystems
-                var_values = sol[getproperty(nodesystem, func_varname)]
+                var_values = sol[getproperty(nodesystem, varname)]
 
                 if var_values[1] isa Vector # multidimensional variable (e.g. vector of dimensions D)
                     for var_dimension in eachrow(reduce(hcat, var_values))
@@ -108,17 +108,17 @@ function plotgraph(sol::ODESolution, graph; struct_module::Symbol = Symbol(""), 
 
     plots = []
 
-    for func_varname in keys(plot_data)
-        var_data = plot_data[func_varname] |> values |> collect
+    for varname in keys(plot_data)
+        var_data = plot_data[varname] |> values |> collect
         group_sizes = length.(var_data)
         groups = [
             fill(structmod, group_size)
-            for (structmod, group_size) in zip(keys(plot_data[func_varname]), group_sizes)
+            for (structmod, group_size) in zip(keys(plot_data[varname]), group_sizes)
         ] |> x -> reduce(vcat, x)
 
         ys = reduce(vcat, var_data)
         xs = repeat(indep_values, length(ys) ÷ length(indep_values))
-        push!(plots, plot(xs, ys, group = groups, title = "$func_varname"; kwargs...))
+        push!(plots, plot(xs, ys, group = groups, title = "$varname"; kwargs...))
     end
 
     return length(plots) == 1 ? only(plots) : plots
