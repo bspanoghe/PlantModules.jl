@@ -248,15 +248,7 @@ multi_connection_eqs(node_MTK, connection_MTKs) = [
 
 # Default values #
 
-default_shape = Cilinder(ϵ_D = [10, 100], ϕ_D = [1e-3, 1e-5])
-
 default_values = Dict(
-    hydraulic_module => Dict(:T => 298.15, :shape => default_shape, :Γ => 0.3, :P => 1.0, :D => [5.0, 0.5]),
-    constant_carbon_module => Dict(:M => 25e-6),
-    environmental_module => Dict(:T => 298.15, :W_max => 1e6, :W_r => 0.8),
-    Ψ_soil_module => Dict(),
-    Ψ_air_module => Dict(:T => 298.15),
-    sizedep_K_module => Dict(:K_s => 10, :shape => default_shape),
-    constant_K_module => Dict(:K => 5),
-    hydraulic_connection => Dict(),
+    :T => 298.15, :shape => Cilinder(ϵ_D = [10, 100], ϕ_D = [1e-3, 1e-5]), :Γ => 0.3, :P => 0.8, :D => [5.0, 0.5],
+    :M => 300e-6, :W_max => 1e6, :W_r => 0.8, :K_s => 1000, :K => 100
 )

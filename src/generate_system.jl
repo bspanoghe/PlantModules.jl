@@ -1,3 +1,4 @@
+# # Types & constructors
 """
 	PlantFunctionality
 
@@ -15,7 +16,7 @@ end
 PlantStructure(graph) = PlantStructure([graph], Dict())
 
 struct PlantFunctionality
-	default_values::Dict{Function, Dict}
+	default_values::Dict{Symbol, <:Any}
 	module_defaults::Dict{Symbol, Dict}
 	connecting_modules::Vector
 	connecting_eqs::Function
@@ -36,18 +37,15 @@ Creates a container for functional parameters to be used in the function `genera
 - `extra_defaults`: Values to add to `default_values`
 """
 function PlantFunctionality(; default_values::Dict = PlantModules.default_values, module_defaults::Dict = Dict(),
-	connecting_modules::Vector, connecting_eqs::Function = PlantModules.multi_connection_eqs, 
-	default_changes::Dict = Dict(), extra_defaults::Dict = Dict()
+	connecting_modules::Vector, connecting_eqs::Function = PlantModules.multi_connection_eqs, default_changes::Dict = Dict{Symbol, Int64}()
 	)
 	#! add input tests ?
-	changed_defaults = deepcopy(default_values)
-	for func_module in keys(changed_defaults)
-		changed_defaults[func_module] = overwrite!(changed_defaults[func_module], default_changes)
-	end
-	added_defaults = merge(changed_defaults, extra_defaults)
+	changed_defaults = merge(default_values, default_changes)
 	
-	return PlantFunctionality(added_defaults, module_defaults, connecting_modules, connecting_eqs)
+	return PlantFunctionality(changed_defaults, module_defaults, connecting_modules, connecting_eqs)
 end
+
+# # Functions
 
 """
 	generate_system(default_params::NamedTuple, default_u0s::NamedTuple, module_defaults::NamedTuple,
@@ -140,12 +138,19 @@ end
 # get correct parameter/initial values for node between those defined in the model defaults, module defaults and node values
 function getnodevalues(node, structmodule, func_module, module_defaults, default_values)
 
-	node_defaults = get(default_values, func_module, Dict())
+	node_defaults = get_func_defaults(default_values, func_module)
 	node_module_defaults = get(module_defaults, structmodule, Dict())
 	node_attributes = PlantModules.attributes(node)
 
 	nodevalues = overwrite!(deepcopy(node_defaults), node_module_defaults, node_attributes)
 	return nodevalues
+end
+
+# filters the values required for `funcmod` out of `default_values`
+# intended to use with `ODESystem` functions so filters out `name` kwarg
+function get_func_defaults(default_values::Dict, funcmod::Function)
+	func_argnames = only(methods(funcmod)) |> Base.kwarg_decl |> x -> x[x .!= :name]
+	return Dict([func_argname => default_values[func_argname] for func_argname in func_argnames if func_argname in keys(default_values)])
 end
 
 # overwrites values of first Dict with those in following Dicts 
@@ -230,7 +235,7 @@ function get_connection_info(node, graphnr, nb_node, nb_node_graphnr, connecting
 
 	connector_func, connection_specific_values = connecting_module.second
 	
-	default_values_conn = get(default_values, connector_func, Dict())
+	default_values_conn = get_func_defaults(default_values, connector_func)
 	conn_info = merge(default_values_conn, connection_specific_values)
 
 	connection_MTK, get_connection_eqset = connector_func(;
