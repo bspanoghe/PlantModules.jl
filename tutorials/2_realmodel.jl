@@ -3,7 +3,7 @@
 # ## Introduction
 
 # In this tutorial, we'll cover more advanced functionality of the package with the goal of making a more practically usable plant model.
-
+using Revise, Infiltrator
 using Pkg; Pkg.activate("./tutorials")
 using PlantModules
 using PlantGraphs, MultiScaleTreeGraph
@@ -19,7 +19,7 @@ using Plots; import GLMakie.draw
 # Currently, the package only has a function for reading XEG files. However, any file format can be used provided the user is able to convert it to a graph.
 
 plant_graph = readXEG("./tutorials/temp/structures/beech3.xeg") #! change to beech
-# convert_to_PG(plant_graph) |> draw
+convert_to_PG(plant_graph) |> draw
 
 # The graph still requires some processing to make it suitable for modeling with PlantModules.
 # Luckily, the [MultiScaleTreeGraph.jl](https://github.com/VEZY/MultiScaleTreeGraph.jl) package has some excellent functionality for processing graphs.
@@ -49,7 +49,8 @@ mtg = delete_nodes!(mtg, filter_fun = node -> isnothing(node.D))
 
 DataFrame(mtg)
 
-# ## Environment
+# ### Environment
+# This part is exactly the same as previous tutorial.
 
 struct Soil <: PlantGraphs.Node end
 struct Air <: PlantGraphs.Node end
@@ -58,20 +59,26 @@ soil_graph = Soil()
 air_graph = Air()
 
 graphs = [mtg, soil_graph, air_graph]
-
-## connections
-
 intergraph_connections = [[1, 2] => (mtg, :Soil), [1, 3] => (:Leaf, :Air)]
 struct_connections = PlantStructure(graphs, intergraph_connections)
 
-# Functional modules #
+# ## Function
 
-## New functional modules
+# ### Defining new functional modules
 
-# PAR_data = [max(0, 400 * sin(t/24*2*pi - 8)) + randn() for t in 0:10*24]
-# @memoize get_PAR_flux(t) = PAR_data[floor(Int, t+1)] + (t-floor(t)) * PAR_data[ceil(Int, t+1)]
+# Previous tutorial, we simply made use of the pre-implemented functional modules. Now, let's take a look at how we can define our own. 
+# We'll start by making a simple model for carbon dynamics.
+
+# First thing we need is to define how much photosynthetically active radiation (PAR) our leaves receive. 
+# We'd like to define this as a general Julia function rather than a differential equation so that we have more freedom in our definition.
+# This allows you to, for example, write a function which interpolates between observed PAR values. 
+# We'll just use a sine function bound to the positive values to simulate a simple day-night cycle:
+
 get_PAR_flux(t) = max(0, 400 * sin(t/24*2*pi - 8))
-@register_symbolic get_PAR_flux(t)
+
+# We also need the actual photosynthesis model.
+# We could define this ourselves using differential equations, or simply use the existing implementation from [PlantBiophysics.jl](https://github.com/VEZY/PlantBiophysics.jl).
+# All we have to do is wrap this model in a julia function with the desired inputs and outputs and we're done.
 
 @memoize function get_assimilation_rate(PAR_flux, T, LAI, k)
 	Kelvin_to_C = -273.15
@@ -86,21 +93,23 @@ get_PAR_flux(t) = max(0, 400 * sin(t/24*2*pi - 8))
 	return only(m[:A]) |> x -> max(x, 0) # extract result of the first (and only) timestep
 end
 
+# Most (complex) functions need to be registered using `@register_symbolic` before we can use them in ModelingToolkit.
 @register_symbolic get_assimilation_rate(PAR_flux, T, LAI, k)
 
 import .PlantModules: t, d
 
+# Finally we define the actual photosynthesis module. The one defined here is very simple for illustration purposes.
 function photosynthesis_module(; name, T, M, shape)
 	@constants (
 		uc1 = (10^-6 * 10^-4 * 60^2), [description = "Unit conversion from (µmol / m^2 / s) to (mol / cm^2 / hr)", unit = u"(mol/cm^2/hr) / (µmol/m^2/s)"],
+		# the output from PlantBiophysics.jl is in different units than we use for our ODEs, so we need to change this
 	)
 	@parameters (
 		T = T, [description = "Temperature", unit = u"K"],
 		LAI = 2.0, [description = "Leaf Area Index", unit = u"cm^2 / cm^2"],
 		k = 0.5, [description = "Light extinction coefficient", unit = u"N/N"],
-		carbon_decay_rate = 0.1, [description = "Rate at which carbon is consumed for growth", unit = u"hr^-1"],
+		carbon_decay_rate = 0.3, [description = "Rate at which carbon is consumed for growth", unit = u"hr^-1"],
 	)
-
 	@variables (
         M(t) = M, [description = "Osmotically active metabolite content", unit = u"mol / cm^3"], # m^3 so units match in second equation (Pa = J/m^3) #! extend validation function so L is ok?
 		PF(t), [description = "Incoming PAR flux", unit = u"J / s / m^2"], #! make sure not to use variable name from other func mod used in same struct mod
@@ -111,49 +120,37 @@ function photosynthesis_module(; name, T, M, shape)
     eqs = [
 		PF ~ get_PAR_flux(t)
 		A ~ get_assimilation_rate(PF, T, LAI, k)
-        d(M) ~ uc1 * A * cross_area(shape, D) / volume(shape, D) - carbon_decay_rate*M # convert µmol => mol and s^-1 => hr^-1
-		#! change carbon decay rate into maintenance term (~ compartment size) and growth term (~ compartment growth)
-		#! add buffer term? (#starch)
+        d(M) ~ uc1 * A * cross_area(shape, D) / volume(shape, D) - carbon_decay_rate*M
     ]
     return ODESystem(eqs, t; name, checks = false) #! checks back to true?
 end
 
-C_stem = 300e-6
-C_shoot = 350e-6
-C_leaf = 400e-6
-
-extra_defaults = Dict( 
-	photosynthesis_module => Dict(:shape => Cuboid(), :T => 293.15, :M => 0)
-)
-
 module_defaults = Dict(
-	:Internode => Dict(:shape => Cilinder(ϵ_D = [5.0, 50.0], ϕ_D = [1e-3, 1e-5]), :M => C_stem),
-	:Shoot => Dict(:shape => Cilinder(ϵ_D = [5.0, 50.0], ϕ_D = [3e-3, 3e-5]), :M => C_shoot, :K_s => 10000),
-	:Leaf => Dict(:shape => Cuboid(ϵ_D = [7.0, 3.0, 1000.0], ϕ_D = [3e-3, 3e-3, 1e-5]), :M => C_leaf, :K_s => 1e-5),
+	:Internode => Dict(:shape => Cilinder(ϵ_D = [5.0, 50.0], ϕ_D = [1e-3, 1e-5]), :M => 300e-6),
+	:Shoot => Dict(:shape => Cilinder(ϵ_D = [5.0, 50.0], ϕ_D = [3e-3, 3e-5]), :M => 350e-6),
+	:Leaf => Dict(:shape => Cuboid(ϵ_D = [7.0, 3.0, 1000.0], ϕ_D = [3e-3, 3e-3, 1e-5]), :M => 400e-6, :K_s => 5e-4),
 	:Soil => Dict(:W_max => 10000.0, :T => 293.15, :W_r => 0.9),
 	:Air => Dict(:K => 1e-1)
 )
 
 connecting_modules = [
-	(:Soil, :Internode) => (const_hydraulic_connection, Dict(:K => 100)),
+	(:Soil, :Internode) => (const_hydraulic_connection, Dict()),
     (:Internode, :Internode) => (hydraulic_connection, Dict()),
 	(:Internode, :Shoot) => (hydraulic_connection, Dict()),
 	(:Shoot, :Shoot) => (hydraulic_connection, Dict()),
-	(:Shoot, :Leaf) => (const_hydraulic_connection, Dict(:K => 100)),
-	(:Internode, :Leaf) => (const_hydraulic_connection, Dict(:K => 100)),
+	(:Shoot, :Leaf) => (const_hydraulic_connection, Dict()),
+	(:Internode, :Leaf) => (const_hydraulic_connection, Dict()),
     (:Leaf, :Air) => (hydraulic_connection, Dict())
 ]
 
-func_connections = PlantFunctionality(module_defaults = module_defaults, 
-	connecting_modules = connecting_modules, extra_defaults = extra_defaults
-)
+func_connections = PlantFunctionality(module_defaults = module_defaults, connecting_modules = connecting_modules)
 
 ## Connect them to structure
 
-module_coupling = Dict( #! photosynthesis_module for leaf
+module_coupling = Dict(
 	:Internode => [hydraulic_module, constant_carbon_module, sizedep_K_module],
 	:Shoot => [hydraulic_module, constant_carbon_module, sizedep_K_module],
-	:Leaf => [hydraulic_module, constant_carbon_module, sizedep_K_module],
+	:Leaf => [hydraulic_module, photosynthesis_module, sizedep_K_module],
 	:Soil => [environmental_module, Ψ_soil_module],
 	:Air => [environmental_module, Ψ_air_module, constant_K_module],
 )
@@ -165,11 +162,10 @@ system = generate_system(struct_connections, func_connections, module_coupling, 
 sys_simpl = structural_simplify(system)
 prob = ODEProblem(sys_simpl, ModelingToolkit.missing_variable_defaults(sys_simpl), (0.0, 5*24))
 @time sol = solve(prob);
-# @btime sol = solve(prob);
 
 plotgraph(sol, graphs[1], varname = :W, structmod = :Leaf)
-plotgraph(sol, graphs[1], varname = :P, structmod = :Leaf)
-
+plotgraph(sol, graphs[1], varname = :M, structmod = :Leaf)
+plotgraph(sol, graphs[1], varname = :W)
 plotgraph(sol, graphs[2], varname = :W)
 
-plotgraph(sol, graphs[1], varname = :P, structmod = :Leaf)
+plotgraph(sol, graphs[1:2], varname = :Ψ)
