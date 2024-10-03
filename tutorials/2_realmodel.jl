@@ -3,13 +3,10 @@
 # ## Introduction
 
 # In this tutorial, we'll cover more advanced functionality of the package with the goal of making a more practically usable plant model.
-using Revise, Infiltrator
 using Pkg; Pkg.activate("./tutorials")
 using PlantModules
 using PlantGraphs, MultiScaleTreeGraph
 using ModelingToolkit, OrdinaryDiffEq, Unitful
-using PlantBiophysics, PlantBiophysics.PlantMeteo, PlantSimEngine
-using Memoization
 using Plots; import GLMakie.draw
 
 # ## Structure
@@ -19,7 +16,6 @@ using Plots; import GLMakie.draw
 # Currently, the package only has a function for reading XEG files. However, any file format can be used provided the user is able to convert it to a graph.
 
 plant_graph = readXEG("./tutorials/temp/structures/beech3.xeg") #! change to beech
-convert_to_PG(plant_graph) |> draw
 
 # The graph still requires some processing to make it suitable for modeling with PlantModules.
 # Luckily, the [MultiScaleTreeGraph.jl](https://github.com/VEZY/MultiScaleTreeGraph.jl) package has some excellent functionality for processing graphs.
@@ -47,7 +43,14 @@ traverse!(mtg, node -> symbol!(node, "Shoot"), symbol = "ShortShoot")
 # Delete nodes without any dimensions defined. These are for graph visualisation purposes but are not actual physical structures.
 mtg = delete_nodes!(mtg, filter_fun = node -> isnothing(node.D))
 
+if length(mtg) > 100
+	toomuch = [node for node in PlantModules.nodes(mtg[1][1][1])]
+	mtg = delete_nodes!(mtg, filter_fun = node -> node in toomuch)
+end
 DataFrame(mtg)
+
+convert_to_PG(mtg) |> draw
+
 
 # ### Environment
 # This part is exactly the same as previous tutorial.
@@ -80,6 +83,12 @@ get_PAR_flux(t) = max(0, 400 * sin(t/24*2*pi - 8))
 # We could define this ourselves using differential equations, or simply use the existing implementation from [PlantBiophysics.jl](https://github.com/VEZY/PlantBiophysics.jl).
 # All we have to do is wrap this model in a julia function with the desired inputs and outputs and we're done.
 
+using PlantBiophysics, PlantBiophysics.PlantMeteo, PlantSimEngine
+using Memoization
+
+# PlantBiophysics models are fast, but using memoization will still speed up the final model up significantly.
+# Memoization essentially makes the function remember what the outputs are for inputs it has seen before, rather than having to compute them again.
+
 @memoize function get_assimilation_rate(PAR_flux, T, LAI, k)
 	Kelvin_to_C = -273.15
 	meteo = Atmosphere(T = T + Kelvin_to_C, Wind = 1.0, P = 101.3, Rh = 0.65, Ri_PAR_f = PAR_flux)
@@ -96,7 +105,7 @@ end
 # Most (complex) functions need to be registered using `@register_symbolic` before we can use them in ModelingToolkit.
 @register_symbolic get_assimilation_rate(PAR_flux, T, LAI, k)
 
-import .PlantModules: t, d
+import PlantModules: t, d #!
 
 # Finally we define the actual photosynthesis module. The one defined here is very simple for illustration purposes.
 function photosynthesis_module(; name, T, M, shape)
@@ -125,11 +134,15 @@ function photosynthesis_module(; name, T, M, shape)
     return ODESystem(eqs, t; name, checks = false) #! checks back to true?
 end
 
+# This part is the same as in the first tutorial, except that we'll also make use of the non-constant `hydraulic_connection`.
+# For this connection, the hydraulic conductance is related to the cross-area of the plant part.
+# The way we defined the leaf shape, its hydraulic conductance will be proportional to its surface area.
+# This is why this hydraulic conductance should only be used for a connection with the air, and connections with plant parts need to use a constant hydraulic connection.
 module_defaults = Dict(
 	:Internode => Dict(:shape => Cilinder(ϵ_D = [5.0, 50.0], ϕ_D = [1e-3, 1e-5]), :M => 300e-6),
 	:Shoot => Dict(:shape => Cilinder(ϵ_D = [5.0, 50.0], ϕ_D = [3e-3, 3e-5]), :M => 350e-6),
 	:Leaf => Dict(:shape => Cuboid(ϵ_D = [7.0, 3.0, 1000.0], ϕ_D = [3e-3, 3e-3, 1e-5]), :M => 400e-6, :K_s => 5e-4),
-	:Soil => Dict(:W_max => 10000.0, :T => 293.15, :W_r => 0.9),
+	:Soil => Dict(:W_max => 1e9, :T => 293.15, :W_r => 0.9), #! W_max
 	:Air => Dict(:K => 1e-1)
 )
 
@@ -145,23 +158,31 @@ connecting_modules = [
 
 func_connections = PlantFunctionality(module_defaults = module_defaults, connecting_modules = connecting_modules)
 
-## Connect them to structure
+# ## Coupling
 
 module_coupling = Dict(
 	:Internode => [hydraulic_module, constant_carbon_module, sizedep_K_module],
 	:Shoot => [hydraulic_module, constant_carbon_module, sizedep_K_module],
-	:Leaf => [hydraulic_module, photosynthesis_module, sizedep_K_module],
+	:Leaf => [hydraulic_module, constant_carbon_module, sizedep_K_module],
 	:Soil => [environmental_module, Ψ_soil_module],
 	:Air => [environmental_module, Ψ_air_module, constant_K_module],
 )
 
-# Gettem #
+# ## Generate and run system
 
 system = generate_system(struct_connections, func_connections, module_coupling, checkunits = false)
 
 sys_simpl = structural_simplify(system)
 prob = ODEProblem(sys_simpl, ModelingToolkit.missing_variable_defaults(sys_simpl), (0.0, 5*24))
 @time sol = solve(prob);
+
+histogram(sol.t, bins = 0:0.001:0.01)
+plotgraph(sol, graphs[1], varname = :ΔP, structmod = :Shoot, xlims = (0, 0.001))
+plotgraph(sol, graphs[1], varname = :P, structmod = :Shoot, xlims = (0, 0.001))
+plotgraph(sol, graphs[1], varname = :ΔW, structmod = :Shoot, xlims = (0, 0.001))
+
+
+# ## Plotting
 
 plotgraph(sol, graphs[1], varname = :W, structmod = :Leaf)
 plotgraph(sol, graphs[1], varname = :M, structmod = :Leaf)

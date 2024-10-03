@@ -105,7 +105,7 @@ module_coupling = Dict(
 	:Air => [environmental_module, Ψ_air_module],
 )
 
-# ## Running the system
+# ## Generate and run system
 
 # All that's left to do is running `generate_system` to get the plant's ODESystem
 system = generate_system(struct_connections, func_connections, module_coupling, checkunits = false)

@@ -73,16 +73,12 @@ function wandering_animals(; name, κ)
     return ODESystem(eqs, t; name), wandering_eqs
 end
 
-default_values = Dict(
-    lotka_volterra => Dict(:α => 1.5, :β => 1.9, :δ => 1.5, :γ => 0.8, :N => 30, :P => 10),
-    fountain_of_rabbits => Dict(:η => 10, :N => 1, :P => 0),
-    wandering_animals => Dict(:κ => 0.01)
-)
+default_values = Dict(:α => 1.5, :β => 1.9, :δ => 1.5, :γ => 0.8, :N => 30, :P => 10, :κ => 0.01)
 
 module_defaults = Dict(
     :Grassland => Dict(:β => 0.1),
     :Forest => Dict(:δ => 2.3),
-    :Cave => Dict(:β => 0)
+    :Cave => Dict(:β => 0, :η => 10, :N => 1, :P => 0)
 )
 
 connecting_modules = [

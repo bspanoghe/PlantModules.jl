@@ -27,11 +27,6 @@ function branchingrule(x)
     return Stem(parent_D) + (Stem(child_D) + (Leaf(leaf_D), Leaf(leaf_D)), Stem(child_D) + (Leaf(leaf_D), Leaf(leaf_D)))
 end
 
-function branchlessrule(x)
-    parent_D = data(x).D
-    return Stem(parent_D) + Stem(parent_D)
-end
-
 function growify!(plant, growthrate)
     for node in apply(plant, Query(Stem))
         node.D = [sqrt(growthrate)*node.D[1], growthrate*node.D[2]]
