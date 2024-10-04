@@ -27,16 +27,6 @@ function branchingrule(x)
     return Stem(parent_D) + (Stem(child_D) + (Leaf(leaf_D), Leaf(leaf_D)), Stem(child_D) + (Leaf(leaf_D), Leaf(leaf_D)))
 end
 
-function growify!(plant, growthrate)
-    for node in apply(plant, Query(Stem))
-        node.D = [sqrt(growthrate)*node.D[1], growthrate*node.D[2]]
-    end
-
-	for node in apply(plant, Query(Leaf))
-        node.D = [growthrate*node.D[1], growthrate*node.D[2], node.D[3]]
-    end
-end
-
 rule = Rule(Stem,
     lhs = node -> !has_descendant(node, condition = n -> data(n) isa Stem)[1],
     rhs = branchingrule
@@ -48,7 +38,6 @@ plant = Graph(axiom = axiom, rules = (rule,))
 num_iterations = 4
 for _ in 1:num_iterations
     rewrite!(plant)
-	growify!(plant, 1.03)
 end
 
 convert_to_MTG(plant) |> PlantModules.MultiScaleTreeGraph.DataFrame
@@ -65,17 +54,17 @@ intergraph_connections = [(1, 2) => (PlantModules.root(plant), :Soil), (1, 3) =>
 struct_connections = PlantStructure(graphs, intergraph_connections)
 
 
-
-
 # Functional processes
 
-C_root = 300e-6
-C_stem = 400e-6
-C_leaf = 450e-6
-
 module_defaults = Dict(
-	:Stem => Dict(:shape => Cilinder(ϵ_D = [2.0, 4.5], ϕ_D = 1e-3 .* [8, 3]), :D => [1.5, 10], :M => C_stem, :K_s => 10),
-	:Leaf => Dict(:shape => Cuboid(ϵ_D = [1.5, 1.5, 10.0], ϕ_D = 1e-3 .* [3, 3, 0.1]), :M => C_leaf, :K_s => 1e-5),
+	:Stem => Dict(
+        :shape => Cilinder(ϵ_D = [2.0, 4.5], ϕ_D = 1e-3 .* [8, 3]), :D => [1.5, 10], :M => 400e-6, :K_s => 10,
+        :P => -0.3 + 8.314*298.15*400e-6
+        ),
+	:Leaf => Dict(
+        :shape => Cuboid(ϵ_D = [1.5, 1.5, 10.0], ϕ_D = 1e-3 .* [3, 3, 0.1]), :M => 450e-6, :K_s => 1e-5,
+        :P => -0.3 + 8.314*298.15*450e-6
+        ),
 	:Soil => Dict(:W_max => 10000.0, :T => 288.15, :K => 10),
 	:Air => Dict(:W_r => 0.8, :K => 0.1)
 )
@@ -101,7 +90,7 @@ module_coupling = Dict(
 
 # Rev her up
 
-system = PlantModules.generate_system(struct_connections, func_connections, module_coupling, checkunits = false)
+system = generate_system(struct_connections, func_connections, module_coupling, checkunits = false)
 sys_simpl = structural_simplify(system);
 prob = ODEProblem(sys_simpl, ModelingToolkit.missing_variable_defaults(sys_simpl), (0.0, 5*24))
 @time sol = solve(prob);

@@ -3,6 +3,7 @@
 # ## Introduction
 
 # In this tutorial, we'll cover more advanced functionality of the package with the goal of making a more practically usable plant model.
+using Revise #!
 using Pkg; Pkg.activate("./tutorials")
 using PlantModules
 using PlantGraphs, MultiScaleTreeGraph
@@ -139,9 +140,9 @@ end
 # The way we defined the leaf shape, its hydraulic conductance will be proportional to its surface area.
 # This is why this hydraulic conductance should only be used for a connection with the air, and connections with plant parts need to use a constant hydraulic connection.
 module_defaults = Dict(
-	:Internode => Dict(:shape => Cilinder(ϵ_D = [5.0, 50.0], ϕ_D = [1e-3, 1e-5]), :M => 300e-6),
-	:Shoot => Dict(:shape => Cilinder(ϵ_D = [5.0, 50.0], ϕ_D = [3e-3, 3e-5]), :M => 350e-6),
-	:Leaf => Dict(:shape => Cuboid(ϵ_D = [7.0, 3.0, 1000.0], ϕ_D = [3e-3, 3e-3, 1e-5]), :M => 400e-6, :K_s => 5e-4),
+	:Internode => Dict(:shape => Cilinder(ϵ_D = [5.0, 50.0], ϕ_D = [1e-3, 1e-5]), :M => 300e-6, :P => 8.314*298.15*300e-6),
+	:Shoot => Dict(:shape => Cilinder(ϵ_D = [5.0, 50.0], ϕ_D = [3e-3, 3e-5]), :M => 350e-6, :P => 8.314*298.15*350e-6),
+	:Leaf => Dict(:shape => Cuboid(ϵ_D = [7.0, 3.0, 1000.0], ϕ_D = [3e-3, 3e-3, 1e-5]), :M => 400e-6, :K_s => 5e-4, :P => 8.314*298.15*400e-6),
 	:Soil => Dict(:W_max => 1e9, :T => 293.15, :W_r => 0.9), #! W_max
 	:Air => Dict(:K => 1e-1)
 )
@@ -180,6 +181,8 @@ histogram(sol.t, bins = 0:0.001:0.01)
 plotgraph(sol, graphs[1], varname = :ΔP, structmod = :Shoot, xlims = (0, 0.001))
 plotgraph(sol, graphs[1], varname = :P, structmod = :Shoot, xlims = (0, 0.001))
 plotgraph(sol, graphs[1], varname = :ΔW, structmod = :Shoot, xlims = (0, 0.001))
+
+plotgraph(sol, graphs[1], varname = :Ψ, xlims = (0, 0.001))
 
 
 # ## Plotting
