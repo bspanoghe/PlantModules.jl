@@ -33,7 +33,7 @@ Optionally, the user can give the name of a functional variable to only return a
 """
 function plotnode(sol::ODESolution, node; varname::Symbol = Symbol(""), kwargs...)
     nodesystem = getnodesystem(sol, node)
-    indep_values = copy(sol[independent_variable(sol.prob.f.sys)]) # values of indepedent variable
+    indep_values = copy(sol[get_iv(sol.prob.f.sys)]) # values of indepedent variable
 
     if varname == Symbol("") # No functional variable name given => show all
         varnames = [get_MTKunknown_symbol(unknown) for unknown in get_unknowns(nodesystem)] |> unique
@@ -64,7 +64,7 @@ give the name of a structural module to limit considered nodes to those of this 
 """
 function plotgraph(sol::ODESolution, graph; structmod::Symbol = Symbol(""), varname::Symbol = Symbol(""), kwargs...)
 
-    indep_values = copy(sol[independent_variable(sol.prob.f.sys)]) # values of indepedent variable
+    indep_values = copy(sol[get_iv(sol.prob.f.sys)]) # values of indepedent variable
     append!(indep_values, NaN) # NaN used to cause linebreaks in plot
     plot_data = Dict{Symbol, Dict{Symbol, Vector{Float64}}}()
     graphnodes = get_graphnodes(graph)
