@@ -23,10 +23,12 @@ struct_connections = PlantStructure(graphs, intergraph_connections)
 
 ## New functional modules
 
+@independent_variables t
+d = Differential(t);
+
 function lotka_volterra(; name, α, β, δ, γ, N, P)
     @parameters α = α β = β δ = δ γ = γ
-    @variables t N(t) = N P(t) = P ΣF_N(t) ΣF_P(t)
-    d = Differential(t);
+    @variables N(t) = N P(t) = P ΣF_N(t) ΣF_P(t)
     eqs = [
         d(N) ~ α*N - β*N*P + ΣF_N,
         d(P) ~ δ*N*P - γ*P + ΣF_P
@@ -35,8 +37,7 @@ function lotka_volterra(; name, α, β, δ, γ, N, P)
 end
 
 function fountain_of_rabbits(; name, η, N, P)
-    @variables t N(t) = N P(t) = P ΣF_N(t) ΣF_P(t)
-    d = Differential(t);
+    @variables N(t) = N P(t) = P ΣF_N(t) ΣF_P(t)
     eqs = [
         d(N) ~ η + ΣF_N,
         d(P) ~ ΣF_P
@@ -45,18 +46,8 @@ function fountain_of_rabbits(; name, η, N, P)
 end
 
 function wandering_animals(; name, κ)
-    @parameters (
-        κ = κ,
-    )
-    @variables (
-        t,
-        F_N(t),
-        N_1(t),
-        N_2(t),
-        F_P(t),
-        P_1(t),
-        P_2(t)
-    )
+    @parameters κ = κ
+    @variables F_N(t) N_1(t) N_2(t) F_P(t) P_1(t) P_2(t)
 
     eqs = [
         F_N ~ κ * (N_2 - N_1),
@@ -73,12 +64,12 @@ function wandering_animals(; name, κ)
     return ODESystem(eqs, t; name), wandering_eqs
 end
 
-default_values = Dict(:α => 1.5, :β => 1.9, :δ => 1.5, :γ => 0.8, :N => 30, :P => 10, :κ => 0.01)
+default_values = Dict(:α => 1.5, :β => 1.9, :δ => 1.5, :γ => 0.8, :N => 30, :P => 10, :κ => 0.01, :η => 10)
 
 module_defaults = Dict(
     :Grassland => Dict(:β => 0.1),
     :Forest => Dict(:δ => 2.3),
-    :Cave => Dict(:β => 0, :η => 10, :N => 1, :P => 0)
+    :Cave => Dict(:β => 0, :N => 1, :P => 0)
 )
 
 connecting_modules = [
@@ -157,7 +148,7 @@ connection_MTK, connection_equations = PlantModules.get_connection_info(node, gr
 )
 
 @test connection_MTK isa ODESystem
-@test only(values(connection_MTK.defaults)) == 0.03
+@test only(values(get_defaults(connection_MTK))) == 0.03
 @test connection_equations isa Vector{Equation}
 
 ## getnodevalues
@@ -165,7 +156,7 @@ node = node4
 structmodule = :Forest
 func_module = lotka_volterra
 nodevalues = PlantModules.getnodevalues(node, structmodule, func_module, module_defaults, default_values)
-@test issetequal(nodevalues, [:α => 1.5, :β => 0.1, :γ => 0.8,  :δ => 2.3, :N => 5, :P => 0])
+@test issetequal(nodevalues, [:α => 1.5, :β => 1.9, :γ => 0.8,  :δ => 2.3, :N => 5, :P => 0])
 
 node = PlantModules.nodes(graph2)[1]
 structmodule = :Cave
