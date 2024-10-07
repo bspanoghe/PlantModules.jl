@@ -1,4 +1,4 @@
-using BenchmarkTools, Infiltrator
+using BenchmarkTools, Infiltrator, Revise
 using Pkg; Pkg.activate("./tutorials")
 using PlantModules
 using PlantGraphs
@@ -35,7 +35,7 @@ rule = Rule(Stem,
 axiom = Stem([0.5, 5.0]) + (Leaf([3.0, 1.0, 0.1]), Leaf([5.0, 3.0, 0.1]))
 
 plant = Graph(axiom = axiom, rules = (rule,))
-num_iterations = 4
+num_iterations = 5
 for _ in 1:num_iterations
     rewrite!(plant)
 end
@@ -53,17 +53,20 @@ graphs = [plant, soil_graph, air_graph]
 intergraph_connections = [(1, 2) => (PlantModules.root(plant), :Soil), (1, 3) => (:Leaf, :Air), (2, 3) => (:Soil, :Air)]
 struct_connections = PlantStructure(graphs, intergraph_connections)
 
+psi_soil_f = W_r -> -(1/(100*W_r) + 1) * exp((39.8 - 100*W_r) / 19)
+psi0 = psi_soil_f(PlantModules.default_values[:W_r])
+
 
 # Functional processes
 
 module_defaults = Dict(
 	:Stem => Dict(
         :shape => Cilinder(ϵ_D = [2.0, 4.5], ϕ_D = 1e-3 .* [8, 3]), :D => [1.5, 10], :M => 400e-6, :K_s => 10,
-        :P => -0.3 + 8.314*298.15*400e-6
+        :P => psi0 + 8.314*298.15*400e-6
         ),
 	:Leaf => Dict(
         :shape => Cuboid(ϵ_D = [1.5, 1.5, 10.0], ϕ_D = 1e-3 .* [3, 3, 0.1]), :M => 450e-6, :K_s => 1e-5,
-        :P => -0.3 + 8.314*298.15*450e-6
+        :P => psi0 + 8.314*298.15*450e-6
         ),
 	:Soil => Dict(:W_max => 10000.0, :T => 288.15, :K => 10),
 	:Air => Dict(:W_r => 0.8, :K => 0.1)
@@ -95,14 +98,26 @@ sys_simpl = structural_simplify(system);
 prob = ODEProblem(sys_simpl, ModelingToolkit.missing_variable_defaults(sys_simpl), (0.0, 5*24))
 @time sol = solve(prob);
 
+#=
+SOLTIMES
+
+3: 0.1s
+4: 1.8s
+5 (189): 9.5s
+6 (381): 39s
+=#
+
+histogram(sol.t)
+
 # Plotting
 
-plotgraph(sol, graphs[1], func_varname = :W)
-plotgraph(sol, graphs[1], func_varname = :W, ylims = (0, 1))
-plotgraph(sol, graphs[2], func_varname = :W)
+plotgraph(sol, graphs[1], varname = :ΔW, structmod = :Leaf, xlims = (0, 3))
 
-plotgraph(sol, graphs[1], func_varname = :Ψ, struct_module = :Stem)
-plotgraph(sol, graphs[1], func_varname = :P, struct_module = :Stem)
-plotgraph(sol, graphs[1], func_varname = :Π, struct_module = :Stem)
+plotgraph(sol, graphs[1], varname = :W)
+plotgraph(sol, graphs[2], varname = :W)
 
-plotgraph(sol, graphs[2], func_varname = :Ψ)
+plotgraph(sol, graphs[1], varname = :Ψ)
+plotgraph(sol, graphs[1], varname = :P, structmod = :Stem)
+plotgraph(sol, graphs[1], varname = :Π, structmod = :Stem)
+
+plotgraph(sol, graphs[2], varname = :Ψ)
