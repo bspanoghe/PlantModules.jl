@@ -9,12 +9,13 @@ sigm_func(x; A = 1, s = 1, d = 0) = A / (1 + exp(-s*(x - d)))
 Returns a ModelingToolkit ODESystem describing the turgor-driven growth of a plant compartment.
 WARNING: this module still requires an equation to be given for the osmotically active metabolite content M.
 """
-function hydraulic_module(; name, T, shape::Shape, Γ, P, D)
+function hydraulic_module(; name, T, shape::Shape, Γ, Ψ, D, M)
     num_D = length(shape.ϵ_D)
+    R = 8.314
+    P = Ψ + M*R*T
     @constants (
-        P_0 = 0.0, [description = "Minimum pressure", unit = u"MPa"],
-        R = 8.314, [description = "Ideal gas constant", unit = u"MPa * cm^3 / K / mol"], # Pa = J/m^3 => J = Pa * m^3 = MPa * cm^3
-        MPa_unit = 1.0, [description = "Dummy constant for correcting units", unit = u"MPa"], #!
+        R = R, [description = "Ideal gas constant", unit = u"MPa * cm^3 / K / mol"], # Pa = J/m^3 => J = Pa * m^3 = MPa * cm^3
+        MPa_unit = 1.0, [description = "Dummy constant for correcting units", unit = u"MPa"],
     )
     @parameters (
         T = T, [description = "Temperature", unit = u"K"],
@@ -29,7 +30,7 @@ function hydraulic_module(; name, T, shape::Shape, Γ, P, D)
         P(t) = P, [description = "Hydrostatic potential", unit = u"MPa"],
         M(t), [description = "Osmotically active metabolite content", unit = u"mol / cm^3"], # m^3 so units match in second equation () #! extend validation function so L is ok?
         W(t) = PlantModules.volume(shape, D) * ρ_w, [description = "Water content", unit = u"g"],
-        D(t)[1:num_D] = D, [description = "Dimensions of compartment", unit = u"cm"],
+        D(t)[1:num_D] = D, [description = "Dimensions of compartment", unit = u"cm", irreducible = true],
         V(t), [description = "Volume of compartment", unit = u"cm^3"],
         ΣF(t), [description = "Net incoming water flux", unit = u"g / hr"],
         
@@ -39,13 +40,12 @@ function hydraulic_module(; name, T, shape::Shape, Γ, P, D)
     )
 
     eqs = [
-        Ψ ~ P - Π, # Water potential consists of a solute- and a pressure component
-        Π ~ R*T*M, # Solute component is determined by concentration of dissolved metabolites
+        Ψ ~ P + Π, # Water potential consists of a solute- and a pressure component
+        Π ~ -R*T*M, # Solute component is determined by concentration of dissolved metabolites
         ΔW ~ ΣF, # Water content changes due to flux (depending on water potentials as defined in connections)
         V ~ W / ρ_w, # Volume is directly related to water content  
         V ~ volume(shape, D), # Volume is also directly related to compartment dimensions
         [ΔD[i] ~ D[i] * (ΔP/ϵ_D[i] + ϕ_D[i] * sigm_func((P - Γ)/MPa_unit, A = P - Γ, s = 10)) for i in eachindex(D)]..., # Compartment dimensions can only change due to a change in pressure
-        # [ΔD[i] ~ D[i] * (ΔP/ϵ_D[i] + ϕ_D[i] * max(P - Γ, P_0)) for i in eachindex(D)]..., # Compartment dimensions can only change due to a change in pressure
 
         d(P) ~ ΔP,
         d(W) ~ ΔW,
@@ -65,7 +65,7 @@ function environmental_module(; name, T, W_max, W_r)
     @parameters (
         T = T, [description = "Temperature", unit = u"K"],
         W_max = W_max, [description = "Water capacity of compartment", unit = u"g"],
-        )
+    )
     @variables (
         Ψ(t), [description = "Total water potential", unit = u"MPa"],
         W(t) = W_r * W_max, [description = "Water content", unit = u"g"],
@@ -165,14 +165,14 @@ end
 #! documentation
 function constant_K_module(; name, K)
     @parameters (
-        K_val = K, [description = "Value for the hydraulic conductivity of compartment", unit = u"g / hr / MPa"],
+        K_value = K, [description = "Value for the hydraulic conductivity of compartment", unit = u"g / hr / MPa"],
     )
     @variables (
         K(t), [description = "Hydraulic conductivity of compartment", unit = u"g / hr / MPa"],
     )
 
     eqs = [
-		K ~ K_val
+		K ~ K_value
     ]
 
     return ODESystem(eqs, t; name)
@@ -248,7 +248,9 @@ multi_connection_eqs(node_MTK, connection_MTKs) = [
 
 # Default values #
 
+soilfunc(W_r) = -(1/(100*W_r) + 1) * exp((39.8 - 100*W_r) / 19)
+
 default_values = Dict(
-    :T => 298.15, :shape => Cilinder(ϵ_D = [10, 100], ϕ_D = [1e-3, 1e-5]), :Γ => 0.3, :P => 0.8, :D => [5.0, 0.5],
-    :M => 300e-6, :W_max => 1e6, :W_r => 0.8, :K_s => 1000, :K => 100
+    :T => 298.15, :shape => Cilinder(ϵ_D = [10, 100], ϕ_D = [1e-3, 1e-5]), :Γ => 0.3, :Ψ => soilfunc(0.8), :D => [5.0, 0.5],
+    :M => 300e-6, :W_max => 1e6, :W_r => 0.8, :K_s => 100, :K => 10
 )
