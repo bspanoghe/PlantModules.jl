@@ -25,6 +25,35 @@ end
 get_graphnodes(graph) = PlantModules.nodes(graph)
 get_graphnodes(graph::Vector) = reduce(vcat, get_graphnodes.(graph))
 
+# get variable values from solution
+function get_values(sol, nodesystem, varname)
+    if (varname in [:M, :Π, :Ψ]) & (:M_value in Symbol.(nodesystem.ps))
+        # if the system has the "M_value" parameter, variable M is constant
+        # this means the system was not solved for M and indexing for it or variables depending on it is slow
+        # circumvent this by calculating it here instead
+        system_param_dict = nodesystem.defaults |> x -> [Symbol(key) => val for (key, val) in x] |> Dict
+        M_value = system_param_dict[:M_value]
+        if varname == :M
+            return fill(M_value, length(sol.t))
+        else
+            R = 8.314
+            Π = - R * system_param_dict[:T] * M_value
+            if varname == :Π
+                return fill(Π, length(sol.t))
+            elseif varname == :Ψ
+                P = sol[getproperty(nodesystem, :P)]
+                return P .+ Π
+            end
+        end
+    elseif (varname == :K) & (:K_value in Symbol.(nodesystem.ps))
+        system_param_dict = nodesystem.defaults |> x -> [Symbol(key) => val for (key, val) in x] |> Dict
+        K_value = system_param_dict[:K_value]
+        return fill(K_value, length(sol.t))
+    else
+        return sol[getproperty(nodesystem, varname)]
+    end
+end
+
 """
     plotnode(sol::ODESolution, node; varname::Symbol)
 
@@ -41,7 +70,7 @@ function plotnode(sol::ODESolution, node; varname::Symbol = Symbol(""), kwargs..
         varnames = [varname]
     end
 
-    var_values_vec = [sol[getproperty(nodesystem, varname)] for varname in varnames]
+    var_values_vec = [get_values(sol, nodesystem, varname) for varname in varnames]
     plots = Vector{Plots.Plot}(undef, length(varnames))
 
     for (i, (var_values, varname)) in enumerate(zip(var_values_vec, varnames))
@@ -92,7 +121,8 @@ function plotgraph(sol::ODESolution, graph; structmod::Symbol = Symbol(""), varn
             var_data = get!(plot_data[varname], structmod, Float64[])
 
             for nodesystem in nodesystems
-                var_values = sol[getproperty(nodesystem, varname)]
+                
+                var_values = get_values(sol, nodesystem, varname)
 
                 if var_values[1] isa Vector # multidimensional variable (e.g. vector of dimensions D)
                     for var_dimension in eachrow(reduce(hcat, var_values))
