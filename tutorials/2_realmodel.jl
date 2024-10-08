@@ -16,7 +16,7 @@ using Plots; import GLMakie.draw
 # For this model, we'll assume we have a **file** containing the plant's structure, which we may have gotten from some other plant modeling program.
 # Currently, the package only has a function for reading XEG files. However, any file format can be used provided the user is able to convert it to a graph.
 
-plant_graph = readXEG("./tutorials/temp/structures/beech3.xeg") #! change to beech
+plant_graph = readXEG("./tutorials/temp/structures/beech10.xeg") #! change to beech
 
 # The graph still requires some processing to make it suitable for modeling with PlantModules.
 # Luckily, the [MultiScaleTreeGraph.jl](https://github.com/VEZY/MultiScaleTreeGraph.jl) package has some excellent functionality for processing graphs.
@@ -44,7 +44,7 @@ traverse!(mtg, node -> symbol!(node, "Shoot"), symbol = "ShortShoot")
 # Delete nodes without any dimensions defined. These are for graph visualisation purposes but are not actual physical structures.
 mtg = delete_nodes!(mtg, filter_fun = node -> isnothing(node.D))
 
-if length(mtg) > 100
+if length(mtg) > 100 #!
 	toomuch = [node for node in PlantModules.nodes(mtg[1][1][1])]
 	mtg = delete_nodes!(mtg, filter_fun = node -> node in toomuch)
 end
@@ -54,7 +54,7 @@ convert_to_PG(mtg) |> draw
 
 
 # ### Environment
-# This part is exactly the same as previous tutorial.
+# This part is the same as previous tutorial.
 
 struct Soil <: PlantGraphs.Node end
 struct Air <: PlantGraphs.Node end
@@ -140,10 +140,10 @@ end
 # The way we defined the leaf shape, its hydraulic conductance will be proportional to its surface area.
 # This is why this hydraulic conductance should only be used for a connection with the air, and connections with plant parts need to use a constant hydraulic connection.
 module_defaults = Dict(
-	:Internode => Dict(:shape => Cilinder(ϵ_D = [5.0, 50.0], ϕ_D = [1e-3, 1e-5]), :M => 300e-6, :P => 8.314*298.15*300e-6),
-	:Shoot => Dict(:shape => Cilinder(ϵ_D = [5.0, 50.0], ϕ_D = [3e-3, 3e-5]), :M => 350e-6, :P => 8.314*298.15*350e-6),
-	:Leaf => Dict(:shape => Cuboid(ϵ_D = [7.0, 3.0, 1000.0], ϕ_D = [3e-3, 3e-3, 1e-5]), :M => 400e-6, :K_s => 5e-4, :P => 8.314*298.15*400e-6),
-	:Soil => Dict(:W_max => 1e9, :T => 293.15, :W_r => 0.9), #! W_max
+	:Internode => Dict(:shape => Cilinder(ϵ_D = [2.0, 8.0], ϕ_D = 1e-3 * [2, 2]), :M => 300e-6),
+	:Shoot => Dict(:shape => Cilinder(ϵ_D = [2.0, 8.0], ϕ_D = 1e-3 * [3, 3]), :M => 350e-6),
+	:Leaf => Dict(:shape => Cuboid(ϵ_D = [1.5, 1.5, 10.0], ϕ_D = 1e-3 * [3, 3, 0.1]), :M => 400e-6, :K_s => 5e-4),
+	:Soil => Dict(:W_max => 1e9, :T => 293.15), #! W_max
 	:Air => Dict(:K => 1e-1)
 )
 
@@ -177,19 +177,11 @@ sys_simpl = structural_simplify(system)
 prob = ODEProblem(sys_simpl, ModelingToolkit.missing_variable_defaults(sys_simpl), (0.0, 5*24))
 @time sol = solve(prob);
 
-histogram(sol.t, bins = 0:0.001:0.01)
-plotgraph(sol, graphs[1], varname = :ΔP, structmod = :Shoot, xlims = (0, 0.001))
-plotgraph(sol, graphs[1], varname = :P, structmod = :Shoot, xlims = (0, 0.001))
-plotgraph(sol, graphs[1], varname = :ΔW, structmod = :Shoot, xlims = (0, 0.001))
-
-plotgraph(sol, graphs[1], varname = :Ψ, xlims = (0, 0.001))
-
-
 # ## Plotting
 
 plotgraph(sol, graphs[1], varname = :W, structmod = :Leaf)
 plotgraph(sol, graphs[1], varname = :M, structmod = :Leaf)
-plotgraph(sol, graphs[1], varname = :W)
+plotgraph(sol, graphs[1], varname = :W, ylims = (0, 0.1))
 plotgraph(sol, graphs[2], varname = :W)
 
 plotgraph(sol, graphs[1:2], varname = :Ψ)
