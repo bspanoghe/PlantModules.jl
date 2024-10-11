@@ -251,6 +251,6 @@ multi_connection_eqs(node_MTK, connection_MTKs) = [
 soilfunc(W_r) = -(1/(100*W_r) + 1) * exp((39.8 - 100*W_r) / 19)
 
 default_values = Dict(
-    :T => 298.15, :shape => Cilinder(ϵ_D = [10, 100], ϕ_D = [1e-3, 1e-5]), :Γ => 0.3, :Ψ => soilfunc(0.8), :D => [5.0, 0.5],
-    :M => 300e-6, :W_max => 1e6, :W_r => 0.8, :K_s => 100, :K => 10
+    :T => 298.15, :shape => Cilinder(ϵ_D = [10, 100], ϕ_D = [0.01, 1e-4]), :Γ => 0.3, :Ψ => soilfunc(0.8), :D => [5.0, 0.5],
+    :M => 300e-6, :W_max => 1e6, :W_r => 0.8, :K_s => 1000, :K => 1000
 )

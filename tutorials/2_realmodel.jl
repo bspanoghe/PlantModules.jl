@@ -16,7 +16,7 @@ using Plots; import GLMakie.draw
 # For this model, we'll assume we have a **file** containing the plant's structure, which we may have gotten from some other plant modeling program.
 # Currently, the package only has a function for reading XEG files. However, any file format can be used provided the user is able to convert it to a graph.
 
-plant_graph = readXEG("./tutorials/temp/structures/beech10.xeg") #! change to beech
+plant_graph = readXEG("./tutorials/temp/structures/beech3.xeg") #! change to beech
 
 # The graph still requires some processing to make it suitable for modeling with PlantModules.
 # Luckily, the [MultiScaleTreeGraph.jl](https://github.com/VEZY/MultiScaleTreeGraph.jl) package has some excellent functionality for processing graphs.
@@ -54,7 +54,7 @@ convert_to_PG(mtg) |> draw
 
 
 # ### Environment
-# This part is the same as previous tutorial.
+# This part is the same as in previous tutorial.
 
 struct Soil <: PlantGraphs.Node end
 struct Air <: PlantGraphs.Node end
@@ -79,6 +79,7 @@ struct_connections = PlantStructure(graphs, intergraph_connections)
 # We'll just use a sine function bound to the positive values to simulate a simple day-night cycle:
 
 get_PAR_flux(t) = max(0, 400 * sin(t/24*2*pi - 8))
+plot(get_PAR_flux, xlims = (0, 24))
 
 # We also need the actual photosynthesis model.
 # We could define this ourselves using differential equations, or simply use the existing implementation from [PlantBiophysics.jl](https://github.com/VEZY/PlantBiophysics.jl).
@@ -116,13 +117,13 @@ function photosynthesis_module(; name, T, M, shape)
 	)
 	@parameters (
 		T = T, [description = "Temperature", unit = u"K"],
-		LAI = 2.0, [description = "Leaf Area Index", unit = u"cm^2 / cm^2"],
+		LAI = 1.0, [description = "Leaf Area Index", unit = u"cm^2 / cm^2"],
 		k = 0.5, [description = "Light extinction coefficient", unit = u"N/N"],
-		carbon_decay_rate = 0.3, [description = "Rate at which carbon is consumed for growth", unit = u"hr^-1"],
+		carbon_decay_rate = 0.2, [description = "Rate at which carbon is consumed for growth", unit = u"hr^-1"],
 	)
 	@variables (
-        M(t) = M, [description = "Osmotically active metabolite content", unit = u"mol / cm^3"], # m^3 so units match in second equation (Pa = J/m^3) #! extend validation function so L is ok?
-		PF(t), [description = "Incoming PAR flux", unit = u"J / s / m^2"], #! make sure not to use variable name from other func mod used in same struct mod
+        M(t) = M, [description = "Osmotically active metabolite content", unit = u"mol / cm^3"], # m^3 so units match in second equation (Pa = J/m^3)
+		PF(t), [description = "Incoming PAR flux", unit = u"J / s / m^2"],
 		A(t), [description = "Carbon assimilation rate", unit = u"µmol / m^2 / s"],
 		D(t)[1:length(shape.ϵ_D)], [description = "Dimensions of compartment", unit = u"cm"],
     )
@@ -139,16 +140,17 @@ end
 # For this connection, the hydraulic conductance is related to the cross-area of the plant part.
 # The way we defined the leaf shape, its hydraulic conductance will be proportional to its surface area.
 # This is why this hydraulic conductance should only be used for a connection with the air, and connections with plant parts need to use a constant hydraulic connection.
+
 module_defaults = Dict(
-	:Internode => Dict(:shape => Cilinder(ϵ_D = [2.0, 8.0], ϕ_D = 1e-3 * [2, 2]), :M => 300e-6),
-	:Shoot => Dict(:shape => Cilinder(ϵ_D = [2.0, 8.0], ϕ_D = 1e-3 * [3, 3]), :M => 350e-6),
-	:Leaf => Dict(:shape => Cuboid(ϵ_D = [1.5, 1.5, 10.0], ϕ_D = 1e-3 * [3, 3, 0.1]), :M => 400e-6, :K_s => 5e-4),
-	:Soil => Dict(:W_max => 1e9, :T => 293.15), #! W_max
+	:Internode => Dict(:shape => Cilinder(ϵ_D = [2.0, 8.0], ϕ_D = [0.02, 0.001]), :M => 300e-6),
+	:Shoot => Dict(:shape => Cilinder(ϵ_D = [2.0, 8.0], ϕ_D = [0.02, 0.001]), :M => 350e-6),
+	:Leaf => Dict(:shape => Cuboid(ϵ_D = [1.5, 1.5, 10.0], ϕ_D = [0.03, 0.03, 5e-4]), :M => 200e-6, :K_s => 5e-5),
+	:Soil => Dict(:W_max => 1e4, :T => 293.15), #! W_max
 	:Air => Dict(:K => 1e-1)
 )
 
 connecting_modules = [
-	(:Soil, :Internode) => (const_hydraulic_connection, Dict()),
+	(:Soil, :Internode) => (const_hydraulic_connection, Dict(:K => 10_000)),
     (:Internode, :Internode) => (hydraulic_connection, Dict()),
 	(:Internode, :Shoot) => (hydraulic_connection, Dict()),
 	(:Shoot, :Shoot) => (hydraulic_connection, Dict()),
@@ -157,14 +159,14 @@ connecting_modules = [
     (:Leaf, :Air) => (hydraulic_connection, Dict())
 ]
 
-func_connections = PlantFunctionality(module_defaults = module_defaults, connecting_modules = connecting_modules)
+func_connections = PlantFunctionality(; module_defaults, connecting_modules)
 
 # ## Coupling
 
 module_coupling = Dict(
 	:Internode => [hydraulic_module, constant_carbon_module, sizedep_K_module],
 	:Shoot => [hydraulic_module, constant_carbon_module, sizedep_K_module],
-	:Leaf => [hydraulic_module, constant_carbon_module, sizedep_K_module],
+	:Leaf => [hydraulic_module, photosynthesis_module, sizedep_K_module],
 	:Soil => [environmental_module, Ψ_soil_module],
 	:Air => [environmental_module, Ψ_air_module, constant_K_module],
 )
@@ -179,9 +181,9 @@ prob = ODEProblem(sys_simpl, ModelingToolkit.missing_variable_defaults(sys_simpl
 
 # ## Plotting
 
-plotgraph(sol, graphs[1], varname = :W, structmod = :Leaf)
-plotgraph(sol, graphs[1], varname = :M, structmod = :Leaf)
-plotgraph(sol, graphs[1], varname = :W, ylims = (0, 0.1))
+plotgraph(sol, graphs[1], varname = :W)
 plotgraph(sol, graphs[2], varname = :W)
+
+plotgraph(sol, graphs[1], varname = :M)
 
 plotgraph(sol, graphs[1:2], varname = :Ψ)

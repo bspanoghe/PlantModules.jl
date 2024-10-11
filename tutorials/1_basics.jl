@@ -61,15 +61,15 @@ struct_connections = PlantStructure(graphs, intergraph_connections)
 # We can therefor change them as shown below.
 
 # For __every node__:
-model_wide_changes = Dict(:Γ => 0.4, :P => 0.2, :T => 293.15) 
+default_changes = Dict(:Γ => 0.4, :P => 0.2, :T => 293.15) 
 
 # For every node of a given __structural module__:
 module_defaults = Dict(
 	:Root => Dict(:M => 300e-6),
 	:Stem => Dict(:D => [1.5, 10], :M => 400e-6),
-	:Leaf => Dict(:shape => Cuboid(ϵ_D = [5.0, 10.0, 50.0], ϕ_D = [5e-3, 1e-3, 5e-5]), :M => 450e-6),
+	:Leaf => Dict(:shape => Cuboid(ϵ_D = [5.0, 10.0, 50.0], ϕ_D = [0.05, 0.01, 5e-4]), :M => 450e-6),
 	:Soil => Dict(:W_max => 500.0, :T => 288.15, :W_r => 1.0),
-) 
+)
 
 # Changing the values for specific nodes is also possible, as discussed during the section on graph creation. 
 
@@ -91,9 +91,7 @@ connecting_modules = [
 
 # All functional information also gets bundled, though the constructor is more complex.
 # Check out its help page to see all the possible arguments and their defaults. 
-func_connections = PlantFunctionality(module_defaults = module_defaults,
-	connecting_modules = connecting_modules, default_changes = model_wide_changes
-)
+func_connections = PlantFunctionality(; module_defaults, connecting_modules, default_changes)
 
 # ## Coupling
 # As the final piece of required information, our model needs to know which structural modules make use of which functional modules:
