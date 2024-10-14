@@ -3,8 +3,7 @@ using Pkg; Pkg.activate("./tutorials")
 using PlantModules
 using PlantGraphs
 using ModelingToolkit, OrdinaryDiffEq, Unitful
-using Plots; import GLMakie.draw
-
+using Plots
 
 # Structure
 
@@ -36,7 +35,7 @@ rule = Rule(
 axiom = Stem([0.5, 5.0]) + (Leaf([3.0, 1.0, 0.1]), Leaf([5.0, 3.0, 0.1]))
 
 plant = Graph(axiom = axiom, rules = (rule,))
-num_iterations = 5
+num_iterations = 2
 for _ in 1:num_iterations
     rewrite!(plant)
 end
