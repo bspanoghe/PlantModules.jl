@@ -7,10 +7,11 @@ export hydraulic_module, constant_carbon_module, environmental_module, Ψ_soil_m
 export readXEG, convert_to_MTG, convert_to_PG
 export plotgraph, plotnode
 
-using ModelingToolkit, DifferentialEquations, Unitful # Simulation packages
+using SciMLBase # Interface with ODE solver packages
+using ModelingToolkit, Unitful # Simulation
 import ModelingToolkit: get_eqs, get_unknowns, get_ps, get_parameter_dependencies, get_observed, get_continuous_events, get_discrete_events, get_defaults, get_systems, get_name, get_iv, get_gui_metadata
 using PlantGraphs, MultiScaleTreeGraph # Graph packages
-using Plots # Visualisation packages
+# using RecipesBase # Visualisation packages
 
 include("graph_nodetypes.jl")
 include("graph_functions.jl")
