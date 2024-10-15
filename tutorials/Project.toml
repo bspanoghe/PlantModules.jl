@@ -1,5 +1,4 @@
 [deps]
-GLMakie = "e9467ef8-e4e7-5192-8a1a-b1aee30e663a"
 Memoization = "6fafb56a-5788-4b4e-91ca-c0cea6611c73"
 ModelingToolkit = "961ee093-0014-501f-94e3-6117800e7a78"
 MultiScaleTreeGraph = "dd4a991b-8a45-4075-bede-262ee62d5583"

@@ -173,15 +173,15 @@ prob = ODEProblem(sys_simpl, [], (0, 48))
 sol = solve(prob)
 
 # plot functions #
-@test PlantModules.plotnode(sol, PlantModules.nodes(graphs[2])[1]) isa Vector
-@test PlantModules.plotnode(sol, PlantModules.nodes(graphs[1])[1], varname = :N) isa Plots.Plot{T} where {T}
+@test PlantModules.plotnode(sol, PlantModules.nodes(graphs[2])[1]) isa Vector{AbstractPlot}
+@test PlantModules.plotnode(sol, PlantModules.nodes(graphs[1])[1], varname = :N) isa AbstractPlot
 
-@test PlantModules.plotgraph(sol, graphs[1]) isa Vector
-@test PlantModules.plotgraph(sol, graphs[1], structmod = :Forest) isa Vector
-@test PlantModules.plotgraph(sol, graphs[1], varname = :ΣF_P) isa Plots.Plot{T} where {T}
-@test PlantModules.plotgraph(sol, graphs[1], structmod = :Grassland, varname = :P) isa Plots.Plot{T} where {T}
+@test PlantModules.plotgraph(sol, graphs[1]) isa Vector{AbstractPlot}
+@test PlantModules.plotgraph(sol, graphs[1], structmod = :Forest) isa Vector{AbstractPlot}
+@test PlantModules.plotgraph(sol, graphs[1], varname = :ΣF_P) isa AbstractPlot
+@test PlantModules.plotgraph(sol, graphs[1], structmod = :Grassland, varname = :P) isa AbstractPlot
 
-@test PlantModules.plotgraph(sol, graphs) isa Vector
-@test PlantModules.plotgraph(sol, graphs, structmod = :Forest) isa Vector
-@test PlantModules.plotgraph(sol, graphs, varname = :ΣF_P) isa Plots.Plot{T} where {T}
-@test PlantModules.plotgraph(sol, graphs, structmod = :Grassland, varname = :P) isa Plots.Plot{T} where {T}
+@test PlantModules.plotgraph(sol, graphs) isa Vector{AbstractPlot}
+@test PlantModules.plotgraph(sol, graphs, structmod = :Forest) isa Vector{AbstractPlot}
+@test PlantModules.plotgraph(sol, graphs, varname = :ΣF_P) isa AbstractPlot
+@test PlantModules.plotgraph(sol, graphs, structmod = :Grassland, varname = :P) isa AbstractPlot

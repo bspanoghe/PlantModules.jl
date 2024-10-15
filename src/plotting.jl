@@ -1,5 +1,3 @@
-#! Maybe add RecipesBase.jl (get rid of Plots dependency)?
-
 # Plot MTK solutions #
 
 ## Get the symbol representation of a MTK unknown (variable)
@@ -56,6 +54,16 @@ function getvarlocs(structmods, varnames, varlist)
     return varlocs
 end
 
+# use RecipesBase.jl to avoid Plots.jl dependency
+@userplot PlantPlot
+@recipe function f(pp::PlantPlot)
+    xs = pp.args[1]
+    ys = pp.args[2]
+    @series begin
+        (xs, ys)
+    end
+end
+
 """
     plotnode(sol::ODESolution, node; varname::Symbol)
 
@@ -74,7 +82,7 @@ function plotnode(sol::ODESolution, node; varname::Symbol = Symbol(""), kwargs..
     varlocs = getvarlocs([structmod], varnames, varlist)
     varvalues = sol[reduce(vcat, varlist)] |> x -> reduce(hcat, x) |> x -> [x fill(NaN, size(x, 1))]
 
-    plots = Vector{Plots.Plot}(undef, length(varnames[structmod]))
+    plots = Vector{AbstractPlot}(undef, length(varnames[structmod]))
 
     for (i, _varname) in enumerate(varnames[structmod])
         curr_varlocs = [varlocs[structmod][_varname]] # vector per structmod with indexes of var values
@@ -82,7 +90,7 @@ function plotnode(sol::ODESolution, node; varname::Symbol = Symbol(""), kwargs..
         ys = varvalues[vcat(curr_varlocs...), :]' |> x -> vcat(x...)
         xs = repeat(indep_values, length(ys) ÷ length(indep_values))
     
-        plots[i] = plot(xs, ys, title = "$_varname"; kwargs...)
+        plots[i] = plantplot(xs, ys, title = "$_varname"; kwargs...)
     end
   
     return length(plots) == 1 ? only(plots) : plots
@@ -119,7 +127,7 @@ function plotgraph(sol::ODESolution, graph; structmod::Symbol = Symbol(""), varn
     varlocs = getvarlocs(structmods, varnames, varlist)
     varvalues = sol[reduce(vcat, varlist)] |> x -> reduce(hcat, x) |> x -> [x fill(NaN, size(x, 1))]
     
-    plots = Plots.Plot[]
+    plots = AbstractPlot[]
     
     for _varname in unique(vcat(values(varnames)...))
         curr_varlocs = [varlocs[_structmod][_varname] for _structmod in keys(varlocs)] # vector per structmod with indexes of var values
@@ -128,7 +136,7 @@ function plotgraph(sol::ODESolution, graph; structmod::Symbol = Symbol(""), varn
         xs = repeat(indep_values, length(ys) ÷ length(indep_values))
         groups = [fill(_structmod, length(indep_values)*group_size) for (_structmod, group_size) in zip(keys(varlocs), length.(curr_varlocs))] |> x -> vcat(x...)
     
-        push!(plots, plot(xs, ys, group = groups, title = "$_varname"; kwargs...))
+        push!(plots, plantplot(xs, ys, group = groups, title = "$_varname"; kwargs...))
     end
 
     return length(plots) == 1 ? only(plots) : plots
