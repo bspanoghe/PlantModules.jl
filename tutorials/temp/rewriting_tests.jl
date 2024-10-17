@@ -35,7 +35,7 @@ rule = Rule(
 axiom = Stem([0.5, 5.0]) + (Leaf([3.0, 1.0, 0.1]), Leaf([5.0, 3.0, 0.1]))
 
 plant = Graph(axiom = axiom, rules = (rule,))
-num_iterations = 2
+num_iterations = 3
 for _ in 1:num_iterations
     rewrite!(plant)
 end
@@ -50,31 +50,32 @@ air_graph = Air()
 ## Combined
 
 graphs = [plant, soil_graph, air_graph]
-intergraph_connections = [(1, 2) => (PlantModules.root(plant), :Soil), (1, 3) => (:Leaf, :Air), (2, 3) => (:Soil, :Air)]
+intergraph_connections = [(1, 2) => (PlantModules.root(plant), :Soil), (1, 3) => (:Leaf, :Air)]
 struct_connections = PlantStructure(graphs, intergraph_connections)
 
 # Functional processes
 
+ϵ = 300_000
+ϕ = 3e-3
 module_defaults = Dict(
-	:Stem => Dict(:shape => Cilinder(ϵ_D = [2.0, 4.5], ϕ_D = 1e-3 .* [8, 3]),
-        :D => [1.5, 10], :M => 400e-6, :K_s => 10),
-	:Leaf => Dict(:shape => Cuboid(ϵ_D = [1.5, 1.5, 10.0], ϕ_D = 1e-3 .* [3, 3, 0.1]),
-        :M => 450e-6, :K_s => 1e-5),
-	:Soil => Dict(:W_max => 10000.0, :T => 288.15, :K => 10),
-	:Air => Dict(:W_r => 0.8, :K => 0.1)
+	:Stem => Dict(:shape => Cilinder(ϵ_D = fill(ϵ, 2), ϕ_D = fill(ϕ, 2)),
+        :M => 400e-6),
+	:Leaf => Dict(:shape => Cuboid(ϵ_D = fill(ϵ, 3), ϕ_D = fill(ϕ, 3)),
+        :M => 450e-6, :K_s => 1e-4),
+	:Soil => Dict(:W_max => 1e5, :T => 288.15),
+	:Air => Dict(:W_r => 0.8)
 )
 
 connecting_modules = [
 	(:Soil, :Stem) => (hydraulic_connection, Dict()),
 	(:Stem, :Stem) => (hydraulic_connection, Dict()),
-	(:Stem, :Leaf) => (const_hydraulic_connection, Dict(:K => 10)),
+	(:Stem, :Leaf) => (const_hydraulic_connection, Dict()),
 	(:Leaf, :Air) => (hydraulic_connection, Dict()),
-	(:Soil, :Air) => (hydraulic_connection, Dict())
 ]
 
 func_connections = PlantFunctionality(module_defaults = module_defaults, connecting_modules = connecting_modules)
 
-# Coupling 
+# Coupling
 
 module_coupling = Dict(
     :Stem => [hydraulic_module, constant_carbon_module, sizedep_K_module],
@@ -88,7 +89,8 @@ module_coupling = Dict(
 system = generate_system(struct_connections, func_connections, module_coupling, checkunits = false);
 sys_simpl = structural_simplify(system);
 prob = ODEProblem(sys_simpl, ModelingToolkit.missing_variable_defaults(sys_simpl), (0.0, 5*24));
-@time sol = solve(prob);
+@btime sol = solve(prob);
+sol = solve(prob);
 
 #=
 SOLTIMES
@@ -98,6 +100,27 @@ SOLTIMES
 5 (189): 6s
 6 (381): 28s
 7 (765): 135s
+
+PARAM INFLUENCES (3 rewrites)
+Base (ϵ = 3, ϕ = 3e-3, K = 1000 (Leaf: 1e-4)): 104ms
+
+elastic modulus ϵ (for very low values => no growth; same results for medium small to large values)
+    - 0.0003: 51ms
+    - 0.003: 44ms
+    - 0.03: 49ms
+    - 0.3: 83ms
+    ------------
+    - 30: 102ms
+    - 300: 116ms
+    - 3000: 110ms
+    - 300_000: 155ms
+
+extensibility ϕ (drastically different simulation results)
+    - 3e-5: 104ms
+    - 3e-4: 95ms
+    -----------
+    - 3e-2: 166ms
+    - 3e-1: 196ms (soilwater halved)
 =#
 
 histogram(sol.t)
@@ -106,6 +129,10 @@ histogram(sol.t)
 
 plotgraph(sol, graphs[1], varname = :W)
 plotgraph(sol, graphs[2], varname = :W)
+
+plotnode(sol, PlantModules.root(graphs[1]), varname = :D)
+plotnode(sol, PlantModules.root(graphs[1]), varname = :D, ylims = (0, 1))
+plotnode(sol, PlantModules.nodes(graphs[1])[end], varname = :D)
 
 plotgraph(sol, graphs[1:2], varname = :Ψ)
 plotgraph(sol, graphs[1], varname = :D)
