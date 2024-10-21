@@ -199,7 +199,7 @@ function hydraulic_connection(; name)
     )
 
     eqs = [
-        F ~ min(K_1, K_2) * (Ψ_2 - Ψ_1) #! mean?
+        F ~ min(K_1, K_2) * (Ψ_2 - Ψ_1), #! mean?
     ]
 
     get_connection_eqset(node_MTK, nb_node_MTK, connection_MTK, reverse_order) = [ 
@@ -220,7 +220,7 @@ This module specifies a constant hydraulic conductivity between the compartments
 """
 function const_hydraulic_connection(; name, K)
     @parameters (
-        K = K, [description = "Hydraulic conductivity of compartment", unit = u"g / hr / MPa"],
+        K = K, [description = "Hydraulic conductivity of connection", unit = u"g / hr / MPa"],
     )
 
     @variables (
@@ -239,6 +239,53 @@ function const_hydraulic_connection(; name, K)
     ]
     return ODESystem(eqs, t; name), get_connection_eqset
 end
+
+function evaporation_connection(; name)
+    @parameters sunrise = 8 [unit = u"hr"] sunset = 20 [unit = u"hr"]
+
+    @variables (
+        F(t), [description = "Water flux from compartment 2 to compartment 1", unit = u"g / hr"],
+        K(t), [description = "Hydraulic conductivity of connection", unit = u"g / hr / MPa"],
+        K_1(t), [description = "Hydraulic conductivity of compartment 1", unit = u"g / hr / MPa"],
+        Ψ_1(t), [description = "Total water potential of compartment 1", unit = u"MPa"],
+        Ψ_2(t), [description = "Total water potential of compartment 2", unit = u"MPa"],
+    )
+
+    eqs = [
+        F ~ K * (Ψ_2 - Ψ_1),
+        K ~ K_time(K_1, t, sunrise, sunset)
+    ]
+
+    get_connection_eqset(node_MTK, nb_node_MTK, connection_MTK, reverse_order) = 
+    if !reverse_order 
+        [ 
+            connection_MTK.Ψ_1 ~ node_MTK.Ψ,
+            connection_MTK.Ψ_2 ~ nb_node_MTK.Ψ,
+            connection_MTK.K_1 ~ node_MTK.K,
+        ]
+    else
+        [ 
+            connection_MTK.Ψ_1 ~ node_MTK.Ψ,
+            connection_MTK.Ψ_2 ~ nb_node_MTK.Ψ,
+            connection_MTK.K_1 ~ nb_node_MTK.K,
+        ]
+    end
+
+    return ODESystem(eqs, t; name), get_connection_eqset
+end
+
+smooth_square(x, smoothing) = sin(x) / (sqrt(sin(x)^2 + smoothing^2))
+adj_smooth_square(x; smoothing = 0.1, ymin = 0, ymax = 1) = 1/2 * ((ymax+ymin) + (ymax-ymin) * smooth_square(x, smoothing))
+
+function K_time(K_max, t, sunrise, sunset)
+    # timedep = sunrise <= (t % 24) <= sunset
+    timedep = sin(t)^2
+    K = K_max * timedep
+    return K
+end
+
+@register_symbolic K_time(K_max, t, sunrise, sunset)
+@register_symbolic sin(t)
 
 ## Node behaviour in function of all their connections
 

@@ -55,14 +55,14 @@ struct_connections = PlantStructure(graphs, intergraph_connections)
 
 # Functional processes
 
-ϵ = 300_000
+ϵ = 3
 ϕ = 3e-3
 module_defaults = Dict(
 	:Stem => Dict(:shape => Cilinder(ϵ_D = fill(ϵ, 2), ϕ_D = fill(ϕ, 2)),
         :M => 400e-6),
 	:Leaf => Dict(:shape => Cuboid(ϵ_D = fill(ϵ, 3), ϕ_D = fill(ϕ, 3)),
         :M => 450e-6, :K_s => 1e-4),
-	:Soil => Dict(:W_max => 1e5, :T => 288.15),
+	:Soil => Dict(:W_max => 1e3, :T => 288.15),
 	:Air => Dict(:W_r => 0.8)
 )
 
@@ -70,10 +70,10 @@ connecting_modules = [
 	(:Soil, :Stem) => (hydraulic_connection, Dict()),
 	(:Stem, :Stem) => (hydraulic_connection, Dict()),
 	(:Stem, :Leaf) => (const_hydraulic_connection, Dict()),
-	(:Leaf, :Air) => (hydraulic_connection, Dict()),
+	(:Leaf, :Air) => (PlantModules.evaporation_connection, Dict()),
 ]
 
-func_connections = PlantFunctionality(module_defaults = module_defaults, connecting_modules = connecting_modules)
+func_connections = PlantFunctionality(; module_defaults, connecting_modules)
 
 # Coupling
 
@@ -81,7 +81,7 @@ module_coupling = Dict(
     :Stem => [hydraulic_module, constant_carbon_module, sizedep_K_module],
     :Leaf => [hydraulic_module, constant_carbon_module, sizedep_K_module],
     :Soil => [environmental_module, Ψ_soil_module, constant_K_module],
-    :Air => [environmental_module, Ψ_air_module, constant_K_module],
+    :Air => [environmental_module, Ψ_air_module],
 )
 
 # Rev her up
@@ -89,7 +89,7 @@ module_coupling = Dict(
 system = generate_system(struct_connections, func_connections, module_coupling, checkunits = false);
 sys_simpl = structural_simplify(system);
 prob = ODEProblem(sys_simpl, ModelingToolkit.missing_variable_defaults(sys_simpl), (0.0, 5*24));
-@btime sol = solve(prob);
+# @btime sol = solve(prob);
 sol = solve(prob);
 
 #=
@@ -102,7 +102,7 @@ SOLTIMES
 7 (765): 135s
 
 PARAM INFLUENCES (3 rewrites)
-Base (ϵ = 3, ϕ = 3e-3, K = 1000 (Leaf: 1e-4)): 104ms
+Base (ϵ = 3, ϕ = 3e-3, K = 1000 (Leaf: 1e-4), W_max soil: 1e5): 104ms
 
 elastic modulus ϵ (for very low values => no growth; same results for medium small to large values)
     - 0.0003: 51ms
@@ -126,6 +126,7 @@ extensibility ϕ (drastically different simulation results)
 histogram(sol.t)
 
 # Plotting
+plotgraph(sol, graphs[3], varname = :W)
 
 plotgraph(sol, graphs[1], varname = :W)
 plotgraph(sol, graphs[2], varname = :W)
@@ -136,5 +137,7 @@ plotnode(sol, PlantModules.nodes(graphs[1])[end], varname = :D)
 
 plotgraph(sol, graphs[1:2], varname = :Ψ)
 plotgraph(sol, graphs[1], varname = :D)
-plotgraph(sol, graphs[1], varname = :P)
+plotgraph(sol, graphs[1], varname = :P, structmod = :Stem)
 plotgraph(sol, graphs[1], varname = :Π)
+
+plotgraph(sol, graphs[3], varname = :ΣF)
