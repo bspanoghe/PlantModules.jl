@@ -7,7 +7,6 @@
 using Pkg; Pkg.activate("./tutorials")
 using PlantModules
 using PlantGraphs, ModelingToolkit, OrdinaryDiffEq, Plots
-import GLMakie.draw
 
 # ## Structure
 
@@ -26,7 +25,6 @@ end
 # Here, we'll give the leaves a size field `D` so we can start off one of them larger than the other.
 
 plant_graph = Root() + Stem() + (Leaf([5, 2, 0.01]), Leaf([4, 1.5, 0.01]))
-draw(plant_graph, resolution = (500, 400))
 
 # ### The environment
 

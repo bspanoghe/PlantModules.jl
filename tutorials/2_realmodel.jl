@@ -8,7 +8,7 @@ using Pkg; Pkg.activate("./tutorials")
 using PlantModules
 using PlantGraphs, MultiScaleTreeGraph
 using ModelingToolkit, OrdinaryDiffEq, Unitful
-using Plots; import GLMakie.draw
+using Plots
 
 # ## Structure
 
@@ -49,9 +49,6 @@ if length(mtg) > 100 #!
 	mtg = delete_nodes!(mtg, filter_fun = node -> node in toomuch)
 end
 DataFrame(mtg)
-
-convert_to_PG(mtg) |> draw
-
 
 # ### Environment
 # This part is the same as in previous tutorial.
@@ -142,9 +139,9 @@ end
 # This is why this hydraulic conductance should only be used for a connection with the air, and connections with plant parts need to use a constant hydraulic connection.
 
 module_defaults = Dict(
-	:Internode => Dict(:shape => Cilinder(ϵ_D = [2.0, 8.0], ϕ_D = [0.02, 0.001]), :M => 300e-6),
-	:Shoot => Dict(:shape => Cilinder(ϵ_D = [2.0, 8.0], ϕ_D = [0.02, 0.001]), :M => 350e-6),
-	:Leaf => Dict(:shape => Cuboid(ϵ_D = [1.5, 1.5, 10.0], ϕ_D = [0.03, 0.03, 5e-4]), :M => 200e-6, :K_s => 5e-5),
+	:Internode => Dict(:shape => Cilinder(ϵ_D = [0.1, 0.1], ϕ_D = [0.002, 0.0001]), :M => 300e-6),
+	:Shoot => Dict(:shape => Cilinder(ϵ_D = [0.1, 0.1], ϕ_D = [0.002, 0.0001]), :M => 350e-6),
+	:Leaf => Dict(:shape => Cuboid(ϵ_D = [0.1, 0.1, 0.1], ϕ_D = [0.002, 0.002, 5e-4]), :M => 200e-6, :K_s => 5e-5),
 	:Soil => Dict(:W_max => 1e4, :T => 293.15), #! W_max
 	:Air => Dict(:K => 1e-1)
 )
@@ -187,3 +184,5 @@ plotgraph(sol, graphs[2], varname = :W)
 plotgraph(sol, graphs[1], varname = :M)
 
 plotgraph(sol, graphs[1:2], varname = :Ψ)
+
+plotgraph(sol, graphs[1], varname = :ΔD)
