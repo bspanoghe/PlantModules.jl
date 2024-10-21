@@ -108,10 +108,13 @@ function plotgraph(sol::ODESolution, graph; structmod::Symbol = Symbol(""), varn
     append!(indep_values, NaN) # NaN used to cause linebreaks in plot
 
     graphnodes = get_graphnodes(graph)
-    
     structmods = PlantModules.structmod.(graphnodes)
+
     if structmod != Symbol("") # user specified e.g. `structmod = :Leaf` => filter out other nodes
         chosen_structmods = structmods .== structmod
+        if !any(chosen_structmods)
+            error("Structural module \"$(structmod)\" not found in graph")
+        end
         structmods = structmods[chosen_structmods]
         graphnodes = graphnodes[chosen_structmods]
     end
