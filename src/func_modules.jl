@@ -241,7 +241,8 @@ function const_hydraulic_connection(; name, K)
 end
 
 function evaporation_connection(; name)
-    @parameters sunrise = 8 [unit = u"hr"] sunset = 20 [unit = u"hr"]
+    @constants hr_unit = 1 [unit = u"hr"]
+    @parameters sunrise = 8 [unit = u"hr"] sunset = 20 [unit = u"hr"] 
 
     @variables (
         F(t), [description = "Water flux from compartment 2 to compartment 1", unit = u"g / hr"],
@@ -253,7 +254,7 @@ function evaporation_connection(; name)
 
     eqs = [
         F ~ K * (Ψ_2 - Ψ_1),
-        K ~ K_time(K_1, t, sunrise, sunset)
+        K ~ K_time(K_1, t/hr_unit, sunrise/hr_unit, sunset/hr_unit)
     ]
 
     get_connection_eqset(node_MTK, nb_node_MTK, connection_MTK, reverse_order) = 
@@ -278,14 +279,10 @@ smooth_square(x, smoothing) = sin(x) / (sqrt(sin(x)^2 + smoothing^2))
 adj_smooth_square(x; smoothing = 0.1, ymin = 0, ymax = 1) = 1/2 * ((ymax+ymin) + (ymax-ymin) * smooth_square(x, smoothing))
 
 function K_time(K_max, t, sunrise, sunset)
-    # timedep = sunrise <= (t % 24) <= sunset
-    timedep = sin(t)^2
+    timedep = adj_smooth_square(2*pi * (t - sunrise) / 24)
     K = K_max * timedep
     return K
 end
-
-@register_symbolic K_time(K_max, t, sunrise, sunset)
-@register_symbolic sin(t)
 
 ## Node behaviour in function of all their connections
 

@@ -5,6 +5,12 @@ using PlantGraphs
 using ModelingToolkit, OrdinaryDiffEq, Unitful
 using Plots
 
+smooth_square(x, smoothing) = sin(x) / (sqrt(sin(x)^2 + smoothing^2))
+adj_smooth_square(x; smoothing = 0.1, ymin = 0, ymax = 1) = 1/2 * ((ymax+ymin) + (ymax-ymin) * smooth_square(x, smoothing))
+
+ss2(x, smoothing, f) = f(x) / (sqrt(f(x)^2 + smoothing^2))
+[plot(x -> ss2(x, 0.1, (y -> sin(y) + offset))) for offset in 0:0.1:2] .|> display
+
 # Structure
 
 ## Plant
@@ -121,12 +127,15 @@ extensibility ϕ (drastically different simulation results)
     -----------
     - 3e-2: 166ms
     - 3e-1: 196ms (soilwater halved)
+
+evaporation change:
+- smooth: 110-120ms
+- abrupt: 150-170ms
 =#
 
 histogram(sol.t)
 
 # Plotting
-plotgraph(sol, graphs[3], varname = :W)
 
 plotgraph(sol, graphs[1], varname = :W)
 plotgraph(sol, graphs[2], varname = :W)
@@ -141,3 +150,5 @@ plotgraph(sol, graphs[1], varname = :P, structmod = :Stem)
 plotgraph(sol, graphs[1], varname = :Π)
 
 plotgraph(sol, graphs[3], varname = :ΣF)
+
+(x -> 1/2 * (adj_smooth_square(2*pi* (x-8) / 24)) + adj_smooth_square(2*pi* (x-12) / 24)) |> x -> plot(x, xlims = (0, 48))
