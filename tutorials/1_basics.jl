@@ -63,9 +63,9 @@ default_changes = Dict(:Γ => 0.4, :P => 0.2, :T => 293.15)
 
 # For every node of a given __structural module__:
 module_defaults = Dict(
-	:Root => Dict(:M => 300e-6),
-	:Stem => Dict(:D => [1.5, 10], :M => 400e-6),
-	:Leaf => Dict(:shape => Cuboid(ϵ_D = [5.0, 10.0, 50.0], ϕ_D = [0.05, 0.01, 5e-4]), :M => 450e-6),
+	:Root => Dict(:D => [0.2, 3], :M => 300e-6),
+	:Stem => Dict(:D => [0.1, 5], :M => 400e-6),
+	:Leaf => Dict(:shape => Cuboid(ϵ_D = [0.1, 0.1, 0.1], ϕ_D = [0.01, 0.01, 0.01]), :M => 450e-6, :K_s => 1e-4),
 	:Soil => Dict(:W_max => 500.0, :T => 288.15, :W_r => 1.0),
 )
 
@@ -80,11 +80,11 @@ module_defaults = Dict(
 # For this model, that comes down to describing how water flows from one plant part to another.
 # We can use one of PlantModules' predefined functional modules again and simply change the parameters as follows:
 connecting_modules = [
-	(:Soil, :Root) => (const_hydraulic_connection, Dict(:K => 10)),
-	(:Root, :Stem) => (const_hydraulic_connection, Dict(:K => 5)),
-	(:Stem, :Leaf) => (const_hydraulic_connection, Dict(:K => 5)),
-	(:Leaf, :Air) => (const_hydraulic_connection,  Dict(:K => 2e-2)),
-	(:Soil, :Air) => (const_hydraulic_connection,  Dict(:K => 5e-3))
+	(:Soil, :Root) => (hydraulic_connection, Dict()),
+	(:Root, :Stem) => (hydraulic_connection, Dict()),
+	(:Stem, :Leaf) => (const_hydraulic_connection, Dict()),
+	(:Leaf, :Air) => (evaporation_connection, Dict()),
+	(:Soil, :Air) => (const_hydraulic_connection, Dict(:K => 3e-2)),
 ]
 
 # All functional information also gets bundled, though the constructor is more complex.
@@ -94,11 +94,11 @@ func_connections = PlantFunctionality(; module_defaults, connecting_modules, def
 # ## Coupling
 # As the final piece of required information, our model needs to know which structural modules make use of which functional modules:
 module_coupling = Dict(
-	:Root => [hydraulic_module, constant_carbon_module],
-	:Stem => [hydraulic_module, constant_carbon_module],
-	:Leaf => [hydraulic_module, constant_carbon_module],
-	:Soil => [environmental_module, Ψ_soil_module],
-	:Air => [environmental_module, Ψ_air_module],
+	:Root => [hydraulic_module, constant_carbon_module, sizedep_K_module],
+	:Stem => [hydraulic_module, constant_carbon_module, sizedep_K_module],
+	:Leaf => [hydraulic_module, constant_carbon_module, sizedep_K_module],
+	:Soil => [environmental_module, Ψ_soil_module, constant_K_module],
+	:Air => [environmental_module, Ψ_air_module, constant_K_module],
 )
 
 # ## Generate and run system

@@ -5,12 +5,6 @@ using PlantGraphs
 using ModelingToolkit, OrdinaryDiffEq, Unitful
 using Plots
 
-smooth_square(x, smoothing) = sin(x) / (sqrt(sin(x)^2 + smoothing^2))
-adj_smooth_square(x; smoothing = 0.1, ymin = 0, ymax = 1) = 1/2 * ((ymax+ymin) + (ymax-ymin) * smooth_square(x, smoothing))
-
-ss2(x, smoothing, f) = f(x) / (sqrt(f(x)^2 + smoothing^2))
-[plot(x -> ss2(x, 0.1, (y -> sin(y) + offset))) for offset in 0:0.1:2] .|> display
-
 # Structure
 
 ## Plant
@@ -61,7 +55,7 @@ struct_connections = PlantStructure(graphs, intergraph_connections)
 
 # Functional processes
 
-ϵ = 3
+ϵ = 0.03
 ϕ = 3e-3
 module_defaults = Dict(
 	:Stem => Dict(:shape => Cilinder(ϵ_D = fill(ϵ, 2), ϕ_D = fill(ϕ, 2)),
@@ -76,7 +70,7 @@ connecting_modules = [
 	(:Soil, :Stem) => (hydraulic_connection, Dict()),
 	(:Stem, :Stem) => (hydraulic_connection, Dict()),
 	(:Stem, :Leaf) => (const_hydraulic_connection, Dict()),
-	(:Leaf, :Air) => (PlantModules.evaporation_connection, Dict()),
+	(:Leaf, :Air) => (evaporation_connection, Dict()),
 ]
 
 func_connections = PlantFunctionality(; module_defaults, connecting_modules)
@@ -150,5 +144,3 @@ plotgraph(sol, graphs[1], varname = :P, structmod = :Stem)
 plotgraph(sol, graphs[1], varname = :Π)
 
 plotgraph(sol, graphs[3], varname = :ΣF)
-
-(x -> 1/2 * (adj_smooth_square(2*pi* (x-8) / 24)) + adj_smooth_square(2*pi* (x-12) / 24)) |> x -> plot(x, xlims = (0, 48))

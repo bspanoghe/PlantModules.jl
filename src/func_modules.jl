@@ -192,6 +192,7 @@ This module assumes the compartments have a specified hydraulic conductivities.
 function hydraulic_connection(; name)
     @variables (
         F(t), [description = "Water flux from compartment 2 to compartment 1", unit = u"g / hr"],
+        K(t), [description = "Hydraulic conductivity of connection", unit = u"g / hr / MPa"],
         K_1(t), [description = "Hydraulic conductivity of compartment 1", unit = u"g / hr / MPa"],
         K_2(t), [description = "Hydraulic conductivity of compartment 2", unit = u"g / hr / MPa"],
         Ψ_1(t), [description = "Total water potential of compartment 1", unit = u"MPa"],
@@ -199,7 +200,8 @@ function hydraulic_connection(; name)
     )
 
     eqs = [
-        F ~ min(K_1, K_2) * (Ψ_2 - Ψ_1), #! mean?
+        F ~ K * (Ψ_2 - Ψ_1),
+        K ~ min(K_1, K_2) #! mean?
     ]
 
     get_connection_eqset(node_MTK, nb_node_MTK, connection_MTK, reverse_order) = [ 
@@ -230,7 +232,7 @@ function const_hydraulic_connection(; name, K)
     )
 
     eqs = [
-        F ~ K * (Ψ_2 - Ψ_1) #! mean?
+        F ~ K * (Ψ_2 - Ψ_1)
     ]
 
     get_connection_eqset(node_MTK, nb_node_MTK, connection_MTK, reverse_order) = [ 
@@ -240,49 +242,50 @@ function const_hydraulic_connection(; name, K)
     return ODESystem(eqs, t; name), get_connection_eqset
 end
 
-function evaporation_connection(; name)
+function evaporation_connection(; name, sunrise, sunset, te_night)
     @constants hr_unit = 1 [unit = u"hr"]
-    @parameters sunrise = 8 [unit = u"hr"] sunset = 20 [unit = u"hr"] 
+    @parameters (
+        sunrise = sunrise, [description = "Time of sunrise (hours past midnight)", unit = u"hr"],
+        sunset = sunset, [description = "Time of sunset (hours past midnight)", unit = u"hr"],
+        te_night = te_night, [description = "Transpiration efficiency at night", unit = u"(g / hr / MPa) / (g / hr / MPa)"]
+    )
 
     @variables (
         F(t), [description = "Water flux from compartment 2 to compartment 1", unit = u"g / hr"],
         K(t), [description = "Hydraulic conductivity of connection", unit = u"g / hr / MPa"],
         K_1(t), [description = "Hydraulic conductivity of compartment 1", unit = u"g / hr / MPa"],
+        K_2(t), [description = "Hydraulic conductivity of compartment 2", unit = u"g / hr / MPa"],
         Ψ_1(t), [description = "Total water potential of compartment 1", unit = u"MPa"],
         Ψ_2(t), [description = "Total water potential of compartment 2", unit = u"MPa"],
     )
 
     eqs = [
-        F ~ K * (Ψ_2 - Ψ_1),
-        K ~ K_time(K_1, t/hr_unit, sunrise/hr_unit, sunset/hr_unit)
+        F ~ K * (Ψ_2 - Ψ_1) * smooth_daynight(t/hr_unit, sunrise/hr_unit, sunset/hr_unit, te_night),
+        K ~ min(K_1, K_2) #! mean?
     ]
 
-    get_connection_eqset(node_MTK, nb_node_MTK, connection_MTK, reverse_order) = 
-    if !reverse_order 
-        [ 
-            connection_MTK.Ψ_1 ~ node_MTK.Ψ,
-            connection_MTK.Ψ_2 ~ nb_node_MTK.Ψ,
-            connection_MTK.K_1 ~ node_MTK.K,
-        ]
-    else
-        [ 
-            connection_MTK.Ψ_1 ~ node_MTK.Ψ,
-            connection_MTK.Ψ_2 ~ nb_node_MTK.Ψ,
-            connection_MTK.K_1 ~ nb_node_MTK.K,
-        ]
-    end
+    get_connection_eqset(node_MTK, nb_node_MTK, connection_MTK, reverse_order) = [ 
+        connection_MTK.Ψ_1 ~ node_MTK.Ψ,
+        connection_MTK.Ψ_2 ~ nb_node_MTK.Ψ,
+        connection_MTK.K_1 ~ node_MTK.K,
+        connection_MTK.K_2 ~ nb_node_MTK.K,
+    ]
 
     return ODESystem(eqs, t; name), get_connection_eqset
 end
 
-smooth_square(x, smoothing) = sin(x) / (sqrt(sin(x)^2 + smoothing^2))
-adj_smooth_square(x; smoothing = 0.1, ymin = 0, ymax = 1) = 1/2 * ((ymax+ymin) + (ymax-ymin) * smooth_square(x, smoothing))
-
-function K_time(K_max, t, sunrise, sunset)
-    timedep = adj_smooth_square(2*pi * (t - sunrise) / 24)
-    K = K_max * timedep
-    return K
+# Get value that smoothly switches between `ymax` at day and `ymin` at night
+function smooth_daynight(t, sunrise, sunset, ymin, ymax = 1)
+    daywave(t, sunrise, sunset) |>
+        smooth_sign |>
+        x -> rebound_sign(x, ymin, ymax)
 end
+
+get_offset(d) = -sin((1-2*d)/2 * pi) # get value of `a` so that the roots of sin(x) + a = 0 have a largest distance of `d`
+offset_sin(x, d) = sin(x + asin(-get_offset(d))) + get_offset(d) # offset a sine a vertical height of `d`, and offset it horizontally so f(0) = 0
+daywave(x, sunrise, sunset) = offset_sin(2*pi*(x - sunrise) / 24, (sunset-sunrise)/24) # get an offset sine wave in hours with values >0 for the day
+smooth_sign(x, smoothing = 0.01) = x / (sqrt(x^2 + smoothing^2)) # smooth approximation of the `sign` function
+rebound_sign(x, ymin, ymax) = 1/2 * ((ymax+ymin) + (ymax-ymin) * x) # for a function with range [-1, 1], change its range to [ymin, ymax]
 
 ## Node behaviour in function of all their connections
 
@@ -295,6 +298,7 @@ multi_connection_eqs(node_MTK, connection_MTKs) = [
 soilfunc(W_r) = -(1/(100*W_r) + 1) * exp((39.8 - 100*W_r) / 19)
 
 default_values = Dict(
-    :T => 298.15, :shape => Cilinder(ϵ_D = [10, 10], ϕ_D = [5e-3, 5e-3]), :Γ => 0.3, :Ψ => soilfunc(0.8),
-    :D => [0.5, 5.0], :M => 300e-6, :W_max => 1e6, :W_r => 0.8, :K_s => 1000, :K => 1000
+    :T => 298.15, :shape => Cilinder(ϵ_D = [0.5, 0.5], ϕ_D = [5e-3, 5e-3]), :Γ => 0.3,
+    :Ψ => soilfunc(0.8), :D => [0.5, 5.0], :M => 300e-6, :W_max => 1e6, :W_r => 0.8, :K_s => 1000,
+    :K => 1000, :sunrise => 8, :sunset => 20, :te_night => 0.1
 )
