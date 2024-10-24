@@ -3,7 +3,7 @@
 # ## Introduction
 
 # We'll introduce the package by modeling the growth of a small pepper seedling. The goal is to simulate water transport to estimate when the plant will need watering again.
-
+using Revise #!
 using Pkg; Pkg.activate("./tutorials")
 using PlantModules
 using PlantGraphs, ModelingToolkit, OrdinaryDiffEq, Plots
@@ -56,17 +56,17 @@ struct_connections = PlantStructure(graphs, intergraph_connections)
 # ### Finetuning
 
 # The parameters and initial values of the ODE systems defining the different plant parts are generally not identical.
-# We can therefor change them as shown below.
+# We can therefore change them as shown below.
 
 # For __every node__:
-default_changes = Dict(:Γ => 0.4, :P => 0.2, :T => 293.15) 
+default_changes = Dict(:Γ => 0.4, :Ψ => -0.05, :T => 293.15) 
 
 # For every node of a given __structural module__:
 module_defaults = Dict(
 	:Root => Dict(:D => [0.2, 3], :M => 300e-6),
 	:Stem => Dict(:D => [0.1, 5], :M => 400e-6),
-	:Leaf => Dict(:shape => Cuboid(ϵ_D = [0.1, 0.1, 0.1], ϕ_D = [0.01, 0.01, 0.01]), :M => 450e-6, :K_s => 1e-4),
-	:Soil => Dict(:W_max => 500.0, :T => 288.15, :W_r => 1.0),
+	:Leaf => Dict(:shape => Cuboid(0.1, 0.02), :M => 450e-6, :K_s => 1e-4),
+	:Soil => Dict(:W_max => 50.0, :T => 288.15, :W_r => 1.0),
 )
 
 # Changing the values for specific nodes is also possible, as discussed during the section on graph creation. 
@@ -84,7 +84,7 @@ connecting_modules = [
 	(:Root, :Stem) => (hydraulic_connection, Dict()),
 	(:Stem, :Leaf) => (const_hydraulic_connection, Dict()),
 	(:Leaf, :Air) => (evaporation_connection, Dict()),
-	(:Soil, :Air) => (const_hydraulic_connection, Dict(:K => 3e-2)),
+	(:Soil, :Air) => (const_hydraulic_connection, Dict(:K => 3e-3)),
 ]
 
 # All functional information also gets bundled, though the constructor is more complex.
@@ -94,9 +94,9 @@ func_connections = PlantFunctionality(; module_defaults, connecting_modules, def
 # ## Coupling
 # As the final piece of required information, our model needs to know which structural modules make use of which functional modules:
 module_coupling = Dict(
-	:Root => [hydraulic_module, constant_carbon_module, sizedep_K_module],
-	:Stem => [hydraulic_module, constant_carbon_module, sizedep_K_module],
-	:Leaf => [hydraulic_module, constant_carbon_module, sizedep_K_module],
+	:Root => [hydraulic_module, constant_carbon_module, K_module],
+	:Stem => [hydraulic_module, constant_carbon_module, K_module],
+	:Leaf => [hydraulic_module, constant_carbon_module, K_module],
 	:Soil => [environmental_module, Ψ_soil_module, constant_K_module],
 	:Air => [environmental_module, Ψ_air_module, constant_K_module],
 )
@@ -114,12 +114,11 @@ sol = solve(prob);
 
 # ## Plotting
 # Finally, we can use PlantModules' `plotgraph` function to more easily plot the desired results.
-# Based on the water content `W` of the soil (which was the second graph), we can plan when to water next!
+# Based on the water content `W` of the soil (which was the second graph), and growth of the leaves, we can plan when to water next!
 plotgraph(sol, graphs[2], varname = :W)
+plotgraph(sol, graphs[1], varname = :D, structmod = :Leaf)
 
 # Some other variables we may be interested in, to showcase the plotting functionality:
-# the growth of the leaves
-plotgraph(sol, graphs[1], varname = :V, structmod = :Leaf)
 # the water potentials of the plant parts and the soil
 plotgraph(sol, graphs[1:2], varname = :Ψ)
 # and the net water flux in all components of the system

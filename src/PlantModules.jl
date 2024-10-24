@@ -1,10 +1,10 @@
 module PlantModules
 
-export Shape, Sphere, Cilinder, Cuboid
+export Shape, Sphere, Cylinder, Cuboid
 export volume, cross_area, surface_area
 export generate_system, PlantStructure, PlantFunctionality, alter_defaults
 export hydraulic_module, constant_carbon_module, environmental_module, Ψ_soil_module, Ψ_air_module
-export sizedep_K_module, constant_K_module, hydraulic_connection, const_hydraulic_connection, evaporation_connection
+export K_module, constant_K_module, hydraulic_connection, const_hydraulic_connection, evaporation_connection
 export readXEG, convert_to_MTG, convert_to_PG
 export plotgraph, plotnode
 

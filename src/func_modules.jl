@@ -144,7 +144,7 @@ function Ψ_air_module(; name, T)
 end
 
 #! documentation
-function sizedep_K_module(; name, K_s, shape::PlantModules.Shape)
+function K_module(; name, K_s, shape::PlantModules.Shape)
     num_D = length(shape.ϵ_D)
 
     @parameters (
@@ -261,15 +261,23 @@ function evaporation_connection(; name, sunrise, sunset, te_night)
 
     eqs = [
         F ~ K * (Ψ_2 - Ψ_1) * smooth_daynight(t/hr_unit, sunrise/hr_unit, sunset/hr_unit, te_night),
-        K ~ min(K_1, K_2) #! mean?
+        K ~ K_1
     ]
 
-    get_connection_eqset(node_MTK, nb_node_MTK, connection_MTK, reverse_order) = [ 
-        connection_MTK.Ψ_1 ~ node_MTK.Ψ,
-        connection_MTK.Ψ_2 ~ nb_node_MTK.Ψ,
-        connection_MTK.K_1 ~ node_MTK.K,
-        connection_MTK.K_2 ~ nb_node_MTK.K,
-    ]
+    get_connection_eqset(node_MTK, nb_node_MTK, connection_MTK, reverse_order) = 
+    if !reverse_order
+        [ 
+            connection_MTK.Ψ_1 ~ node_MTK.Ψ,
+            connection_MTK.Ψ_2 ~ nb_node_MTK.Ψ,
+            connection_MTK.K_1 ~ node_MTK.K,
+        ]
+    else
+        [ 
+            connection_MTK.Ψ_1 ~ node_MTK.Ψ,
+            connection_MTK.Ψ_2 ~ nb_node_MTK.Ψ,
+            connection_MTK.K_1 ~ nb_node_MTK.K,
+        ]
+    end
 
     return ODESystem(eqs, t; name), get_connection_eqset
 end
@@ -298,7 +306,7 @@ multi_connection_eqs(node_MTK, connection_MTKs) = [
 soilfunc(W_r) = -(1/(100*W_r) + 1) * exp((39.8 - 100*W_r) / 19)
 
 default_values = Dict(
-    :T => 298.15, :shape => Cilinder(ϵ_D = [0.5, 0.5], ϕ_D = [5e-3, 5e-3]), :Γ => 0.3,
+    :T => 298.15, :shape => Cylinder(0.5, 0.005), :Γ => 0.3,
     :Ψ => soilfunc(0.8), :D => [0.5, 5.0], :M => 300e-6, :W_max => 1e6, :W_r => 0.8, :K_s => 1000,
     :K => 1000, :sunrise => 8, :sunset => 20, :te_night => 0.1
 )

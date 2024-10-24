@@ -55,15 +55,13 @@ struct_connections = PlantStructure(graphs, intergraph_connections)
 
 # Functional processes
 
-ϵ = 0.03
-ϕ = 3e-3
+ϵ_D = 0.05
+ϕ_D = 0.005
 module_defaults = Dict(
-	:Stem => Dict(:shape => Cilinder(ϵ_D = fill(ϵ, 2), ϕ_D = fill(ϕ, 2)),
-        :M => 400e-6),
-	:Leaf => Dict(:shape => Cuboid(ϵ_D = fill(ϵ, 3), ϕ_D = fill(ϕ, 3)),
-        :M => 450e-6, :K_s => 1e-4),
+	:Stem => Dict(:shape => Cylinder(ϵ_D, ϕ_D), :M => 400e-6),
+	:Leaf => Dict(:shape => Cuboid(ϵ_D, ϕ_D), :M => 450e-6, :K_s => 1e-4),
 	:Soil => Dict(:W_max => 1e3, :T => 288.15),
-	:Air => Dict(:W_r => 0.8)
+	:Air => Dict()
 )
 
 connecting_modules = [
@@ -78,8 +76,8 @@ func_connections = PlantFunctionality(; module_defaults, connecting_modules)
 # Coupling
 
 module_coupling = Dict(
-    :Stem => [hydraulic_module, constant_carbon_module, sizedep_K_module],
-    :Leaf => [hydraulic_module, constant_carbon_module, sizedep_K_module],
+    :Stem => [hydraulic_module, constant_carbon_module, K_module],
+    :Leaf => [hydraulic_module, constant_carbon_module, K_module],
     :Soil => [environmental_module, Ψ_soil_module, constant_K_module],
     :Air => [environmental_module, Ψ_air_module],
 )
@@ -135,7 +133,7 @@ plotgraph(sol, graphs[1], varname = :W)
 plotgraph(sol, graphs[2], varname = :W)
 
 plotnode(sol, PlantModules.root(graphs[1]), varname = :D)
-plotnode(sol, PlantModules.root(graphs[1]), varname = :D, ylims = (0, 1))
+plotnode(sol, PlantModules.root(graphs[1]), varname = :D, xlims = (0, 48), ylims = (0.4, 0.6))
 plotnode(sol, PlantModules.nodes(graphs[1])[end], varname = :D)
 
 plotgraph(sol, graphs[1:2], varname = :Ψ)

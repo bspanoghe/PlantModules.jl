@@ -10,7 +10,7 @@ dimensional extensibility over the shape's defining dimensions respectively.
 abstract type Shape end
 
 """
-    Sphere
+    struct Sphere{T} <: Shape
 
 A spherical compartment shape, defined by a single dimension: the radius.
 
@@ -18,10 +18,10 @@ A spherical compartment shape, defined by a single dimension: the radius.
 - `ϵ_D`: A one-dimensional vector containing the dimensional elastic modulus along the radius.
 - `ϕ_D`: A one-dimensional vector containing the dimensional extensibility along the radius.
 """
-struct Sphere{T}<:Shape
+struct Sphere{T} <: Shape
     ϵ_D::T
     ϕ_D::T
-    function Sphere(; ϵ_D::Vector = [1.0], ϕ_D::Vector = [1.0])
+    function Sphere(ϵ_D::Vector, ϕ_D::Vector)
         length(ϵ_D) != 1 && error("An array of length $(length(ϵ_D)) was given for ϵ_D while length 1 was expected for shape Sphere.")
         length(ϕ_D) != 1 && error("An array of length $(length(ϕ_D)) was given for ϕ_D while length 1 was expected for shape Sphere.")
 
@@ -30,27 +30,41 @@ struct Sphere{T}<:Shape
 end
 
 """
-    Cilinder
+    Sphere(ϵ_D::Number, ϕ_D::Number)
 
-A cilindrical compartment shape, defined by two dimensions: the radius and the length.
+Convenience constructor for `Sphere`
+"""
+Sphere(ϵ_D::Number = 1, ϕ_D::Number = 1) = Sphere(fill(ϵ_D, 1), fill(ϕ_D, 1))
+
+"""
+    struct Cylinder{T} <: Shape
+
+A cylindrical compartment shape, defined by two dimensions: the radius and the length.
 
 # Fields
 - `ϵ_D`: A two-dimensional vector containing the dimensional elastic modulus along the radius and the length.
 - `ϕ_D`: A two-dimensional vector containing the dimensional extensibility along the radius and the length.
 """
-struct Cilinder{T}<:Shape
+struct Cylinder{T} <: Shape
     ϵ_D::T
     ϕ_D::T
-    function Cilinder(; ϵ_D::Vector = [1.0, 1.0], ϕ_D::Vector = [1.0, 1.0])
-        length(ϵ_D) != 2 && error("An array of length $(length(ϵ_D)) was given for ϵ_D while length 2 was expected for shape Cilinder.")
-        length(ϕ_D) != 2 && error("An array of length $(length(ϕ_D)) was given for ϕ_D while length 2 was expected for shape Cilinder.")
+    function Cylinder(ϵ_D::Vector, ϕ_D::Vector)
+        length(ϵ_D) != 2 && error("An array of length $(length(ϵ_D)) was given for ϵ_D while length 2 was expected for shape Cylinder.")
+        length(ϕ_D) != 2 && error("An array of length $(length(ϕ_D)) was given for ϕ_D while length 2 was expected for shape Cylinder.")
 
         return new{promote_type(typeof(ϵ_D), typeof(ϕ_D))}(promote(ϵ_D, ϕ_D)...)
     end
 end
 
 """
-    Cuboid
+    Cylinder(ϵ_D::Number, ϕ_D::Number)
+
+Construct a `Cylinder` with equal dimensional elastic moduli and equal extensibilities over all dimensions. 
+"""
+Cylinder(ϵ_D::Number = 1, ϕ_D::Number = 1) = Cylinder(fill(ϵ_D, 2), fill(ϕ_D, 2))
+
+"""
+    struct Cuboid{T} <: Shape
 
 A cuboidal compartment shape, defined by three dimensions: the length, the width and the height.
 
@@ -58,16 +72,23 @@ A cuboidal compartment shape, defined by three dimensions: the length, the width
 - `ϵ_D`: A three-dimensional vector containing the dimensional elastic modulus along the length, the width and the height.
 - `ϕ_D`: A three-dimensional vector containing the dimensional extensibility along the length, the width and the height.
 """
-struct Cuboid{T}<:Shape
+struct Cuboid{T} <: Shape
     ϵ_D::T
     ϕ_D::T
-    function Cuboid(; ϵ_D::Vector = [1.0, 1.0, 1.0], ϕ_D::Vector = [1.0, 1.0, 1.0])
+    function Cuboid(ϵ_D::Vector, ϕ_D::Vector)
         length(ϵ_D) != 3 && error("An array of length $(length(ϵ_D)) was given for ϵ_D while length 3 was expected for shape Cuboid.")
         length(ϕ_D) != 3 && error("An array of length $(length(ϕ_D)) was given for ϕ_D while length 3 was expected for shape Cuboid.")
 
         return new{promote_type(typeof(ϵ_D), typeof(ϕ_D))}(promote(ϵ_D, ϕ_D)...)
     end
 end
+
+"""
+    Cuboid(ϵ_D::Number, ϕ_D::Number)
+
+Construct a `Cuboid` with equal dimensional elastic moduli and equal extensibilities over all dimensions. 
+"""
+Cuboid(ϵ_D::Number = 1, ϕ_D::Number = 1) = Cuboid(fill(ϵ_D, 3), fill(ϕ_D, 3))
 
 """
     volume(s::Shape, ::AbstractArray)
@@ -82,17 +103,18 @@ Calculate the volume of a sphere.
 """
 volume(::Sphere, D::AbstractArray) = 4/3 * pi * D[1]^3 # Write dimensions in the order: radius
 """
-    volume(::Cilinder, D::AbstractArray)
+    volume(::Cylinder, D::AbstractArray)
 
-Calculate the volume of a cilinder. Dimensions are assumed to be in the order: radius, length.
+Calculate the volume of a cylinder. Dimensions are assumed to be in the order: radius, length.
 """
-volume(::Cilinder, D::AbstractArray) = D[1]^2 * pi * D[2] # Write dimensions in the order: radius - length
+volume(::Cylinder, D::AbstractArray) = D[1]^2 * pi * D[2] # Write dimensions in the order: radius - length
 """
     volume(::Cuboid, D::AbstractArray)
 
 Calculate the volume of a cuboid.
 """
 volume(::Cuboid, D::AbstractArray) = D[1] * D[2] * D[3] # Write dimensions in the order: length - width - height
+
 
 """
     cross_area(s::Shape, ::AbstractArray)
@@ -107,11 +129,11 @@ Calculate the cross-sectional area of a sphere, defined as the area of a circle 
 """
 cross_area(::Sphere, D::AbstractArray) = D[1]^2 * pi # Write dimensions in the order: radius
 """
-    cross_area(::Cilinder, D::AbstractArray)
+    cross_area(::Cylinder, D::AbstractArray)
 
-Calculate the cross-sectional area of a cilinder, defined as its base area. Dimensions are assumed to be in the order: radius, length.
+Calculate the cross-sectional area of a cylinder, defined as its base area. Dimensions are assumed to be in the order: radius, length.
 """
-cross_area(::Cilinder, D::AbstractArray) = D[1]^2 * pi # Write dimensions in the order: radius - length
+cross_area(::Cylinder, D::AbstractArray) = D[1]^2 * pi # Write dimensions in the order: radius - length
 """
     cross_area(::Cuboid, D::AbstractArray)
 
@@ -133,11 +155,11 @@ Calculate the surface area of a sphere.
 """
 surface_area(::Sphere, D::AbstractArray) = 4 * pi * D[1]^2
 """
-    surface_area(::Cilinder, D::AbstractArray)
+    surface_area(::Cylinder, D::AbstractArray)
 
-Calculate the surface area of a cilinder. Dimensions are assumed to be in the order: radius, length.
+Calculate the surface area of a cylinder. Dimensions are assumed to be in the order: radius, length.
 """
-surface_area(::Cilinder, D::AbstractArray) = 2 * (D[1]^2 * pi) + (2 * D[1] * pi) * D[2]
+surface_area(::Cylinder, D::AbstractArray) = 2 * (D[1]^2 * pi) + (2 * D[1] * pi) * D[2]
 """
     surface_area(::Cuboid, D::AbstractArray)
 

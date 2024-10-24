@@ -29,7 +29,7 @@ DataFrame(mtg, [:diameter, :length, :width])
 function combine_dimensions(l, d, w)
 	if all(isnothing.([l, d, w]))
 		return nothing
-	elseif isnothing(w) # no width defined => shape is a cilinder
+	elseif isnothing(w) # no width defined => shape is a cylinder
 		return 1e2*[d/2, l] # 1e2 to go from m to cm
 	else # otherwise we're dealing with a cuboid
 		return 1e2*[l, w, 5e-4] # leaf thickness assumed to be 0.5 mm
@@ -139,8 +139,8 @@ end
 # This is why this hydraulic conductance should only be used for a connection with the air, and connections with plant parts need to use a constant hydraulic connection.
 
 module_defaults = Dict(
-	:Internode => Dict(:shape => Cilinder(ϵ_D = [0.1, 0.1], ϕ_D = [0.002, 0.0001]), :M => 300e-6),
-	:Shoot => Dict(:shape => Cilinder(ϵ_D = [0.1, 0.1], ϕ_D = [0.002, 0.0001]), :M => 350e-6),
+	:Internode => Dict(:shape => Cylinder(ϵ_D = [0.1, 0.1], ϕ_D = [0.002, 0.0001]), :M => 300e-6),
+	:Shoot => Dict(:shape => Cylinder(ϵ_D = [0.1, 0.1], ϕ_D = [0.002, 0.0001]), :M => 350e-6),
 	:Leaf => Dict(:shape => Cuboid(ϵ_D = [0.1, 0.1, 0.1], ϕ_D = [0.002, 0.002, 5e-4]), :M => 200e-6, :K_s => 5e-5),
 	:Soil => Dict(:W_max => 1e4, :T => 293.15), #! W_max
 	:Air => Dict(:K => 1e-1)
@@ -161,9 +161,9 @@ func_connections = PlantFunctionality(; module_defaults, connecting_modules)
 # ## Coupling
 
 module_coupling = Dict(
-	:Internode => [hydraulic_module, constant_carbon_module, sizedep_K_module],
-	:Shoot => [hydraulic_module, constant_carbon_module, sizedep_K_module],
-	:Leaf => [hydraulic_module, photosynthesis_module, sizedep_K_module],
+	:Internode => [hydraulic_module, constant_carbon_module, K_module],
+	:Shoot => [hydraulic_module, constant_carbon_module, K_module],
+	:Leaf => [hydraulic_module, photosynthesis_module, K_module],
 	:Soil => [environmental_module, Ψ_soil_module],
 	:Air => [environmental_module, Ψ_air_module, constant_K_module],
 )
