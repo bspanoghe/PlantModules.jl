@@ -1,4 +1,5 @@
 # # Types & constructors
+
 """
 	PlantFunctionality
 
@@ -13,7 +14,7 @@ struct PlantStructure
 	intergraph_connections::Vector
 end
 
-PlantStructure(graph) = PlantStructure([graph], Dict())
+PlantStructure(graph) = PlantStructure([graph], [])
 
 struct PlantFunctionality
 	default_values::Dict{Symbol, <:Any}
@@ -34,15 +35,31 @@ Creates a container for functional parameters to be used in the function `genera
 - `module_defaults`: Module-specific default values of parameters and initial values.
 - `connecting_modules`: The ODESystem to use for edges between specified nodes.
 - `connecting_eqs`: A function returning a vector of equations linking a node and all its edges.
-- `extra_defaults`: Values to add to `default_values`
+- `default_changes`: Values to add to `default_values`
 """
-function PlantFunctionality(; default_values::Dict = PlantModules.default_values, module_defaults::Dict = Dict(),
-	connecting_modules::Vector, connecting_eqs::Function = PlantModules.multi_connection_eqs, default_changes::Dict = Dict{Symbol, Int64}()
+function PlantFunctionality(; default_values = PlantModules.default_values, module_defaults = Dict(),
+	connecting_modules, connecting_eqs = PlantModules.multi_connection_eqs, default_changes = Dict{Symbol, Int64}()
 	)
 	#! add input tests ?
 	changed_defaults = merge(default_values, default_changes)
 	
 	return PlantFunctionality(changed_defaults, module_defaults, connecting_modules, connecting_eqs)
+end
+
+struct PlantSystem
+	struc::PlantStructure
+	func::PlantFunctionality
+	coupling::Dict
+end
+
+function PlantSystem(; graphs, intergraph_connections = [],	default_values = PlantModules.default_values, module_defaults = Dict(),
+	connecting_modules, connecting_eqs = PlantModules.multi_connection_eqs, default_changes = Dict{Symbol, Int64}(), module_coupling
+	)
+
+	struc = PlantStructure(graphs, intergraph_connections)
+	func = PlantFunctionality(default_values, module_defaults, connecting_modules, connecting_eqs, default_changes)
+
+	return PlantSystem(struc, func, module_coupling)
 end
 
 # # Functions

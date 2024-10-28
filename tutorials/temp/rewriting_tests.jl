@@ -55,12 +55,12 @@ struct_connections = PlantStructure(graphs, intergraph_connections)
 
 # Functional processes
 
-ϵ_D = 0.05
+ϵ_D = 0.5
 ϕ_D = 0.005
 module_defaults = Dict(
 	:Stem => Dict(:shape => Cylinder(ϵ_D, ϕ_D), :M => 400e-6),
 	:Leaf => Dict(:shape => Cuboid(ϵ_D, ϕ_D), :M => 450e-6, :K_s => 1e-4),
-	:Soil => Dict(:W_max => 1e3, :T => 288.15),
+	:Soil => Dict(:W_max => 1e4, :T => 288.15),
 	:Air => Dict()
 )
 
@@ -68,7 +68,7 @@ connecting_modules = [
 	(:Soil, :Stem) => (hydraulic_connection, Dict()),
 	(:Stem, :Stem) => (hydraulic_connection, Dict()),
 	(:Stem, :Leaf) => (const_hydraulic_connection, Dict()),
-	(:Leaf, :Air) => (evaporation_connection, Dict()),
+	(:Leaf, :Air) => (hydraulic_connection, Dict()),
 ]
 
 func_connections = PlantFunctionality(; module_defaults, connecting_modules)
@@ -79,8 +79,16 @@ module_coupling = Dict(
     :Stem => [hydraulic_module, constant_carbon_module, K_module],
     :Leaf => [hydraulic_module, constant_carbon_module, K_module],
     :Soil => [environmental_module, Ψ_soil_module, constant_K_module],
-    :Air => [environmental_module, Ψ_air_module],
+    :Air => [environmental_module, Ψ_air_module, K_module],
 )
+
+# MULTISCALE DRIFTING
+
+struct WholePlant <: Node end
+func_connections = PlantFunctionality(connecting_eqs(_, _) = Equation[]; connecting_modules)
+PlantModules.PlantSystem(graphs = [WholePlant()]; connecting_modules)
+
+multiscale_connections = []
 
 # Rev her up
 
@@ -88,7 +96,7 @@ system = generate_system(struct_connections, func_connections, module_coupling, 
 sys_simpl = structural_simplify(system);
 prob = ODEProblem(sys_simpl, ModelingToolkit.missing_variable_defaults(sys_simpl), (0.0, 5*24));
 # @btime sol = solve(prob);
-sol = solve(prob);
+@time sol = solve(prob);
 
 #=
 SOLTIMES
@@ -125,12 +133,13 @@ evaporation change:
 - abrupt: 150-170ms
 =#
 
-histogram(sol.t)
+histogram(sol.t, bins = 0:0.01:0.1)
 
 # Plotting
 
 plotgraph(sol, graphs[1], varname = :W)
 plotgraph(sol, graphs[2], varname = :W)
+plotgraph(sol, graphs[1], xlims = (0, 0.1)) .|> display
 
 plotnode(sol, PlantModules.root(graphs[1]), varname = :D)
 plotnode(sol, PlantModules.root(graphs[1]), varname = :D, xlims = (0, 48), ylims = (0.4, 0.6))
