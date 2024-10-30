@@ -1,33 +1,40 @@
 using BenchmarkTools, Infiltrator, Revise
 using Pkg; Pkg.activate("./tutorials")
 using ModelingToolkit, OrdinaryDiffEq, Unitful
+using ModelingToolkit: t_nounits as t, D_nounits as D
 using Plots
 
-using ModelingToolkit: t_nounits as t, D_nounits as D
-
-@connector function WaterPort(; W, name)
+function WaterPort(; name, W)
     pars = @parameters begin
-        T = 293.15
-        ρ = 1.0
+        T = 298.15
     end
     vars = @variables begin
         W(t) = W
-        F(t), [connect = Flow]
+        F(t)#, [connect = Flow]
     end
+    eqs = [
+        D(W) ~ F
+    ]
 
-    ODESystem(Equation[], t, vars, pars; name)
+    ODESystem(eqs, t, vars, pars; name)
 end
 
-@component function System(; name)
+function WaterLoo(; name)
+
+
+end
+
+function System(; name)
     systems = @named begin
         w1 = WaterPort(; W = 100)
         w2 = WaterPort(; W = 0)
+        w3 = WaterPort(; W = 50)
     end
     eqs = [
-        connect(w1, w2)
         w1.F ~ w2.W - w1.W
-        D(w1.W) ~ w1.F
-        D(w2.W) ~ w2.F
+        w2.F ~ -w1.F
+        # D(w1.W) ~ w1.F
+        # D(w2.W) ~ w2.F
     ]
     ODESystem(eqs, t, [], []; name, systems)
 end
@@ -38,74 +45,91 @@ prob = ODEProblem(sys_simpl, [], (0, 10))
 sol = solve(prob)
 plot(sol)
 
-#=
-@mtkmodel WaterFall begin
-    @components begin
-        f = Water()
-    end
-    @equations begin
-        f.W ~ 0
-    end
+
+
+
+
+
+
+
+
+
+
+@connector Water begin
+    W(t) = W
+    F(t), [connect = Flow]
 end
 
-@mtkmodel WaterPort begin
+@mtkmodel Connection begin
     @components begin
         p = Water()
         n = Water()
     end
     @variables begin
-        ΔW(t)
         F(t)
     end
     @equations begin
-        ΔW ~ p.W - n.W
-        0 ~ p.F + n.F
+        F ~ p.W - n.W
+        p.F ~ -n.F
         F ~ p.F
     end
 end
 
-@mtkmodel FlowingRes begin
-    @extend WaterPort()
-    @equations begin
-        ΔW ~ F
-    end
-end
-
-@mtkmodel FlowingCap begin
-    @extend WaterPort()
-    @equations begin
-        D(ΔW) ~ F
-    end
-end
-
-@mtkmodel Reservoir begin
-    @extend WaterPort()
-    @parameters begin
-       Δw = 1.0
-    end
-    @equations begin
-        Δw ~ ΔW
-    end
-end
-
-@mtkmodel WaterCentral begin
+@component function System(; name) begin
     @components begin
-        res = FlowingCap()
-        cap = FlowingCap()
-        source = Reservoir(Δw = 1.0)
-        ground = WaterFall()
+        w1_2 = Water(W = 100)
+        w1_3 = Water(W = 100)
+        w2 = Water(W = 0)
+        w3 = Water(W = 50)
+        con1 = Connection()
+        con2 = Connection()
     end
+
     @equations begin
-        connect(source.p, res.p)
-        connect(res.n, cap.p)
-        connect(cap.n, source.n)
-        connect(cap.n, ground.f)
+        connect(w1_2, w1_3)
+
+        connect(w1_2, con1.p)
+        connect(w2, con1.n)
+
+        connect(w1_3, con2.p)
+        connect(w3, con2.n)
+
+        w1_2.W ~ 100
     end
 end
 
-@mtkbuild sys = WaterCentral()
-prob = ODEProblem(sys, [sys.cap.ΔW => 0], (0, 10))
+@mtkbuild sys = System()
+prob = ODEProblem(sys, [], (0, 10))
 sol = solve(prob)
 plot(sol)
-plot(sol, idxs = [sys.res.p.W])
-=#
+
+
+
+function water_comp(; name, W)
+    pars = @parameters (
+        T = 293.15
+    )
+    vars = @variables (
+        W(t) = W,
+        ΣF(t)
+    )
+    eqs = [
+        D(W) ~ ΣF
+    ]
+
+    ODESystem(eqs, t, vars, pars; name)
+end
+
+function connection(; name, K, systems)
+    pars = @parameters (
+        K = K
+    )
+    vars = @variables (
+        F(t)
+    )
+    eqs = [
+        D(W) ~ ΣF
+    ]
+
+    ODESystem(eqs, t, vars, pars; name)
+end
