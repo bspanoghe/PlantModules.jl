@@ -68,7 +68,7 @@ end
 	generate_system(default_params::NamedTuple, default_u0s::NamedTuple, module_defaults::NamedTuple,
 		module_coupling::Vector, struct_connections::Vector, func_connections::Vector; checkunits::Bool)
 
-Creates a MTK system based on a set of structural and functional modules and how those are connected.
+Creates a ModelingToolkit.jl [`ODESystem`](@ref) that describes the functional behaviour of the input graph structure.
 
 # Arguments
 - `default_params`: Model-wide default parameter values.

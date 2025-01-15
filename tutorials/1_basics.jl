@@ -109,7 +109,7 @@ system = generate_system(struct_connections, func_connections, module_coupling, 
 # ...and solving it.
 # We refer to [ModelingToolkit.jl](https://github.com/SciML/ModelingToolkit.jl)'s documentation for more information on this part.
 sys_simpl = structural_simplify(system)
-prob = ODEProblem(sys_simpl, ModelingToolkit.missing_variable_defaults(sys_simpl), (0.0, 5*24))
+prob = ODEProblem(sys_simpl, [], (0.0, 5*24))
 sol = solve(prob)
 
 # ## Plotting

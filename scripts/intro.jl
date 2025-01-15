@@ -1,5 +1,5 @@
-using Pkg; Pkg.activate(".")
-using ModelingToolkit, DifferentialEquations, Plots, Unitful
+using Pkg; Pkg.activate("./tutorials")
+using ModelingToolkit, OrdinaryDiffEq, Plots, Unitful
 
 @variables t, [description = "Time", unit = u"hr"];
 d = Differential(t);
@@ -98,7 +98,6 @@ function hydraulic_module(; name, shape::Shape)
         M(t), [description = "Osmotically active metabolite content", unit = u"mol / m^3"], # m^3 so units match in second equation (Pa = J/m^3) #! extend validation function so L is ok?
         W(t), [description = "Water content", unit = u"g"],
         D(t)[1:num_D], [description = "Dimensions of compartment", unit = u"m"],
-        V(t), [description = "Shape of compartment", unit = u"m^3"],
         ΣF(t), [description = "Net incoming water flux", unit = u"g / hr"],
         
         ΔP(t), [description = "Change in hydrostatic potential", unit = u"MPa / hr"],
@@ -111,8 +110,7 @@ function hydraulic_module(; name, shape::Shape)
         Ψ ~ Π + P, # Water potential consists of a solute- and a pressure component
         Π ~ -R*T*M, # Solute component is determined by concentration of dissolved metabolites
         ΔW ~ ΣF, # Water content changes due to flux (depending on water potentials as defined in connections)
-        V ~ W / ρ_w, # Shape is directly related to water content        
-        V ~ volume(shape, D), # Shape is also directly related to compartment dimensions
+        W ~ ρ_w * volume(shape, D), # Shape is also directly related to compartment dimensions
         [ΔD[i] ~ D[i] * (ΔP/ϵ_D[i] + ϕ_D[i] * LSE(P - Γ, P_0, γ = 100)) for i in eachindex(D)]..., # Compartment dimensions can only change due to a change in pressure
 
         d(P) ~ ΔP,
@@ -247,7 +245,7 @@ connections = [
 # build model #
 
 ## model definition
-plant = compose(ODESystem(connections, name = :plant), soil, root, stem, leaf, air, soil_root, root_stem, stem_leaf, leaf_air)
+plant = compose(ODESystem(connections, t, name = :plant), soil, root, stem, leaf, air, soil_root, root_stem, stem_leaf, leaf_air)
 plant_simp = structural_simplify(plant)
 
 # full_equations(plant_simp)
@@ -260,20 +258,23 @@ u0 = [
     root.M => 200.0,
     root.P => 0.1,
     root.D[1] => 0.1,
-    root.W => volume(rootvol, root.D) * root.ρ_w,
+    # root.W => volume(rootvol, root.D) * root.ρ_w,
+    root.ΔP => 0.0,
 
     stem.M => 200.0,
     stem.P => 0.1,
     stem.D[1] => 0.4,
     stem.D[2] => 0.03,
-    stem.W => volume(stemvol, stem.D) * stem.ρ_w,
+    # stem.W => volume(stemvol, stem.D) * stem.ρ_w,
+    stem.ΔP => 0.0,
 
     leaf.M => 200.0,
     leaf.P => 0.1,
     leaf.D[1] => 0.3,
     leaf.D[2] => 0.05,
     leaf.D[3] => 0.03,
-    leaf.W => volume(leafvol, leaf.D) * leaf.ρ_w,
+    # leaf.W => volume(leafvol, leaf.D) * leaf.ρ_w,
+    leaf.ΔP => 0.0,
 
     air.W => air.W_max/2,
 ]
@@ -284,7 +285,7 @@ u0_ext = union(u0, u0_req) # add actual values of non-dummy initial states
 u0_full = unique(x -> x[1], u0_ext) # remove duplicates
 
 ## define and solve problem
-prob = ODEProblem(plant_simp, u0_full, (0.0, 24.0*31))
+prob = ODEProblem(plant_simp, u0, (0.0, 24.0*31))
 sol = solve(prob)
 
 ## plot solution
@@ -365,7 +366,7 @@ function constant_carbon_module(; name)
 end
 
 function collapse(systems::Vector{ODESystem}; name::Symbol)
-    return ODESystem(vcat([system.eqs for system in systems]...), systems[1].iv, vcat([states(system) for system in systems]...),
+    return ODESystem(vcat([system.eqs for system in systems]...), systems[1].iv, vcat([observed(system) for system in systems]...),
         vcat([parameters(system) for system in systems]...), name = name)
 end
 
