@@ -1,5 +1,4 @@
-@independent_variables t, [description = "Time", unit = u"hr"]; #! add documentation
-d = Differential(t);
+using ModelingToolkit: t_nounits as t, D_nounits as d
 
 sigm_func(x; A = 1, s = 1, d = 0) = A / (1 + exp(-s*(x - d)))
 
@@ -34,7 +33,7 @@ function hydraulic_module(; name, T, shape::Shape, Γ, Ψ, D, M)
         V(t), [description = "Volume of compartment", unit = u"cm^3"],
         ΣF(t), [description = "Net incoming water flux", unit = u"g / hr"],
         
-        ΔP(t) = 0, [description = "Change in hydrostatic potential", unit = u"MPa / hr"],
+        ΔP(t) = 0.0, [description = "Change in hydrostatic potential", unit = u"MPa / hr"], #!
         ΔW(t), [description = "Change in water content", unit = u"g / hr"],
         ΔD(t)[1:num_D], [description = "Change in dimensions of compartment", unit = u"cm / hr"],
     )
