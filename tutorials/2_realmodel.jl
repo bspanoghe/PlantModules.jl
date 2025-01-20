@@ -75,7 +75,7 @@ struct_connections = PlantStructure(graphs, intergraph_connections)
 # This allows you to, for example, write a function which interpolates between observed PAR values. 
 # We'll just use a sine function bound to the positive values to simulate a simple day-night cycle:
 
-get_PAR_flux(t) = max(0, 400 * sin(t/24*2*pi - 8))
+get_PAR_flux(t) = max(0, 40 * sin(t/24*2*pi - 8))
 plot(get_PAR_flux, xlims = (0, 24))
 
 # We also need the actual photosynthesis model.
@@ -139,9 +139,9 @@ end
 # This is why this hydraulic conductance should only be used for a connection with the air, and connections with plant parts need to use a constant hydraulic connection.
 
 module_defaults = Dict(
-	:Internode => Dict(:shape => Cylinder(ϵ_D = [0.1, 0.1], ϕ_D = [0.002, 0.0001]), :M => 300e-6),
-	:Shoot => Dict(:shape => Cylinder(ϵ_D = [0.1, 0.1], ϕ_D = [0.002, 0.0001]), :M => 350e-6),
-	:Leaf => Dict(:shape => Cuboid(ϵ_D = [0.1, 0.1, 0.1], ϕ_D = [0.002, 0.002, 5e-4]), :M => 200e-6, :K_s => 5e-5),
+	:Internode => Dict(:shape => Cylinder([0.1, 0.1], [0.002, 0.0001]), :M => 300e-6),
+	:Shoot => Dict(:shape => Cylinder([0.1, 0.1], [0.002, 0.0001]), :M => 350e-6, :K_s => 50),
+	:Leaf => Dict(:shape => Cuboid([0.1, 0.1, 0.1], [0.002, 0.002, 5e-4]), :M => 200e-6, :K_s => 5e-5),
 	:Soil => Dict(:W_max => 1e4, :T => 293.15), #! W_max
 	:Air => Dict(:K => 1e-1)
 )
@@ -173,7 +173,7 @@ module_coupling = Dict(
 system = generate_system(struct_connections, func_connections, module_coupling, checkunits = false)
 
 sys_simpl = structural_simplify(system)
-prob = ODEProblem(sys_simpl, ModelingToolkit.missing_variable_defaults(sys_simpl), (0.0, 5*24))
+prob = ODEProblem(sys_simpl, [], (0.0, 5*24))
 @time sol = solve(prob);
 
 # ## Plotting
@@ -183,6 +183,7 @@ plotgraph(sol, graphs[2], varname = :W)
 
 plotgraph(sol, graphs[1], varname = :M)
 
-plotgraph(sol, graphs[1:2], varname = :Ψ)
+plotgraph(sol, graphs[1:2], varname = :Ψ, ylims = (-0.3, 0.0))
 
 plotgraph(sol, graphs[1], varname = :ΔD)
+plotgraph(sol, graphs[3], varname = :ΣF)

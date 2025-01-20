@@ -3,7 +3,7 @@
 # ## Introduction
 
 # We'll introduce the package by modeling the growth of a small pepper seedling. The goal is to simulate water transport to estimate when the plant will need watering again.
-using Revise #!
+using Revise, Infiltrator #!
 using Pkg; Pkg.activate("./tutorials")
 using PlantModules
 using PlantGraphs, ModelingToolkit, OrdinaryDiffEq, Plots
@@ -65,7 +65,7 @@ default_changes = Dict(:Γ => 0.4, :Ψ => -0.05, :T => 293.15)
 module_defaults = Dict(
 	:Root => Dict(:D => [0.2, 3], :M => 300e-6),
 	:Stem => Dict(:D => [0.1, 5], :M => 400e-6),
-	:Leaf => Dict(:shape => Cuboid(0.1, 0.02), :M => 450e-6, :K_s => 1e-4),
+	:Leaf => Dict(:shape => Cuboid(0.1, 0.02), :M => 450e-6, :K_s => 3e-4),
 	:Soil => Dict(:W_max => 50.0, :T => 288.15, :W_r => 1.0),
 )
 
@@ -110,12 +110,13 @@ system = generate_system(struct_connections, func_connections, module_coupling, 
 # We refer to [ModelingToolkit.jl](https://github.com/SciML/ModelingToolkit.jl)'s documentation for more information on this part.
 sys_simpl = structural_simplify(system)
 prob = ODEProblem(sys_simpl, [], (0.0, 5*24))
-sol = solve(prob)
+@time sol = solve(prob);
 
 # ## Plotting
 # Finally, we can use PlantModules' `plotgraph` function to more easily plot the desired results.
 # Based on the water content `W` of the soil (which was the second graph), and growth of the leaves, we can plan when to water next!
 plotgraph(sol, graphs[2], varname = :W)
+
 plotgraph(sol, graphs[1], varname = :D, structmod = :Leaf)
 
 # Some other variables we may be interested in, to showcase the plotting functionality:
@@ -123,3 +124,5 @@ plotgraph(sol, graphs[1], varname = :D, structmod = :Leaf)
 plotgraph(sol, graphs[1:2], varname = :Ψ)
 # and the net water flux in all components of the system
 plotgraph(sol, graphs, varname = :ΣF)
+
+plotgraph(sol, graphs[1], varname = :W)

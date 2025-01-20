@@ -1,6 +1,7 @@
-using ModelingToolkit: t_nounits as t, D_nounits as d
+@independent_variables t, [description = "Time", unit = u"hr"];
+d = Differential(t);
 
-sigm_func(x; A = 1, s = 1, d = 0) = A / (1 + exp(-s*(x - d)))
+sigm_func(x; A = 1.0, s = 1.0, d = 0.0) = A / (1 + exp(-s*(x - d)))
 
 """
     hydraulic_module(; name, T, shape, Γ, P, D)
@@ -26,14 +27,14 @@ function hydraulic_module(; name, T, shape::Shape, Γ, Ψ, D, M)
     @variables (
         Ψ(t), [description = "Total water potential", unit = u"MPa"],
         Π(t), [description = "Osmotic water potential", unit = u"MPa"],
-        P(t) = P, [description = "Hydrostatic potential", unit = u"MPa"],
+        P(t), [description = "Hydrostatic potential", unit = u"MPa", guess = P],
         M(t), [description = "Osmotically active metabolite content", unit = u"mol / cm^3"], # m^3 so units match in second equation () #! extend validation function so L is ok?
-        W(t), [description = "Water content", unit = u"g"],
+        W(t) = volume(shape, D), [description = "Water content", unit = u"g"],
         D(t)[1:num_D] = D, [description = "Dimensions of compartment", unit = u"cm"], #, irreducible = true], #!
         V(t), [description = "Volume of compartment", unit = u"cm^3"],
         ΣF(t), [description = "Net incoming water flux", unit = u"g / hr"],
         
-        ΔP(t) = 0.0, [description = "Change in hydrostatic potential", unit = u"MPa / hr"], #!
+        ΔP(t), [description = "Change in hydrostatic potential", unit = u"MPa / hr", guess = 0.0], #!
         ΔW(t), [description = "Change in water content", unit = u"g / hr"],
         ΔD(t)[1:num_D], [description = "Change in dimensions of compartment", unit = u"cm / hr"],
     )
@@ -306,6 +307,6 @@ soilfunc(W_r) = -(1/(100*W_r) + 1) * exp((39.8 - 100*W_r) / 19)
 
 default_values = Dict(
     :T => 298.15, :shape => Cylinder(0.5, 0.005), :Γ => 0.3,
-    :Ψ => soilfunc(0.8), :D => [0.5, 5.0], :M => 300e-6, :W_max => 1e6, :W_r => 0.8, :K_s => 1000,
-    :K => 1000, :sunrise => 8, :sunset => 20, :te_night => 0.1
+    :Ψ => soilfunc(0.8), :D => [0.5, 5.0], :M => 300e-6, :W_max => 1e6, :W_r => 0.8, 
+    :K_s => 500, :K => 500, :sunrise => 8, :sunset => 20, :te_night => 0.1
 )

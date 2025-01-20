@@ -126,6 +126,7 @@ function plotgraph(sol::ODESolution, graph; structmod::Symbol = Symbol(""), varn
         getproperty(nodesystems[nidx], _varname)
         for nidx in eachindex(nodesystems) for _varname in varnames[structmods[nidx]]
     ]
+    isempty(varlist) && error("Variable $varname not found in graph.")
     
     varlocs = getvarlocs(structmods, varnames, varlist)
     varvalues = sol[reduce(vcat, varlist)] |> x -> reduce(hcat, x) |> x -> [x fill(NaN, size(x, 1))]
