@@ -147,7 +147,7 @@ module_defaults = Dict(
 )
 
 connecting_modules = [
-	(:Soil, :Internode) => (const_hydraulic_connection, Dict(:K => 10_000)),
+	(:Soil, :Internode) => (const_hydraulic_connection, Dict(:K => 1_000)),
     (:Internode, :Internode) => (hydraulic_connection, Dict()),
 	(:Internode, :Shoot) => (hydraulic_connection, Dict()),
 	(:Shoot, :Shoot) => (hydraulic_connection, Dict()),
