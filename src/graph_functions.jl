@@ -1,60 +1,60 @@
 # Required functions for all graphs #
 
 """
-	nodes(graph)
+	getnodes(graph)
 
 Returns a `Vector` containing all nodes of the given graph.
 """
-nodes(graph) = error("Function not yet defined for input type $(typeof(graph)).")
+getnodes(graph) = error("Function not yet defined for input type $(typeof(graph)).")
 
 """
-	neighbours(node)
+	getneighbours(node)
 
 Returns a `Vector` containing the neighbours of the given node.
 """
-neighbours(node, graph) = error("Function not yet defined for input types $(typeof(node)) and $(typeof(graph)).")
+getneighbours(node, graph) = error("Function not yet defined for input types $(typeof(node)) and $(typeof(graph)).")
 
 """
-	attributes(node)
+	getattributes(node)
 
 Returns a `Dict` containing the functional variable names and values of the given node.
 """
-attributes(node) = error("Function not yet defined for input type $(typeof(node)).")
+getattributes(node) = error("Function not yet defined for input type $(typeof(node)).")
 
 """
-	structmod(node)
+	getstructmod(node)
 
 Returns the structural module corresponding with the node as a `Symbol`.
 """
-structmod(node) = error("Function not yet defined for input type $(typeof(node)).")
+getstructmod(node) = error("Function not yet defined for input type $(typeof(node)).")
 
 """
-	id(node)
+	getid(node)
 
 Returns the id of the node as an `Int`.
 """
-id(node) = error("Function not yet defined for input type $(typeof(node)).")
+getid(node) = error("Function not yet defined for input type $(typeof(node)).")
 
 ## Implementation for Base Julia representation as Dicts
 
-nodes(graph::Dict) = collect(values(graph))
-neighbours(node::Dict, graph::Dict) = [graph[nbidx] for nbidx in (node[:parent_id] == -1 ? node[:child_ids] : vcat(node[:child_ids], node[:parent_id]))]
-attributes(node::Dict) = node[:attributes]
-structmod(node::Dict) = node[:type]
-id(node::Dict) = node[:id]
+getnodes(graph::Dict) = collect(values(graph))
+getneighbours(node::Dict, graph::Dict) = [graph[nbidx] for nbidx in (node[:parent_id] == -1 ? node[:child_ids] : vcat(node[:child_ids], node[:parent_id]))]
+getattributes(node::Dict) = node[:attributes]
+getstructmod(node::Dict) = node[:type]
+getid(node::Dict) = node[:id]
 
 ## Implementation for PlantGraphs.jl
 
 ### GraphNode / StaticGraph (nodes combined into graph)
 
-nodes(graph::PlantGraphs.StaticGraph) = values(graph.nodes) |> collect
-neighbours(node::PlantGraphs.GraphNode, graph::PlantGraphs.StaticGraph) = 
+getnodes(graph::PlantGraphs.StaticGraph) = values(graph.nodes) |> collect
+getneighbours(node::PlantGraphs.GraphNode, graph::PlantGraphs.StaticGraph) = 
 	[
 		graph[nb_id]
 	for nb_id in (ismissing(node.parent_id) ? node.children_id :
 		vcat(node.children_id.dict.keys, node.parent_id))
 ]
-function attributes(node::PlantGraphs.GraphNode)
+function getattributes(node::PlantGraphs.GraphNode)
 	fields = fieldnames(typeof(node.data))
 	
 	if isempty(fields)
@@ -63,20 +63,20 @@ function attributes(node::PlantGraphs.GraphNode)
 
 	return Dict([field => getfield(node.data, field) for field in fields])
 end
-structmod(node::PlantGraphs.GraphNode) = typeof(node.data).name.name
-id(node::PlantGraphs.GraphNode) = node.self_id
+getstructmod(node::PlantGraphs.GraphNode) = typeof(node.data).name.name
+getid(node::PlantGraphs.GraphNode) = node.self_id
 
 
 ### Graph (dynamic graphs used in rewriting)
 
-nodes(graph::PlantGraphs.Graph) = nodes(graph.graph)
-neighbours(node::PlantGraphs.GraphNode, graph::PlantGraphs.Graph) = neighbours(node, graph.graph)
+getnodes(graph::PlantGraphs.Graph) = getnodes(graph.graph)
+getneighbours(node::PlantGraphs.GraphNode, graph::PlantGraphs.Graph) = getneighbours(node, graph.graph)
 
 ### Node (the graph is a single node)
 
-nodes(node::PlantGraphs.Node) = [node]
-neighbours(::PlantGraphs.Node, ::PlantGraphs.Node) = [] # node in a graph consisting of one node has no neighbours
-function attributes(node::PlantGraphs.Node)
+getnodes(node::PlantGraphs.Node) = [node]
+getneighbours(::PlantGraphs.Node, ::PlantGraphs.Node) = [] # node in a graph consisting of one node has no neighbours
+function getattributes(node::PlantGraphs.Node)
 	fields = fieldnames(typeof(node))
 	
 	if isempty(fields)
@@ -85,26 +85,26 @@ function attributes(node::PlantGraphs.Node)
 
 	return Dict([field => getfield(node, field) for field in fields])
 end
-structmod(node::PlantGraphs.Node) = typeof(node).name.name
-id(node::PlantGraphs.Node) = 1 # The entire graph only consists of one node if the input type is Node
+getstructmod(node::PlantGraphs.Node) = typeof(node).name.name
+getid(node::PlantGraphs.Node) = 1 # The entire graph only consists of one node if the input type is Node
 
 ## MyPGNode (own implementation acquired by graph conversion)
 
-nodes(node::MyPGNode) = [node]
-neighbours(::MyPGNode, ::MyPGNode) = []
-attributes(node::MyPGNode) = node[:attributes]
-structmod(node::MyPGNode) = typeof(node).parameters[1]
-id(node::MyPGNode) = 1
+getnodes(node::MyPGNode) = [node]
+getneighbours(::MyPGNode, ::MyPGNode) = []
+getattributes(node::MyPGNode) = node[:attributes]
+getstructmod(node::MyPGNode) = typeof(node).parameters[1]
+getid(node::MyPGNode) = 1
 
 
 ## Implementation for MultiScaleTreeGraph.jl
 
-nodes(graph::MultiScaleTreeGraph.Node) = MultiScaleTreeGraph.descendants(graph, self = true)
-neighbours(node::MultiScaleTreeGraph.Node, _) = isnothing(MultiScaleTreeGraph.parent(node)) ?
+getnodes(graph::MultiScaleTreeGraph.Node) = MultiScaleTreeGraph.descendants(graph, self = true)
+getneighbours(node::MultiScaleTreeGraph.Node, _) = isnothing(MultiScaleTreeGraph.parent(node)) ?
 	MultiScaleTreeGraph.children(node) : vcat(MultiScaleTreeGraph.parent(node), MultiScaleTreeGraph.children(node))
-attributes(node::MultiScaleTreeGraph.Node) = MultiScaleTreeGraph.node_attributes(node)
-structmod(node::MultiScaleTreeGraph.Node) = MultiScaleTreeGraph.node_mtg(node).symbol |> Symbol
-id(node::MultiScaleTreeGraph.Node) = MultiScaleTreeGraph.node_id(node)
+getattributes(node::MultiScaleTreeGraph.Node) = MultiScaleTreeGraph.node_getattributes(node)
+getstructmod(node::MultiScaleTreeGraph.Node) = MultiScaleTreeGraph.node_mtg(node).symbol |> Symbol
+getid(node::MultiScaleTreeGraph.Node) = MultiScaleTreeGraph.node_id(node)
 
 # Functions for Tree Graphs #
 
@@ -131,7 +131,7 @@ parent(node, graph) = error("Function not yet defined for input types $(typeof(n
 
 ## Implementation for Base Julia representation as Dicts
 
-root(graph::Dict) = [node for node in nodes(graph) if node[:parent_id] == -1][1]
+root(graph::Dict) = [node for node in getnodes(graph) if node[:parent_id] == -1][1]
 children(node::Dict, graph::Dict) = [graph[child_id] for child_id in node[:child_ids]]
 parent(node::Dict, graph::Dict) = node[:parent_id] == -1 ? nothing : graph[node[:parent_id]]
 

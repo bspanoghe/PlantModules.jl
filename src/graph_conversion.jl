@@ -22,9 +22,9 @@ function add_children!(MTGnode::MultiScaleTreeGraph.Node, node, graph)
     end
 end
 
-MTGify_node(node) = MTG.Node(MutableNodeMTG("<", string(PM.structmod(node)), 0, 0), PM.attributes(node))
-MTGify_node_MTG(node) = MutableNodeMTG("<", string(PM.structmod(node)), 0, 0)
-MTGify_node_attributes(node) = PM.attributes(node)
+MTGify_node(node) = MTG.Node(MutableNodeMTG("<", string(PM.getstructmod(node)), 0, 0), PM.getattributes(node))
+MTGify_node_MTG(node) = MutableNodeMTG("<", string(PM.getstructmod(node)), 0, 0)
+MTGify_node_attributes(node) = PM.getattributes(node)
 
 # PlantGraphs.jl #
 
@@ -48,7 +48,7 @@ function add_children!(PGgraph::PlantGraphs.StaticGraph, node_id::Int, node, gra
     end
 end
 
-PGify_node(node) = MyPGNode(PlantModules.structmod(node), PlantModules.attributes(node))
+PGify_node(node) = MyPGNode(PlantModules.getstructmod(node), PlantModules.getattributes(node))
 
 function targeted_append!(g::PlantGraphs.StaticGraph, n::PlantGraphs.Node, id::Int)
     nID = PlantGraphs.append!(g, id, PlantGraphs.GraphNode(n))

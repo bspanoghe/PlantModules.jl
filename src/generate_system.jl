@@ -37,8 +37,8 @@ Creates a container for functional parameters to be used in the function `genera
 - `connecting_eqs`: A function returning a vector of equations linking a node and all its edges.
 - `default_changes`: Values to add to `default_values`
 """
-function PlantFunctionality(; default_values = PlantModules.default_values, module_defaults = Dict(),
-	connecting_modules, connecting_eqs = PlantModules.multi_connection_eqs, default_changes = Dict{Symbol, Int64}()
+function PlantFunctionality(; default_values::Dict = PlantModules.default_values, module_defaults::Dict = Dict(),
+	connecting_modules::Vector,	connecting_eqs::Function = PlantModules.multi_connection_eqs, default_changes::Dict = Dict{Symbol, Int64}()
 	)
 	#! add input tests ?
 	changed_defaults = merge(default_values, default_changes)
@@ -92,10 +92,10 @@ function generate_system(struct_connections::PlantStructure, func_connections::P
 	connection_eqsets = Equation[] # equations linking nodes with edges
 
 	for (graphnr, graph) in enumerate(struct_connections.graphs) # go over all graphs
-		for node in PlantModules.nodes(graph) # go over every node in the graph
+		for node in PlantModules.getnodes(graph) # go over every node in the graph
 			
-			node_id = PlantModules.id(node)
-			nb_nodes, nb_node_graphnrs = get_nb_nodes(node, struct_connections.graphs, graphnr, struct_connections.intergraph_connections) # collect neighbour nodes
+			node_id = PlantModules.getid(node)
+			nb_nodes, nb_node_graphnrs = get_nb_getnodes(node, struct_connections.graphs, graphnr, struct_connections.intergraph_connections) # collect neighbour nodes
 			current_connection_MTKs = Vector{ODESystem}(undef, length(nb_nodes)) # MTKs of current node's connections
 
 			for (nb_idx, (nb_node, nb_node_graphnr)) in enumerate(zip(nb_nodes, nb_node_graphnrs)) # go over all neighbours of the node
@@ -122,16 +122,17 @@ end
 # get node idx => node MTK system
 function get_MTK_system_dicts(graphs, default_values, module_defaults, module_coupling, checkunits) 
 	return [
-		[PlantModules.id(node) => 
+		[PlantModules.getid(node) => 
 			getMTKsystem(node, default_values, module_defaults, module_coupling, checkunits)
-			for node in PlantModules.nodes(graph)
+			for node in PlantModules.getnodes(graph)
 		] |> Dict for graph in graphs
 	]
 end
 
 # Get MTK system corresponding with node
 function getMTKsystem(node, default_values, module_defaults, module_coupling, checkunits)
-	structmodule = PlantModules.structmod(node)
+	structmodule = PlantModules.getstructmod(node)
+	!haskey(module_coupling, structmodule) && error("No functional module defined for structural module `$structmodule`.")
 	func_modules = module_coupling[structmodule]
 
 	component_systems = Vector{ODESystem}(undef, length(func_modules)) #! error if no func_modules found for structural module
@@ -139,7 +140,7 @@ function getMTKsystem(node, default_values, module_defaults, module_coupling, ch
 	for (modulenum, func_module) in enumerate(func_modules)
 		nodevalues = getnodevalues(node, structmodule, func_module, module_defaults, default_values)
 
-		component_systems[modulenum] = func_module(; :name => Symbol(string(structmodule) * string(PlantModules.id(node))),
+		component_systems[modulenum] = func_module(; :name => Symbol(string(structmodule) * string(PlantModules.getid(node))),
 			Pair.(keys(nodevalues), values(nodevalues))...)
 	end
 
@@ -157,7 +158,7 @@ function getnodevalues(node, structmodule, func_module, module_defaults, default
 
 	node_defaults = get_func_defaults(default_values, func_module)
 	node_module_defaults = get(module_defaults, structmodule, Dict())
-	node_attributes = PlantModules.attributes(node)
+	node_attributes = PlantModules.getattributes(node)
 
 	nodevalues = overwrite!(deepcopy(node_defaults), node_module_defaults, node_attributes)
 	return nodevalues
@@ -228,8 +229,8 @@ end
 
 # Get the MTK system of the edge between the two nodes, and whether it exists in correct order
 function get_connecting_module(node, nb_node, connecting_modules)
-	structmodule = PlantModules.structmod(node)
-	nb_structmodule = PlantModules.structmod(nb_node)
+	structmodule = PlantModules.getstructmod(node)
+	nb_structmodule = PlantModules.getstructmod(nb_node)
 
 	connecting_module_idx = findfirst(x -> issetequal(x.first, (structmodule, nb_structmodule)), connecting_modules)
 
@@ -247,8 +248,8 @@ function get_connection_info(node, graphnr, nb_node, nb_node_graphnr, connecting
 	reverse_order, default_values, MTK_system_dicts
 	)
 
-	structmodule = PlantModules.structmod(node)
-	nb_structmodule = PlantModules.structmod(nb_node)
+	structmodule = PlantModules.getstructmod(node)
+	nb_structmodule = PlantModules.getstructmod(nb_node)
 
 	connector_func, connection_specific_values = connecting_module.second
 	
@@ -256,13 +257,13 @@ function get_connection_info(node, graphnr, nb_node, nb_node_graphnr, connecting
 	conn_info = merge(default_values_conn, connection_specific_values)
 
 	connection_MTK, get_connection_eqset = connector_func(;
-		name = Symbol(string(structmodule) * string(PlantModules.id(node)) * "_" *
-			string(nb_structmodule) * string(PlantModules.id(nb_node))),
+		name = Symbol(string(structmodule) * string(PlantModules.getid(node)) * "_" *
+			string(nb_structmodule) * string(PlantModules.getid(nb_node))),
 		Pair.(keys(conn_info), values(conn_info))...
 	)
 
-	node_MTK = MTK_system_dicts[graphnr][PlantModules.id(node)]
-	nb_node_MTK = MTK_system_dicts[nb_node_graphnr][PlantModules.id(nb_node)]
+	node_MTK = MTK_system_dicts[graphnr][PlantModules.getid(node)]
+	nb_node_MTK = MTK_system_dicts[nb_node_graphnr][PlantModules.getid(nb_node)]
 
 	connection_eqset = get_connection_eqset(node_MTK, nb_node_MTK, connection_MTK, reverse_order)
 
@@ -270,10 +271,10 @@ function get_connection_info(node, graphnr, nb_node, nb_node_graphnr, connecting
 end
 
 # get neighbouring nodes of a node both from the same graph and all connected graphs
-function get_nb_nodes(node, graphs, graphnr, intergraph_connections)
+function get_nb_getnodes(node, graphs, graphnr, intergraph_connections)
 	graph = graphs[graphnr]
 	
-	intra_nb_nodes = PlantModules.neighbours(node, graph)
+	intra_nb_nodes = PlantModules.getneighbours(node, graph)
 	intra_nb_node_graphnrs = repeat([graphnr], length(intra_nb_nodes))
 
 	inter_nb_nodes, inter_nb_node_graphnrs = get_intergraph_neighbours(node, graphnr, graphs, intergraph_connections)
@@ -315,7 +316,7 @@ end
 ## For a connection where the structural module or specific nodes are specified
 function _get_intergraph_neighbours(node, nb_graph, node_connection, nb_connection)
 	if connection_check(node, node_connection)
-		nb_nodes = [nb_node for nb_node in PlantModules.nodes(nb_graph) if connection_check(nb_node, nb_connection)]
+		nb_nodes = [nb_node for nb_node in PlantModules.getnodes(nb_graph) if connection_check(nb_node, nb_connection)]
 	else
 		nb_nodes = []
 	end
@@ -324,15 +325,15 @@ function _get_intergraph_neighbours(node, nb_graph, node_connection, nb_connecti
 end
 
 connection_check(node, connection) = node == connection # connection is a node
-connection_check(node, connection::Symbol) = PlantModules.structmod(node) == connection # connection is a structural module
+connection_check(node, connection::Symbol) = PlantModules.getstructmod(node) == connection # connection is a structural module
 connection_check(node, connection::Vector) = node in connection # connection is a collection of nodes
 
 ## For a connection with a user-defined filter function
 function _get_intergraph_neighbours(node, nb_graph, connection_func::Function, nb_first::Bool)
 	if nb_first
-		nb_nodes = [nb_node for nb_node in PlantModules.nodes(nb_graph) if connection_func(nb_node, node)]
+		nb_nodes = [nb_node for nb_node in PlantModules.getnodes(nb_graph) if connection_func(nb_node, node)]
 	else
-		nb_nodes = [nb_node for nb_node in PlantModules.nodes(nb_graph) if connection_func(node, nb_node)]
+		nb_nodes = [nb_node for nb_node in PlantModules.getnodes(nb_graph) if connection_func(node, nb_node)]
 	end
 
 	return nb_nodes
