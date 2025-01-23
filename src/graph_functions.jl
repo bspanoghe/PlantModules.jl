@@ -102,7 +102,7 @@ getid(node::MyPGNode) = 1
 getnodes(graph::MultiScaleTreeGraph.Node) = MultiScaleTreeGraph.descendants(graph, self = true)
 getneighbours(node::MultiScaleTreeGraph.Node, _) = isnothing(MultiScaleTreeGraph.parent(node)) ?
 	MultiScaleTreeGraph.children(node) : vcat(MultiScaleTreeGraph.parent(node), MultiScaleTreeGraph.children(node))
-getattributes(node::MultiScaleTreeGraph.Node) = MultiScaleTreeGraph.node_getattributes(node)
+getattributes(node::MultiScaleTreeGraph.Node) = MultiScaleTreeGraph.node_attributes(node)
 getstructmod(node::MultiScaleTreeGraph.Node) = MultiScaleTreeGraph.node_mtg(node).symbol |> Symbol
 getid(node::MultiScaleTreeGraph.Node) = MultiScaleTreeGraph.node_id(node)
 

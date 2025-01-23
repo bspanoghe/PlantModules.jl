@@ -173,7 +173,7 @@ module_coupling = Dict(
 system = generate_system(struct_connections, func_connections, module_coupling, checkunits = false)
 
 sys_simpl = structural_simplify(system)
-prob = ODEProblem(sys_simpl, [], (0.0, 5*24))
+prob = ODEProblem(sys_simpl, [], (0.0, 5*24), sparse = true)
 @time sol = solve(prob);
 
 # ## Plotting
