@@ -52,8 +52,8 @@ module_defaults = Dict(
 	:Root => Dict(:shape => Cuboid([5.0, 10.0, 20.0], [0.7, 0.1, 0.05]), :D => [30, 3, 1], :M => C_root), #! changed C to M_const #! include check whether module_defaults variabkle names correspond with default_params / default_u0s ?
 	:Stem => Dict(:shape => Cylinder([6.0, 15.0], [0.8, 0.03]), :D => [1.5, 10], :M => C_stem),
 	:Leaf => Dict(:shape => Sphere([3.0], [0.45]), :M => C_leaf),
-	:Soil => Dict(:W_max => 500.0, :T => 288.15, :K => 100.0),
-	:Air => Dict(:W_max => 1e5, :W_r => 0.8, :K => 0.1)
+	:Soil => Dict(:W_max => 666.0, :T => 288.15, :K => 100.0),
+	:Air => Dict(:W_max => 1e5, :W_r => 0.7, :K => 0.1)
 )
 
 connecting_modules = [
@@ -77,7 +77,7 @@ module_coupling = Dict(
 system = generate_system(struct_connections, func_connections, module_coupling, checkunits = false)
 
 sys_simpl = structural_simplify(system);
-prob = ODEProblem(sys_simpl, [], (0.0, 50*24), sparse = true)
+prob = ODEProblem(sys_simpl, [], (0.0, 5*24), sparse = true)
 @time sol = solve(prob);
 
 plotgraph(sol, graphs[1]) .|> display;

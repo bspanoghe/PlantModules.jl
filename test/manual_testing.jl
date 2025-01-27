@@ -81,3 +81,9 @@ plotgraph(sol, graphs[1:3], varname = :W)
 
 plotgraph(sol, graphs[1], varname = [:D, :V], structmod = [:Stem, :Leaf]) .|> display
 plotnode(sol, PlantModules.getnodes(graphs[1])[1], varname = [:P, :V]) .|> display
+
+
+
+
+environmental_module(; :name => :a, :T => 280, :W_max => 200.0, :W_r => 0.5)
+environmental_module(; name = :a, T = 280, W_max = 300.0, W_r = 0.5)
