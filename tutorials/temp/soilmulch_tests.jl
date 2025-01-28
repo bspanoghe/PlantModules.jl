@@ -61,7 +61,7 @@ connecting_modules = [
 	(:Root, :Stem) => (hydraulic_connection, Dict()), # 6*10^-7 kg/s/MPa * 1000 g/kg * 3600 s/h = 2.2 g/h/MPa
 	(:Stem, :Leaf) => (hydraulic_connection, Dict()),
 	(:Leaf, :Air) => (hydraulic_connection, Dict()),
-	(:Soil, :Air) => (const_hydraulic_connection, Dict(:K => 0.5)) #! check value
+	(:Soil, :Air) => (const_hydraulic_connection, Dict(:K => 0.01)) #! check value
 ] # values based on https://www.mdpi.com/2073-4441/10/8/1036
 
 func_connections = PlantFunctionality(; default_changes, module_defaults, connecting_modules)

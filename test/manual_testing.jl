@@ -44,18 +44,18 @@ default_changes = Dict(:Γ => 0.4, :P => 0.2, :T => 293.15)
 module_defaults = Dict(
 	:Root => Dict(:shape => Cuboid([5.0, 10.0, 20.0], [0.7, 0.1, 0.05]), :D => [30, 3, 1], :M => C_root), #! changed C to M_const #! include check whether module_defaults variabkle names correspond with default_params / default_u0s ?
 	:Stem => Dict(:shape => Cylinder([6.0, 15.0], [0.8, 0.03]), :D => [1.5, 10], :M => C_stem),
-	:Leaf => Dict(:shape => Sphere([3.0], [0.45]), :M => C_leaf),
+	:Leaf => Dict(:shape => Sphere([3.0], [0.45]), :M => C_leaf, :K_s => 0.01),
 	:Soil => Dict(:W_max => 500.0, :T => 288.15),
-	:Air => Dict(:W_r => 0.8, :K => 0.001)
+	:Air => Dict(:W_r => 0.7, :K => 0.001)
 )
 
 connecting_modules = [
 	(:Soil, :Root) => (hydraulic_connection, Dict()),
-	(:Root, :Stem) => (hydraulic_connection, Dict()), # 6*10^-7 kg/s/MPa * 1000 g/kg * 3600 s/h = 2.2 g/h/MPa
-	(:Stem, :Leaf) => (hydraulic_connection, Dict()),
-	(:Leaf, :Air) => (hydraulic_connection, Dict()),
-	(:Soil, :Air) => (hydraulic_connection, Dict()) #! check value
-] # values based on https://www.mdpi.com/2073-4441/10/8/1036
+	(:Root, :Stem) => (hydraulic_connection, Dict()),
+	(:Stem, :Leaf) => (const_hydraulic_connection, Dict(:K => 500)),
+	(:Leaf, :Air) => (evaporation_connection, Dict()),
+	(:Soil, :Air) => (hydraulic_connection, Dict())
+]
 
 func_connections = PlantFunctionality(; default_changes, module_defaults, connecting_modules)
 
