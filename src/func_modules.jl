@@ -116,7 +116,7 @@ function Ψ_soil_module(; name)
     )
     @constants MPa_unit = 1 [description = "Dummy constant for correcting units of empirical equation", unit = u"MPa"]
 
-	eqs = [Ψ ~ MPa_unit * -(1/(100*W_r) + 1) * exp((39.8 - 100*W_r) / 19)]
+	eqs = [Ψ ~ MPa_unit * -(1/W_r) * exp(-30*W_r)]
 
 	return ODESystem(eqs, t; name)
 end
@@ -303,7 +303,7 @@ multi_connection_eqs(node_MTK, connection_MTKs) = [
 
 # Default values #
 
-soilfunc(W_r) = -(1/(100*W_r) + 1) * exp((39.8 - 100*W_r) / 19)
+soilfunc(W_r) = -(1/W_r) * exp(-30*W_r)
 
 default_values = Dict(
     :T => 298.15, :shape => Cylinder(0.5, 0.005), :Γ => 0.3,
