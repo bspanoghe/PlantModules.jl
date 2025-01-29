@@ -70,20 +70,19 @@ module_coupling = Dict(
 system = generate_system(struct_connections, func_connections, module_coupling, checkunits = false)
 
 sys_simpl = structural_simplify(system);
-prob = ODEProblem(sys_simpl, [], (0.0, 5*24))
+prob = ODEProblem(sys_simpl, [], (0.0, 50*24), sparse = true)
 @time sol = solve(prob);
 
 plotgraph(sol, graphs[1]) .|> display
 plotgraph(sol, graphs[2]) .|> display
 plotgraph(sol, graphs[3]) .|> display
 plotgraph(sol, graphs[1:2], varname = :Ψ)
-plotgraph(sol, graphs[1:3], varname = :W)
-
+plotgraph(sol, graphs[[1, 2]], varname = :W)
 plotgraph(sol, graphs[1], varname = [:D, :V], structmod = [:Stem, :Leaf]) .|> display
 plotnode(sol, PlantModules.getnodes(graphs[1])[1], varname = [:P, :V]) .|> display
 
 
 
 
-environmental_module(; :name => :a, :T => 280, :W_max => 200.0, :W_r => 0.5)
-environmental_module(; name = :a, T = 280, W_max = 300.0, W_r = 0.5)
+environmental_module(; name = :a, T = 280, W_max = 200.0, W_r = 0.5)
+environmental_module(; name = :b, T = 280, W_max = 99999999, W_r = 0.5)
