@@ -27,7 +27,7 @@ function hydraulic_module(; name, T, shape::Shape, Γ, Ψ, D, M)
     @variables (
         Ψ(t), [description = "Total water potential", unit = u"MPa"],
         Π(t), [description = "Osmotic water potential", unit = u"MPa"],
-        P(t), [description = "Hydrostatic potential", unit = u"MPa", guess = P],
+        P(t) = P, [description = "Hydrostatic potential", unit = u"MPa"],
         M(t), [description = "Osmotically active metabolite content", unit = u"mol / cm^3"], # m^3 so units match in second equation () #! extend validation function so L is ok?
         W(t) = volume(shape, D) / ρ_w, [description = "Water content", unit = u"g"],
         D(t)[1:num_D] = D, [description = "Dimensions of compartment", unit = u"cm"], #, irreducible = true], #!

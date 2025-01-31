@@ -51,9 +51,6 @@ md"""
 Before we can get started, we need to do some basic setup: activating our project and loading in the required packages.
 """
 
-# ╔═╡ c2970976-cd1d-4e89-9df2-83932f934f2d
-import GLMakie.draw
-
 # ╔═╡ aa3b75e4-1868-4c84-8dc8-f9b54d560b3a
 md"""
 ## Modeling with PlantModules
@@ -247,7 +244,7 @@ module_defaults = Dict(
 	:Root => Dict(:shape => Cuboid([5.0, 10.0, 20.0], [0.7, 0.1, 0.05]), :D => [30, 3, 1], :M => 300e-6),
 	:Stem => Dict(:D => [1.5, 10], :M => 400e-6),
 	:Leaf => Dict(:shape => Sphere(3.0, 0.45), :M => 450e-6),
-	:Soil => Dict(:W_max => 500.0),
+	:Soil => Dict(:W_max => 500.0, :K => 5),
 	:Air => Dict(:W_r => 0.7, :K => 0.03)
 )
 
@@ -346,7 +343,7 @@ time_span = (0, 7*24.0) # We'll simulate our problem for a timespan of one week
 sys_simpl = structural_simplify(system);
 
 # ╔═╡ 50d6fc31-80f5-4db7-b716-b26765008a0d
-prob = ODEProblem(sys_simpl, [], time_span);
+prob = ODEProblem(sys_simpl, [], time_span, warn_initialize_determined = false);
 
 # ╔═╡ c38b1a71-c5e9-4bfa-a210-bcbf9068f7ed
 sol = solve(prob)
@@ -358,23 +355,25 @@ md"""
 Finding the answer to our toy problem now comes down to plotting out the soil water content and visually inspecting when it gets too low:
 """
 
-# ╔═╡ 1fc67776-946d-476b-bd7e-80d8493e166e
-plot(W_r -> -(1/W_r) * exp(-30*W_r), xlims = (0.0, 0.3), ylims = (-1.5, 0.0))
-
-# ╔═╡ e890700e-80a4-4dfc-8380-732bf91d1aa4
-plotnode(sol, graphs[2], varname = :W_r)
-
 # ╔═╡ 042fec92-2ab0-4f21-8214-e574b2deb963
 plotgraph(sol, graphs[1:2], varname = :W)
 
-# ╔═╡ 004f4814-3337-4e3a-8cb6-693e510aa6f5
-plotgraph(sol, graphs[1:3], varname = :Ψ)
-
 # ╔═╡ 2d131155-f62b-4f4a-92d8-9e7443202434
 md"""
-It looks like after 1 week only about 20% of the soil water content remains. Since we don't want our seedlings to experience too much drought stress, we may want to water it when the relative soil water content is at about 50%, which would be after around half a week.
+We see the plant is readily taking up the soil's water until around 100h, at which point the soil water content remains about constant. Taking a look at the water potentials, we see this is because the soil water potential takes a dive when it gets this dry:
+"""
 
-Of course, the functional modules used in this tutorial are a gross oversimplification of reality and these results are very iffy at best. Next tutorial we'll see how we can create our own functional processes to make the model more realistic.
+# ╔═╡ cf30d4f4-a5de-4def-8674-48088eabf17b
+plotgraph(sol, graphs[1:2], varname = :Ψ)
+
+# ╔═╡ 45db790e-7c61-4242-bc14-0132545ae13f
+md"""
+And so we may conclude that we should water the plant again shortly after the 100h point if we don't want it to experience too much drought stress.
+"""
+
+# ╔═╡ ad371259-cdf3-4c71-8dcf-92858104b284
+md"""
+The plant water dynamics in this tutorials were an oversimplification making these results are very iffy at best. Next tutorial we'll see how we can create our own functional processes to make the model more realistic.
 """
 
 # ╔═╡ Cell order:
@@ -385,7 +384,6 @@ Of course, the functional modules used in this tutorial are a gross oversimplifi
 # ╠═57b8dcb8-9baa-4ddf-9368-431b1be5850e
 # ╠═662c0476-70aa-4a60-a81c-d7db2248b728
 # ╠═65f88593-1180-447a-900f-49aef4647cd1
-# ╠═c2970976-cd1d-4e89-9df2-83932f934f2d
 # ╟─aa3b75e4-1868-4c84-8dc8-f9b54d560b3a
 # ╟─6ef5c63a-b753-43ae-baee-f6c24313a385
 # ╟─b6eb66b5-a2d7-4baf-b6a6-87e819309a2d
@@ -445,8 +443,8 @@ Of course, the functional modules used in this tutorial are a gross oversimplifi
 # ╠═50d6fc31-80f5-4db7-b716-b26765008a0d
 # ╠═c38b1a71-c5e9-4bfa-a210-bcbf9068f7ed
 # ╟─a6608eff-9399-443c-a33a-c62341f7b14c
-# ╠═1fc67776-946d-476b-bd7e-80d8493e166e
-# ╠═e890700e-80a4-4dfc-8380-732bf91d1aa4
 # ╠═042fec92-2ab0-4f21-8214-e574b2deb963
-# ╠═004f4814-3337-4e3a-8cb6-693e510aa6f5
 # ╟─2d131155-f62b-4f4a-92d8-9e7443202434
+# ╠═cf30d4f4-a5de-4def-8674-48088eabf17b
+# ╟─45db790e-7c61-4242-bc14-0132545ae13f
+# ╟─ad371259-cdf3-4c71-8dcf-92858104b284

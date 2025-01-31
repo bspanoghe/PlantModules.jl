@@ -1,11 +1,11 @@
 ### A Pluto.jl notebook ###
-# v0.19.46
+# v0.20.4
 
 using Markdown
 using InteractiveUtils
 
 # ╔═╡ 34fd1713-4d0a-4bc9-81e1-bacf418747a2
-using Pkg; Pkg.activate(".")
+using Pkg; Pkg.activate("..")
 
 # ╔═╡ c379b857-4a95-42c0-92bd-bf9df430e1e8
 using PlantModules
@@ -14,7 +14,7 @@ using PlantModules
 using PlantGraphs, MultiScaleTreeGraph
 
 # ╔═╡ 8f5728b1-fa78-492e-beab-9e40ebc633ef
-using ModelingToolkit, DifferentialEquations, Unitful
+using ModelingToolkit, OrdinaryDiffEq, Unitful
 
 # ╔═╡ 876006eb-b8b6-46dc-8077-8f64991c5616
 using PlantBiophysics, PlantBiophysics.PlantMeteo, PlantBiophysics.PlantSimEngine
@@ -23,7 +23,7 @@ using PlantBiophysics, PlantBiophysics.PlantMeteo, PlantBiophysics.PlantSimEngin
 using Memoization
 
 # ╔═╡ dc47be70-0bc4-452d-a128-73ff5fce56ce
-using Plots; import GLMakie.draw
+using Plots
 
 # ╔═╡ 56c3527f-d8df-4f5c-9075-77c34d5c7204
 md"""
@@ -61,7 +61,7 @@ md"""
 """
 
 # ╔═╡ 0255cc11-11a2-4c72-b676-26b2f0ace488
-import .PlantModules: Cilinder, Cuboid, volume, convert_to_PG, convert_to_MTG, generate_system #! Are exported, why don't they work >:(
+import .PlantModules: Cylinder, Cuboid, volume, convert_to_PG, convert_to_MTG, generate_system #! Are exported, why don't they work >:(
 
 # ╔═╡ b6eb66b5-a2d7-4baf-b6a6-87e819309a2d
 md"""
@@ -79,7 +79,7 @@ For practical applications, it is generally not adviced to write out the entire 
 """
 
 # ╔═╡ e920f6aa-4c7b-4fd1-9dca-d9e3d4155ec2
-plantXEG = PlantModules.readXEG("./structures/beech.xeg")
+plantXEG = PlantModules.readXEG("../structures/beech.xeg")
 
 # ╔═╡ 1d3d04e4-7bb2-4dba-a25a-5bcde565ee62
 md"""
@@ -120,10 +120,12 @@ Secondly, we need to combine the separate dimensions defined in the XEG file int
 
 # ╔═╡ 5a3a91d3-c90f-46b4-a614-d253e46fb81b
 function combine_dimensions(l, d, w)
-	if isnothing(w) # no width defined => plant part is a cilinder
-		return [100*d/2, 100*l] # file has dimensions in m, our functional modules expect cm
-	else # otherwise plant part is a cuboid
-		return [100*l, 100*w, 0.03] # leaf thickness not defined => set to 0.03 cm
+	if all(isnothing.([l, d, w]))
+		return nothing
+	elseif isnothing(w) # no width defined => shape is a cylinder
+		return 1e2*[d/2, l] # 1e2 to go from m to cm
+	else # otherwise we're dealing with a cuboid
+		return 1e2*[l, w, 5e-4] # leaf thickness assumed to be 0.5 mm
 	end
 end
 
@@ -164,7 +166,7 @@ intergraph_connections = [[1, 2] => (plant_graph, :Soil), [1, 3] => (:Leaf, :Air
 graphs = [plant_graph, Soil(), Air()];
 
 # ╔═╡ d5c92ba1-0d5a-4d3c-8dd6-c760e6d2a67c
-struct_connections = [graphs, intergraph_connections];
+struct_connections = PlantStructure(graphs, intergraph_connections);
 
 # ╔═╡ 43211f69-6bfe-4fd1-b474-65d0601558de
 md"""
@@ -179,7 +181,7 @@ First thing we need is to define how much photosynthetically active radiation (P
 """
 
 # ╔═╡ 56a3ccbc-8d31-4579-ad36-15882072ebd6
-get_PAR_flux(t) = max(0, 400 * sin(t/24*2*pi - 8))
+get_PAR_flux(t) = max(0, 40 * sin(t/24*2*pi - 8))
 
 # ╔═╡ 00a71441-548d-4172-91a8-6169285a1b11
 @register_symbolic get_PAR_flux(t)
@@ -216,21 +218,21 @@ md"""
 Now for to define the ModelingToolkit function!
 """
 
+# ╔═╡ ea772832-1f9d-4582-a822-83aa0893fdcd
+import PlantModules: t, d
+
 # ╔═╡ acda9c67-9918-4c3d-8cb5-df3cceb6c29b
-function photosynthesis_module(; name, T, M, shape)
-	@variables t, [description = "Time", unit = u"hr"]
-	d = Differential(t)
-	
+function photosynthesis_module(; name, T, M, shape)	
 	@constants (
 		uc1 = (10^-6 * 10^-4 * 60^2), 
 		[description = "Unit conversion from (µmol / m^2 / s) to (mol / cm^2 / hr)", unit = u"(mol/cm^2/hr) / (µmol/m^2/s)"],
 	)
 	@parameters (
 		T = T, [description = "Temperature", unit = u"K"],
-		LAI = 2.0, [description = "Leaf Area Index", unit = u"cm^2 / cm^2"],
+		LAI = 1.0, [description = "Leaf Area Index", unit = u"cm^2 / cm^2"],
 		k = 0.5, [description = "Light extinction coefficient", unit = u"N/N"],
 		osmotic_frac = 0.3, [description = "Fraction of assimilated carbon which becomes osmotically active solute", unit = u"mol/mol"],
-		carbon_decay_rate = 0.1, [description = "Rate at which carbon is consumed for growth", unit = u"hr^-1"],
+		carbon_decay_rate = 0.2, [description = "Rate at which carbon is consumed for growth", unit = u"hr^-1"],
 	)
 
 	@variables (
@@ -260,32 +262,28 @@ md"""
 This part is again largely the same as in the previous tutorial, except that we have a new functional module to add default values for!
 """
 
-# ╔═╡ d67a31c1-5325-4112-8e3f-832a317f1594
-begin
-
-C_stem = 300e-6
-C_shoot = 350e-6
-C_leaf = 400e-6
-
-default_params = merge(PlantModules.default_params, 
-	(photosynthesis_module = (shape = Cuboid(ϵ_D = [0, 0, 0], ϕ_D = [0, 0, 0]), T = 293.15),),
-	(waterdependent_hydraulic_connection = (K_max = 0,),),
+# ╔═╡ 6ffd0511-639d-4304-af8f-93e277e2a4a8
+module_defaults = Dict(
+	:Internode => Dict(:shape => Cylinder([0.1, 0.1], [0.002, 0.0001]), :M => 300e-6, :K_s => 200),
+	:Shoot => Dict(:shape => Cylinder([0.1, 0.1], [0.002, 0.0001]), :M => 350e-6, :K_s => 50),
+	:Leaf => Dict(:shape => Cuboid([1.0, 1.0, 1.0], [0.002, 0.002, 5e-4]), :M => 200e-6, :K_s => 5e-5),
+	:Soil => Dict(:W_max => 1e4, :T => 293.15), #! W_max
+	:Air => Dict(:K => 1e-1)
 )
 
-default_u0s = merge(PlantModules.default_u0s,
-	(photosynthesis_module = (M = 0,),),
-	(waterdependent_hydraulic_connection = (),)
-)
+# ╔═╡ a3551081-5da1-4ed4-b3df-9b8929a46f33
+connecting_modules = [
+	(:Soil, :Internode) => (const_hydraulic_connection, Dict(:K => 1_000)),
+    (:Internode, :Internode) => (hydraulic_connection, Dict()),
+	(:Internode, :Shoot) => (hydraulic_connection, Dict()),
+	(:Shoot, :Shoot) => (hydraulic_connection, Dict()),
+	(:Shoot, :Leaf) => (const_hydraulic_connection, Dict()),
+	(:Internode, :Leaf) => (const_hydraulic_connection, Dict()),
+    (:Leaf, :Air) => (hydraulic_connection, Dict())
+]
 
-module_defaults = (
-	Internode = (shape = Cilinder(ϵ_D = [10.0, 300.0], ϕ_D = [1e-3, 1e-5]), M = C_stem),
-	Shoot = (shape = Cilinder(ϵ_D = [10.0, 300.0], ϕ_D = [3e-5, 3e-2]), M = C_shoot),
-	Leaf = (shape = Cuboid(ϵ_D = [15.0, 10.0, 1000.0], ϕ_D = [3e-3, 3e-3, 1e-5]), M = C_leaf),
-	Soil = (W_max = 5000.0, T = 293.15, W_r = 0.9),
-	Air = (W_r = 0.8,)
-)
-	
-end
+# ╔═╡ 7958cad6-3454-4c07-a6b7-14457a49b162
+func_connections = PlantFunctionality(; module_defaults, connecting_modules)
 
 # ╔═╡ 930e7ed8-0bfe-4e5a-8890-a1d1ce155881
 md"""
@@ -298,38 +296,13 @@ The same goes for this section: all we have to change compared to previous tutor
 """
 
 # ╔═╡ 77686779-bb3c-4d9f-b95c-2613a74e4444
-module_coupling = [
-	PlantModules.hydraulic_module => [:Internode, :Shoot, :Leaf],
-	PlantModules.constant_carbon_module => [:Internode, :Shoot],
-	photosynthesis_module => [:Leaf],
-	PlantModules.environmental_module => [:Soil, :Air],
-	PlantModules.Ψ_soil_module => [:Soil],
-	PlantModules.Ψ_air_module => [:Air],
-]
-
-# ╔═╡ 4755a0a2-f585-4000-8a55-f4512a582281
-md"""
-### Defining the connections
-"""
-
-# ╔═╡ 95f47c11-2dfe-41bd-b24b-4e1a0bd780e9
-md"""
-Since we immediately read in the structure of the plant from a file, the structural connections are already defined. All that remains is the define the functional information of the edges.
-"""
-
-# ╔═╡ 87821d4e-253c-4d63-ab73-154001e9879d
-connecting_modules = [
-	(:Soil, :Internode) => (PlantModules.hydraulic_connection, [:K => 15]),
-    (:Internode, :Internode) => (PlantModules.hydraulic_connection, [:K => 5]),
-	(:Internode, :Shoot) => (PlantModules.hydraulic_connection, [:K => 5]),
-	(:Shoot, :Shoot) => (PlantModules.hydraulic_connection, [:K => 5]),
-	(:Shoot, :Leaf) => (PlantModules.hydraulic_connection, [:K => 3]),
-	(:Internode, :Leaf) => (PlantModules.hydraulic_connection, [:K => 3]),
-    (:Leaf, :Air) => (PlantModules.hydraulic_connection, [:K => 3e-3])
-]
-
-# ╔═╡ 9be1023a-d117-43e0-9ba6-bc9f0589024e
-func_connections = [connecting_modules, PlantModules.multi_connection_eqs]
+module_coupling = Dict(
+	:Internode => [hydraulic_module, constant_carbon_module, K_module],
+	:Shoot => [hydraulic_module, constant_carbon_module, K_module],
+	:Leaf => [hydraulic_module, photosynthesis_module, K_module],
+	:Soil => [environmental_module, Ψ_soil_module],
+	:Air => [environmental_module, Ψ_air_module, constant_K_module],
+)
 
 # ╔═╡ 210d81ef-153e-4744-8266-80af4099770c
 md"""
@@ -342,9 +315,8 @@ md"""
 """
 
 # ╔═╡ 7090562e-92e1-409a-9a91-856366e3a20e
-system = generate_system(default_params, default_u0s,
-	module_defaults, module_coupling, struct_connections, func_connections, checkunits = false
-);
+system = generate_system(struct_connections, func_connections, module_coupling,
+		checkunits = false);
 
 # ╔═╡ f14d7782-326b-4b1e-a35a-ea479f76e85c
 sys_simpl = structural_simplify(system);
@@ -368,7 +340,7 @@ The rest of the modeling workflow is mostly taken care of by the ModelingToolkit
 time_span = (0, 7*24.0) # We'll simulate our problem for a timespan of 7 days
 
 # ╔═╡ 50d6fc31-80f5-4db7-b716-b26765008a0d
-prob = ODEProblem(sys_simpl, ModelingToolkit.missing_variable_defaults(sys_simpl), time_span)
+prob = ODEProblem(sys_simpl, [], (0.0, 5*24), sparse = true)
 
 # ╔═╡ c38b1a71-c5e9-4bfa-a210-bcbf9068f7ed
 @time sol = solve(prob);
@@ -380,8 +352,14 @@ md"""
 Just like last tutorial, we could just plot the soil's relative water content. However, there's a lot of interesting other variables we could look at, like those relating to the carbon dynamics we've just introduced!
 """
 
+# ╔═╡ c616121f-ece2-4a3e-9743-32ef70b1c493
+plotgraph(sol, graphs[1], varname = :W)
+
+# ╔═╡ c65f22fd-82b2-462c-b350-8906495963c6
+plotgraph(sol, graphs[1:2], varname = :Ψ)
+
 # ╔═╡ 52aa2fee-aaec-4bbf-b753-eeafb93809b3
-PlantModules.plotgraph(sol, graphs[2], func_varname = :W_r)
+plotgraph(sol, graphs[2], varname = :W_r)
 
 # ╔═╡ d48f25b1-8e6b-42aa-a2c3-be3d85b3b8d2
 md"""
@@ -389,7 +367,7 @@ There's a lot more water in the soil now, so the relative water content goes dow
 """
 
 # ╔═╡ fd5e242f-25b6-46e8-bb6f-4112073c2bc4
-PlantModules.plotgraph(sol, plant_graph, func_varname = :M, struct_module = :Leaf)
+plotgraph(sol, plant_graph, varname = :M, structmod = :Leaf)
 
 # ╔═╡ 2009c5fc-f237-4bf3-af5a-c0adee2c5aed
 md"""
@@ -397,7 +375,7 @@ We defined the same input radiation, assimilation rate and thickness for all lea
 """
 
 # ╔═╡ fe4df2d4-878e-41aa-8860-991c891e2dd2
-PlantModules.plotgraph(sol, plant_graph, func_varname = :W, struct_module = :Leaf)
+plotgraph(sol, plant_graph, varname = :W, structmod = :Leaf)
 
 # ╔═╡ 2470d664-ccc9-46ac-9964-b39dabe2ce1b
 md"""
@@ -405,7 +383,7 @@ We can see that the water content over time follows a periodic pattern, which is
 """
 
 # ╔═╡ 9aea25dc-8543-4249-aada-df02fe93527e
-PlantModules.plotgraph(sol, plant_graph, func_varname = :W, struct_module = :Internode)
+plotgraph(sol, plant_graph, varname = :W, structmod = :Internode)
 
 # ╔═╡ 91d295df-e76d-402b-8d59-68a7588b57ae
 md"""
@@ -460,17 +438,16 @@ The same goes for the internodes, since their water exchange rate with the leave
 # ╟─899b48f7-aed8-4f20-a139-35196940539c
 # ╠═a417f515-6cad-486a-8ce0-c1eb72bb5939
 # ╟─2508d5d8-d4a2-440a-94e4-b17d6a5dc4dd
+# ╠═ea772832-1f9d-4582-a822-83aa0893fdcd
 # ╠═acda9c67-9918-4c3d-8cb5-df3cceb6c29b
 # ╟─4d17b269-06b8-4293-b2cb-b6bd9fa0ccc8
 # ╟─6456a7ec-47d4-4032-9dec-f9733caa5f66
-# ╠═d67a31c1-5325-4112-8e3f-832a317f1594
+# ╠═6ffd0511-639d-4304-af8f-93e277e2a4a8
+# ╠═a3551081-5da1-4ed4-b3df-9b8929a46f33
+# ╠═7958cad6-3454-4c07-a6b7-14457a49b162
 # ╟─930e7ed8-0bfe-4e5a-8890-a1d1ce155881
 # ╟─dc8cffc1-675f-43ce-aadd-c8b786bf5889
 # ╠═77686779-bb3c-4d9f-b95c-2613a74e4444
-# ╟─4755a0a2-f585-4000-8a55-f4512a582281
-# ╟─95f47c11-2dfe-41bd-b24b-4e1a0bd780e9
-# ╠═87821d4e-253c-4d63-ab73-154001e9879d
-# ╠═9be1023a-d117-43e0-9ba6-bc9f0589024e
 # ╟─210d81ef-153e-4744-8266-80af4099770c
 # ╟─bc7573e7-bcd6-4347-9b0c-9111a824c9b5
 # ╠═7090562e-92e1-409a-9a91-856366e3a20e
@@ -482,6 +459,8 @@ The same goes for the internodes, since their water exchange rate with the leave
 # ╠═50d6fc31-80f5-4db7-b716-b26765008a0d
 # ╠═c38b1a71-c5e9-4bfa-a210-bcbf9068f7ed
 # ╟─a6608eff-9399-443c-a33a-c62341f7b14c
+# ╠═c616121f-ece2-4a3e-9743-32ef70b1c493
+# ╠═c65f22fd-82b2-462c-b350-8906495963c6
 # ╠═52aa2fee-aaec-4bbf-b753-eeafb93809b3
 # ╟─d48f25b1-8e6b-42aa-a2c3-be3d85b3b8d2
 # ╠═fd5e242f-25b6-46e8-bb6f-4112073c2bc4
