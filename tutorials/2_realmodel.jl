@@ -76,7 +76,7 @@ struct_connections = PlantStructure(graphs, intergraph_connections)
 # We'll just use a sine function bound to the positive values to simulate a simple day-night cycle:
 
 get_PAR_flux(t) = max(0, 40 * sin(t/24*2*pi - 8))
-plot(get_PAR_flux, xlims = (0, 24))
+plot(get_PAR_flux, xlims = (0, 48))
 
 # We also need the actual photosynthesis model.
 # We could define this ourselves using differential equations, or simply use the existing implementation from [PlantBiophysics.jl](https://github.com/VEZY/PlantBiophysics.jl).
@@ -139,9 +139,9 @@ end
 # This is why this hydraulic conductance should only be used for a connection with the air, and connections with plant parts need to use a constant hydraulic connection.
 
 module_defaults = Dict(
-	:Internode => Dict(:shape => Cylinder([0.1, 0.1], [0.002, 0.0001]), :M => 300e-6),
+	:Internode => Dict(:shape => Cylinder([0.1, 0.1], [0.002, 0.0001]), :M => 300e-6, :K_s => 200),
 	:Shoot => Dict(:shape => Cylinder([0.1, 0.1], [0.002, 0.0001]), :M => 350e-6, :K_s => 50),
-	:Leaf => Dict(:shape => Cuboid([0.1, 0.1, 0.1], [0.002, 0.002, 5e-4]), :M => 200e-6, :K_s => 5e-5),
+	:Leaf => Dict(:shape => Cuboid([1.0, 1.0, 1.0], [0.002, 0.002, 5e-4]), :M => 200e-6, :K_s => 5e-5),
 	:Soil => Dict(:W_max => 1e4, :T => 293.15), #! W_max
 	:Air => Dict(:K => 1e-1)
 )
@@ -181,9 +181,15 @@ prob = ODEProblem(sys_simpl, [], (0.0, 5*24), sparse = true)
 plotgraph(sol, graphs[1], varname = :W)
 plotgraph(sol, graphs[2], varname = :W)
 
-plotgraph(sol, graphs[1], varname = :M)
+plotgraph(sol, graphs[1], varname = :P)
 
-plotgraph(sol, graphs[1:2], varname = :Ψ, ylims = (-0.3, 0.0))
+plotgraph(sol, graphs[1], varname = :ΣF)
+
+plotgraph(sol, graphs[1], varname = :M)
+plotgraph(sol, graphs[1], varname = :K)
+
+plotgraph(sol, graphs[1:2], varname = :Ψ)
+plotgraph(sol, graphs[3], varname = :Ψ)
 
 plotgraph(sol, graphs[1], varname = :ΔD)
 plotgraph(sol, graphs[3], varname = :ΣF)
