@@ -8,7 +8,7 @@ Returns a `Vector` containing all nodes of the given graph.
 getnodes(graph) = error("Function not yet defined for input type $(typeof(graph)).")
 
 """
-	getneighbours(node)
+	getneighbours(node, graph)
 
 Returns a `Vector` containing the neighbours of the given node.
 """
