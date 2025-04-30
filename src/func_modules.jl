@@ -30,7 +30,7 @@ function hydraulic_module(; name, T, shape::Shape, Γ, Ψ, D, M)
         P(t) = P, [description = "Hydrostatic potential", unit = u"MPa"],
         M(t), [description = "Osmotically active metabolite content", unit = u"mol / cm^3"], # m^3 so units match in second equation () #! extend validation function so L is ok?
         W(t) = volume(shape, D) / ρ_w, [description = "Water content", unit = u"g"],
-        D(t)[1:num_D] = D, [description = "Dimensions of compartment", unit = u"cm"], #, irreducible = true], #!
+        D(t)[1:num_D] = D, [description = "Dimensions of compartment", unit = u"cm"],
         V(t), [description = "Volume of compartment", unit = u"cm^3"],
         ΣF(t), [description = "Net incoming water flux", unit = u"g / hr"],
         
@@ -45,7 +45,7 @@ function hydraulic_module(; name, T, shape::Shape, Γ, Ψ, D, M)
         ΔW ~ ΣF, # Water content changes due to flux (depending on water potentials as defined in connections)
         V ~ W / ρ_w, # Volume is directly related to water content  
         V ~ volume(shape, D), # Volume is also directly related to compartment dimensions
-        [ΔD[i] ~ D[i] * (ΔP/ϵ_D[i] + ϕ_D[i] * sigm_func((P - Γ)/MPa_unit, A = P - Γ, s = 10)) for i in eachindex(D)]..., # Compartment dimensions can only change due to a change in pressure
+        [ΔD[i] ~ D[i] * (ΔP/(P + ϵ_D[i]) + ϕ_D[i] * sigm_func((P - Γ)/MPa_unit, A = P - Γ, s = 10)) for i in eachindex(D)]..., # Compartment dimensions can only change due to a change in pressure
 
         d(P) ~ ΔP,
         d(W) ~ ΔW,
