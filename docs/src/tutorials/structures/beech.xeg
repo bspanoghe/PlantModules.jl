@@ -1,0 +1,1262 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<graph>
+  <root root_id="4958934"/>
+  <node id="4958934" name="" type="RGGRoot"/>
+  <edge id="-1" src_id="4958934" dest_id="4958936" type="successor"/>
+  <type name="Beech">
+    <extends name="Node"/>
+  </type>
+  <node id="4958936" name="" type="Beech"/>
+  <edge id="-1" src_id="4958936" dest_id="4958937" type="successor"/>
+  <type name="Sink">
+    <extends name="Node"/>
+    <property name="strength" type="float"/>
+    <property name="vitality" type="float"/>
+  </type>
+  <node id="4958937" name="" type="Sink">
+    <property name="strength" value="1.0"/>
+    <property name="vitality" value="17.576433"/>
+  </node>
+  <edge id="-1" src_id="4958937" dest_id="4958939" type="successor"/>
+  <type name="Internode">
+    <extends name="Unit"/>
+  </type>
+  <type name="Unit">
+    <extends name="F"/>
+    <property name="order" type="int"/>
+    <property name="area" type="float"/>
+  </type>
+  <node id="4958939" name="" type="Internode">
+    <property name="length" value="0.004911355"/>
+    <property name="diameter" value="0.008215281"/>
+    <property name="fcolor" value="15"/>
+    <property name="color">
+      <rgb>0.5019608 0.5019608 0.5019608</rgb>
+    </property>
+    <property name="order" value="0"/>
+    <property name="area" value="3.0E-6"/>
+  </node>
+  <edge id="-1" src_id="4958939" dest_id="4958940" type="successor"/>
+  <node id="4958940" name="" type="RU">
+    <property name="angle" value="-12.972494"/>
+  </node>
+  <edge id="-1" src_id="4958940" dest_id="4958941" type="branch"/>
+  <node id="4958941" name="" type="RU">
+    <property name="angle" value="63.923977"/>
+  </node>
+  <edge id="-1" src_id="4958941" dest_id="4958942" type="successor"/>
+  <node id="4958942" name="" type="AdjustLU"/>
+  <edge id="-1" src_id="4958942" dest_id="4958968" type="successor"/>
+  <node id="4958968" name="" type="Sink">
+    <property name="strength" value="1.6407512"/>
+    <property name="vitality" value="3.7996044"/>
+  </node>
+  <edge id="-1" src_id="4958968" dest_id="4958977" type="successor"/>
+  <node id="4958977" name="" type="Internode">
+    <property name="length" value="0.004435952"/>
+    <property name="diameter" value="0.0053059408"/>
+    <property name="fcolor" value="15"/>
+    <property name="color">
+      <rgb>0.5019608 0.5019608 0.5019608</rgb>
+    </property>
+    <property name="order" value="1"/>
+    <property name="area" value="3.0E-6"/>
+  </node>
+  <edge id="-1" src_id="4958977" dest_id="4958978" type="successor"/>
+  <node id="4958978" name="" type="RU">
+    <property name="angle" value="-15.920164"/>
+  </node>
+  <edge id="-1" src_id="4958978" dest_id="4958979" type="branch"/>
+  <node id="4958979" name="" type="RU">
+    <property name="angle" value="75.153206"/>
+  </node>
+  <edge id="-1" src_id="4958978" dest_id="4958981" type="successor"/>
+  <node id="4958981" name="" type="Internode">
+    <property name="length" value="0.008064049"/>
+    <property name="diameter" value="0.0051383483"/>
+    <property name="fcolor" value="15"/>
+    <property name="color">
+      <rgb>0.5019608 0.5019608 0.5019608</rgb>
+    </property>
+    <property name="order" value="1"/>
+    <property name="area" value="3.0E-6"/>
+  </node>
+  <edge id="-1" src_id="4958981" dest_id="4958982" type="successor"/>
+  <node id="4958982" name="" type="RL">
+    <property name="angle" value="-14.819021"/>
+  </node>
+  <edge id="-1" src_id="4958982" dest_id="4959019" type="successor"/>
+  <node id="4959019" name="" type="Internode">
+    <property name="length" value="0.0051020477"/>
+    <property name="diameter" value="0.0049055307"/>
+    <property name="fcolor" value="15"/>
+    <property name="color">
+      <rgb>0.5019608 0.5019608 0.5019608</rgb>
+    </property>
+    <property name="order" value="1"/>
+    <property name="area" value="3.0E-6"/>
+  </node>
+  <edge id="-1" src_id="4959019" dest_id="4959020" type="successor"/>
+  <node id="4959020" name="" type="RU">
+    <property name="angle" value="-30.624893"/>
+  </node>
+  <edge id="-1" src_id="4959020" dest_id="4959021" type="branch"/>
+  <node id="4959021" name="" type="RU">
+    <property name="angle" value="78.45923"/>
+  </node>
+  <edge id="-1" src_id="4959021" dest_id="4959093" type="successor"/>
+  <node id="4959093" name="" type="Sink">
+    <property name="strength" value="1.8338523"/>
+    <property name="vitality" value="1.559307"/>
+  </node>
+  <edge id="-1" src_id="4959093" dest_id="4959110" type="successor"/>
+  <type name="ShortShoot">
+    <extends name="Unit"/>
+  </type>
+  <node id="4959110" name="" type="ShortShoot">
+    <property name="length" value="0.01"/>
+    <property name="diameter" value="6.1803876E-4"/>
+    <property name="fcolor" value="15"/>
+    <property name="color">
+      <rgb>0.5019608 0.5019608 0.5019608</rgb>
+    </property>
+    <property name="order" value="2"/>
+    <property name="area" value="3.0E-7"/>
+  </node>
+  <edge id="-1" src_id="4959110" dest_id="4959111" type="successor"/>
+  <type name="Leaf">
+    <extends name="Parallelogram"/>
+    <property name="order" type="int"/>
+    <property name="n" type="int"/>
+    <property name="strength" type="float"/>
+    <property name="vitality" type="float"/>
+  </type>
+  <node id="4959111" name="" type="Leaf">
+    <property name="length" value="0.06476243"/>
+    <property name="width" value="0.051470008"/>
+    <property name="color">
+      <rgb>0.5019608 0.5019608 0.5019608</rgb>
+    </property>
+    <property name="order" value="2"/>
+    <property name="n" value="1"/>
+    <property name="strength" value="1.4285715"/>
+    <property name="vitality" value="1.3245434"/>
+  </node>
+  <edge id="-1" src_id="4959020" dest_id="4959023" type="successor"/>
+  <node id="4959023" name="" type="Internode">
+    <property name="length" value="0.014045437"/>
+    <property name="diameter" value="0.004456741"/>
+    <property name="fcolor" value="15"/>
+    <property name="color">
+      <rgb>0.5019608 0.5019608 0.5019608</rgb>
+    </property>
+    <property name="order" value="1"/>
+    <property name="area" value="3.0E-6"/>
+  </node>
+  <edge id="-1" src_id="4959023" dest_id="4959024" type="successor"/>
+  <node id="4959024" name="" type="RU">
+    <property name="angle" value="23.745098"/>
+  </node>
+  <edge id="-1" src_id="4959024" dest_id="4959025" type="branch"/>
+  <node id="4959025" name="" type="RU">
+    <property name="angle" value="-66.77504"/>
+  </node>
+  <edge id="-1" src_id="4959024" dest_id="4959027" type="successor"/>
+  <node id="4959027" name="" type="Internode">
+    <property name="length" value="0.021738179"/>
+    <property name="diameter" value="0.004005349"/>
+    <property name="fcolor" value="15"/>
+    <property name="color">
+      <rgb>0.5019608 0.5019608 0.5019608</rgb>
+    </property>
+    <property name="order" value="1"/>
+    <property name="area" value="3.0E-6"/>
+  </node>
+  <edge id="-1" src_id="4959027" dest_id="4959028" type="successor"/>
+  <node id="4959028" name="" type="RU">
+    <property name="angle" value="-12.058904"/>
+  </node>
+  <edge id="-1" src_id="4959028" dest_id="4959029" type="branch"/>
+  <node id="4959029" name="" type="RU">
+    <property name="angle" value="74.837845"/>
+  </node>
+  <edge id="-1" src_id="4959028" dest_id="4959031" type="successor"/>
+  <node id="4959031" name="" type="Internode">
+    <property name="length" value="0.025368156"/>
+    <property name="diameter" value="0.0034961551"/>
+    <property name="fcolor" value="15"/>
+    <property name="color">
+      <rgb>0.5019608 0.5019608 0.5019608</rgb>
+    </property>
+    <property name="order" value="1"/>
+    <property name="area" value="3.0E-6"/>
+  </node>
+  <edge id="-1" src_id="4959031" dest_id="4959032" type="successor"/>
+  <node id="4959032" name="" type="RU">
+    <property name="angle" value="0.7184105"/>
+  </node>
+  <edge id="-1" src_id="4959032" dest_id="4959033" type="branch"/>
+  <node id="4959033" name="" type="RU">
+    <property name="angle" value="-84.62134"/>
+  </node>
+  <edge id="-1" src_id="4959032" dest_id="4959035" type="successor"/>
+  <node id="4959035" name="" type="Internode">
+    <property name="length" value="0.027099658"/>
+    <property name="diameter" value="0.0028988586"/>
+    <property name="fcolor" value="15"/>
+    <property name="color">
+      <rgb>0.5019608 0.5019608 0.5019608</rgb>
+    </property>
+    <property name="order" value="1"/>
+    <property name="area" value="3.0E-6"/>
+  </node>
+  <edge id="-1" src_id="4959035" dest_id="4959036" type="successor"/>
+  <node id="4959036" name="" type="RU">
+    <property name="angle" value="-14.116383"/>
+  </node>
+  <edge id="-1" src_id="4959036" dest_id="4959037" type="branch"/>
+  <node id="4959037" name="" type="RU">
+    <property name="angle" value="81.63233"/>
+  </node>
+  <edge id="-1" src_id="4959037" dest_id="4959095" type="successor"/>
+  <node id="4959095" name="" type="Sink">
+    <property name="strength" value="1.8127832"/>
+    <property name="vitality" value="0.9450929"/>
+  </node>
+  <edge id="-1" src_id="4959095" dest_id="4959112" type="successor"/>
+  <node id="4959112" name="" type="ShortShoot">
+    <property name="length" value="0.01"/>
+    <property name="diameter" value="6.1803876E-4"/>
+    <property name="fcolor" value="15"/>
+    <property name="color">
+      <rgb>0.5019608 0.5019608 0.5019608</rgb>
+    </property>
+    <property name="order" value="2"/>
+    <property name="area" value="3.0E-7"/>
+  </node>
+  <edge id="-1" src_id="4959112" dest_id="4959113" type="successor"/>
+  <node id="4959113" name="" type="Leaf">
+    <property name="length" value="0.08455982"/>
+    <property name="width" value="0.063112885"/>
+    <property name="color">
+      <rgb>0.5019608 0.5019608 0.5019608</rgb>
+    </property>
+    <property name="order" value="2"/>
+    <property name="n" value="1"/>
+    <property name="strength" value="1.4285715"/>
+    <property name="vitality" value="0.8850478"/>
+  </node>
+  <edge id="-1" src_id="4959036" dest_id="4959039" type="successor"/>
+  <node id="4959039" name="" type="Internode">
+    <property name="length" value="0.019146534"/>
+    <property name="diameter" value="0.0020498026"/>
+    <property name="fcolor" value="15"/>
+    <property name="color">
+      <rgb>0.5019608 0.5019608 0.5019608</rgb>
+    </property>
+    <property name="order" value="1"/>
+    <property name="area" value="3.0E-6"/>
+  </node>
+  <edge id="-1" src_id="4959039" dest_id="4959040" type="successor"/>
+  <node id="4959040" name="" type="RL">
+    <property name="angle" value="-1.5503538"/>
+  </node>
+  <edge id="-1" src_id="4959040" dest_id="4959114" type="successor"/>
+  <node id="4959114" name="" type="ShortShoot">
+    <property name="length" value="0.01"/>
+    <property name="diameter" value="6.1803876E-4"/>
+    <property name="fcolor" value="15"/>
+    <property name="color">
+      <rgb>0.5019608 0.5019608 0.5019608</rgb>
+    </property>
+    <property name="order" value="1"/>
+    <property name="area" value="3.0E-7"/>
+  </node>
+  <edge id="-1" src_id="4959114" dest_id="4959115" type="successor"/>
+  <node id="4959115" name="" type="Leaf">
+    <property name="length" value="0.112196624"/>
+    <property name="width" value="0.04766884"/>
+    <property name="color">
+      <rgb>0.5019608 0.5019608 0.5019608</rgb>
+    </property>
+    <property name="order" value="1"/>
+    <property name="n" value="3"/>
+    <property name="strength" value="1.457726"/>
+    <property name="vitality" value="1.3162302"/>
+  </node>
+  <edge id="-1" src_id="4958940" dest_id="4958944" type="successor"/>
+  <node id="4958944" name="" type="Internode">
+    <property name="length" value="0.015276014"/>
+    <property name="diameter" value="0.007781721"/>
+    <property name="fcolor" value="15"/>
+    <property name="color">
+      <rgb>0.5019608 0.5019608 0.5019608</rgb>
+    </property>
+    <property name="order" value="0"/>
+    <property name="area" value="3.0E-6"/>
+  </node>
+  <edge id="-1" src_id="4958944" dest_id="4958945" type="successor"/>
+  <node id="4958945" name="" type="RU">
+    <property name="angle" value="-0.011161001"/>
+  </node>
+  <edge id="-1" src_id="4958945" dest_id="4958946" type="branch"/>
+  <node id="4958946" name="" type="RU">
+    <property name="angle" value="-80.17188"/>
+  </node>
+  <edge id="-1" src_id="4958946" dest_id="4958947" type="successor"/>
+  <node id="4958947" name="" type="AdjustLU"/>
+  <edge id="-1" src_id="4958947" dest_id="4958970" type="successor"/>
+  <node id="4958970" name="" type="Sink">
+    <property name="strength" value="1.1912262"/>
+    <property name="vitality" value="2.0522194"/>
+  </node>
+  <edge id="-1" src_id="4958970" dest_id="4958984" type="successor"/>
+  <node id="4958984" name="" type="ShortShoot">
+    <property name="length" value="0.01"/>
+    <property name="diameter" value="0.0029640095"/>
+    <property name="fcolor" value="15"/>
+    <property name="color">
+      <rgb>0.5019608 0.5019608 0.5019608</rgb>
+    </property>
+    <property name="order" value="1"/>
+    <property name="area" value="3.0E-7"/>
+  </node>
+  <edge id="-1" src_id="4958984" dest_id="4959042" type="successor"/>
+  <node id="4959042" name="" type="Internode">
+    <property name="length" value="0.0044401954"/>
+    <property name="diameter" value="0.0028988586"/>
+    <property name="fcolor" value="15"/>
+    <property name="color">
+      <rgb>0.5019608 0.5019608 0.5019608</rgb>
+    </property>
+    <property name="order" value="1"/>
+    <property name="area" value="3.0E-6"/>
+  </node>
+  <edge id="-1" src_id="4959042" dest_id="4959043" type="successor"/>
+  <node id="4959043" name="" type="RU">
+    <property name="angle" value="-14.081285"/>
+  </node>
+  <edge id="-1" src_id="4959043" dest_id="4959044" type="branch"/>
+  <node id="4959044" name="" type="RU">
+    <property name="angle" value="69.34329"/>
+  </node>
+  <edge id="-1" src_id="4959044" dest_id="4959098" type="successor"/>
+  <node id="4959098" name="" type="Sink">
+    <property name="strength" value="1.8592591"/>
+    <property name="vitality" value="0.95575523"/>
+  </node>
+  <edge id="-1" src_id="4959098" dest_id="4959116" type="successor"/>
+  <node id="4959116" name="" type="ShortShoot">
+    <property name="length" value="0.01"/>
+    <property name="diameter" value="6.1803876E-4"/>
+    <property name="fcolor" value="15"/>
+    <property name="color">
+      <rgb>0.5019608 0.5019608 0.5019608</rgb>
+    </property>
+    <property name="order" value="2"/>
+    <property name="area" value="3.0E-7"/>
+  </node>
+  <edge id="-1" src_id="4959116" dest_id="4959117" type="successor"/>
+  <node id="4959117" name="" type="Leaf">
+    <property name="length" value="0.06657412"/>
+    <property name="width" value="0.04417133"/>
+    <property name="color">
+      <rgb>0.5019608 0.5019608 0.5019608</rgb>
+    </property>
+    <property name="order" value="2"/>
+    <property name="n" value="1"/>
+    <property name="strength" value="1.4285715"/>
+    <property name="vitality" value="1.0546983"/>
+  </node>
+  <edge id="-1" src_id="4959043" dest_id="4959046" type="successor"/>
+  <node id="4959046" name="" type="Internode">
+    <property name="length" value="0.008059804"/>
+    <property name="diameter" value="0.0020498026"/>
+    <property name="fcolor" value="15"/>
+    <property name="color">
+      <rgb>0.5019608 0.5019608 0.5019608</rgb>
+    </property>
+    <property name="order" value="1"/>
+    <property name="area" value="3.0E-6"/>
+  </node>
+  <edge id="-1" src_id="4959046" dest_id="4959047" type="successor"/>
+  <node id="4959047" name="" type="RL">
+    <property name="angle" value="-15.535546"/>
+  </node>
+  <edge id="-1" src_id="4959047" dest_id="4959118" type="successor"/>
+  <node id="4959118" name="" type="ShortShoot">
+    <property name="length" value="0.01"/>
+    <property name="diameter" value="6.1803876E-4"/>
+    <property name="fcolor" value="15"/>
+    <property name="color">
+      <rgb>0.5019608 0.5019608 0.5019608</rgb>
+    </property>
+    <property name="order" value="1"/>
+    <property name="area" value="3.0E-7"/>
+  </node>
+  <edge id="-1" src_id="4959118" dest_id="4959119" type="successor"/>
+  <node id="4959119" name="" type="Leaf">
+    <property name="length" value="0.10267177"/>
+    <property name="width" value="0.036132604"/>
+    <property name="color">
+      <rgb>0.5019608 0.5019608 0.5019608</rgb>
+    </property>
+    <property name="order" value="1"/>
+    <property name="n" value="3"/>
+    <property name="strength" value="1.457726"/>
+    <property name="vitality" value="1.1424372"/>
+  </node>
+  <edge id="-1" src_id="4958945" dest_id="4958949" type="successor"/>
+  <node id="4958949" name="" type="Internode">
+    <property name="length" value="0.020701896"/>
+    <property name="diameter" value="0.0076088607"/>
+    <property name="fcolor" value="15"/>
+    <property name="color">
+      <rgb>0.5019608 0.5019608 0.5019608</rgb>
+    </property>
+    <property name="order" value="0"/>
+    <property name="area" value="3.0E-6"/>
+  </node>
+  <edge id="-1" src_id="4958949" dest_id="4958950" type="successor"/>
+  <node id="4958950" name="" type="RU">
+    <property name="angle" value="-7.583201"/>
+  </node>
+  <edge id="-1" src_id="4958950" dest_id="4958951" type="branch"/>
+  <node id="4958951" name="" type="RU">
+    <property name="angle" value="75.77861"/>
+  </node>
+  <edge id="-1" src_id="4958951" dest_id="4958952" type="successor"/>
+  <node id="4958952" name="" type="AdjustLU"/>
+  <edge id="-1" src_id="4958952" dest_id="4958972" type="successor"/>
+  <node id="4958972" name="" type="Sink">
+    <property name="strength" value="1.7912573"/>
+    <property name="vitality" value="3.537485"/>
+  </node>
+  <edge id="-1" src_id="4958972" dest_id="4958986" type="successor"/>
+  <node id="4958986" name="" type="Internode">
+    <property name="length" value="0.0044398136"/>
+    <property name="diameter" value="0.005273684"/>
+    <property name="fcolor" value="15"/>
+    <property name="color">
+      <rgb>0.5019608 0.5019608 0.5019608</rgb>
+    </property>
+    <property name="order" value="1"/>
+    <property name="area" value="3.0E-6"/>
+  </node>
+  <edge id="-1" src_id="4958986" dest_id="4958987" type="successor"/>
+  <node id="4958987" name="" type="RU">
+    <property name="angle" value="-1.5787411"/>
+  </node>
+  <edge id="-1" src_id="4958987" dest_id="4958988" type="branch"/>
+  <node id="4958988" name="" type="RU">
+    <property name="angle" value="70.65555"/>
+  </node>
+  <edge id="-1" src_id="4958987" dest_id="4958990" type="successor"/>
+  <node id="4958990" name="" type="Internode">
+    <property name="length" value="0.008060187"/>
+    <property name="diameter" value="0.005102787"/>
+    <property name="fcolor" value="15"/>
+    <property name="color">
+      <rgb>0.5019608 0.5019608 0.5019608</rgb>
+    </property>
+    <property name="order" value="1"/>
+    <property name="area" value="3.0E-6"/>
+  </node>
+  <edge id="-1" src_id="4958990" dest_id="4958991" type="successor"/>
+  <node id="4958991" name="" type="RL">
+    <property name="angle" value="3.254592"/>
+  </node>
+  <edge id="-1" src_id="4958991" dest_id="4959049" type="successor"/>
+  <node id="4959049" name="" type="Internode">
+    <property name="length" value="0.0055921096"/>
+    <property name="diameter" value="0.004827037"/>
+    <property name="fcolor" value="15"/>
+    <property name="color">
+      <rgb>0.5019608 0.5019608 0.5019608</rgb>
+    </property>
+    <property name="order" value="1"/>
+    <property name="area" value="3.0E-6"/>
+  </node>
+  <edge id="-1" src_id="4959049" dest_id="4959050" type="successor"/>
+  <node id="4959050" name="" type="RU">
+    <property name="angle" value="-21.23694"/>
+  </node>
+  <edge id="-1" src_id="4959050" dest_id="4959051" type="branch"/>
+  <node id="4959051" name="" type="RU">
+    <property name="angle" value="66.53947"/>
+  </node>
+  <edge id="-1" src_id="4959050" dest_id="4959053" type="successor"/>
+  <node id="4959053" name="" type="Internode">
+    <property name="length" value="0.016959956"/>
+    <property name="diameter" value="0.0044136792"/>
+    <property name="fcolor" value="15"/>
+    <property name="color">
+      <rgb>0.5019608 0.5019608 0.5019608</rgb>
+    </property>
+    <property name="order" value="1"/>
+    <property name="area" value="3.0E-6"/>
+  </node>
+  <edge id="-1" src_id="4959053" dest_id="4959054" type="successor"/>
+  <node id="4959054" name="" type="RU">
+    <property name="angle" value="-3.9626198"/>
+  </node>
+  <edge id="-1" src_id="4959054" dest_id="4959055" type="branch"/>
+  <node id="4959055" name="" type="RU">
+    <property name="angle" value="-63.310158"/>
+  </node>
+  <edge id="-1" src_id="4959055" dest_id="4959101" type="successor"/>
+  <node id="4959101" name="" type="Sink">
+    <property name="strength" value="1.9200162"/>
+    <property name="vitality" value="1.4581228"/>
+  </node>
+  <edge id="-1" src_id="4959101" dest_id="4959120" type="successor"/>
+  <node id="4959120" name="" type="ShortShoot">
+    <property name="length" value="0.01"/>
+    <property name="diameter" value="6.1803876E-4"/>
+    <property name="fcolor" value="15"/>
+    <property name="color">
+      <rgb>0.5019608 0.5019608 0.5019608</rgb>
+    </property>
+    <property name="order" value="2"/>
+    <property name="area" value="3.0E-7"/>
+  </node>
+  <edge id="-1" src_id="4959120" dest_id="4959121" type="successor"/>
+  <node id="4959121" name="" type="Leaf">
+    <property name="length" value="0.123517066"/>
+    <property name="width" value="0.04450302"/>
+    <property name="color">
+      <rgb>0.5019608 0.5019608 0.5019608</rgb>
+    </property>
+    <property name="order" value="2"/>
+    <property name="n" value="1"/>
+    <property name="strength" value="1.4285715"/>
+    <property name="vitality" value="1.1955099"/>
+  </node>
+  <edge id="-1" src_id="4959054" dest_id="4959057" type="successor"/>
+  <node id="4959057" name="" type="Internode">
+    <property name="length" value="0.021749726"/>
+    <property name="diameter" value="0.00390882"/>
+    <property name="fcolor" value="15"/>
+    <property name="color">
+      <rgb>0.5019608 0.5019608 0.5019608</rgb>
+    </property>
+    <property name="order" value="1"/>
+    <property name="area" value="3.0E-6"/>
+  </node>
+  <edge id="-1" src_id="4959057" dest_id="4959058" type="successor"/>
+  <node id="4959058" name="" type="RU">
+    <property name="angle" value="-6.0236344"/>
+  </node>
+  <edge id="-1" src_id="4959058" dest_id="4959059" type="branch"/>
+  <node id="4959059" name="" type="RU">
+    <property name="angle" value="70.88829"/>
+  </node>
+  <edge id="-1" src_id="4959058" dest_id="4959061" type="successor"/>
+  <node id="4959061" name="" type="Internode">
+    <property name="length" value="0.018198213"/>
+    <property name="diameter" value="0.0033851375"/>
+    <property name="fcolor" value="15"/>
+    <property name="color">
+      <rgb>0.5019608 0.5019608 0.5019608</rgb>
+    </property>
+    <property name="order" value="1"/>
+    <property name="area" value="3.0E-6"/>
+  </node>
+  <edge id="-1" src_id="4959061" dest_id="4959062" type="successor"/>
+  <node id="4959062" name="" type="RL">
+    <property name="angle" value="11.225602"/>
+  </node>
+  <edge id="-1" src_id="4959062" dest_id="4959122" type="successor"/>
+  <node id="4959122" name="" type="Internode">
+    <property name="length" value="0.004113797"/>
+    <property name="diameter" value="0.0027639533"/>
+    <property name="fcolor" value="15"/>
+    <property name="color">
+      <rgb>0.5019608 0.5019608 0.5019608</rgb>
+    </property>
+    <property name="order" value="1"/>
+    <property name="area" value="3.0E-6"/>
+  </node>
+  <edge id="-1" src_id="4959122" dest_id="4959123" type="successor"/>
+  <node id="4959123" name="" type="RU">
+    <property name="angle" value="-15.281231"/>
+  </node>
+  <edge id="-1" src_id="4959123" dest_id="4959124" type="branch"/>
+  <node id="4959124" name="" type="RU">
+    <property name="angle" value="75.747185"/>
+  </node>
+  <edge id="-1" src_id="4959124" dest_id="4959125" type="successor"/>
+  <node id="4959125" name="" type="Leaf">
+    <property name="length" value="0.09079188"/>
+    <property name="width" value="0.035693053"/>
+    <property name="color">
+      <rgb>0.5019608 0.5019608 0.5019608</rgb>
+    </property>
+    <property name="order" value="2"/>
+    <property name="n" value="0"/>
+    <property name="strength" value="2.0187092"/>
+    <property name="vitality" value="2.3613405"/>
+  </node>
+  <edge id="-1" src_id="4959123" dest_id="4959126" type="successor"/>
+  <node id="4959126" name="" type="Internode">
+    <property name="length" value="0.008386203"/>
+    <property name="diameter" value="0.00195441"/>
+    <property name="fcolor" value="15"/>
+    <property name="color">
+      <rgb>0.5019608 0.5019608 0.5019608</rgb>
+    </property>
+    <property name="order" value="1"/>
+    <property name="area" value="3.0E-6"/>
+  </node>
+  <edge id="-1" src_id="4959126" dest_id="4959127" type="successor"/>
+  <node id="4959127" name="" type="RL">
+    <property name="angle" value="1.315"/>
+  </node>
+  <edge id="-1" src_id="4959127" dest_id="4959128" type="successor"/>
+  <node id="4959128" name="" type="Leaf">
+    <property name="length" value="0.07705949"/>
+    <property name="width" value="0.042916723"/>
+    <property name="color">
+      <rgb>0.5019608 0.5019608 0.5019608</rgb>
+    </property>
+    <property name="order" value="1"/>
+    <property name="n" value="3"/>
+    <property name="strength" value="1.457726"/>
+    <property name="vitality" value="2.3613405"/>
+  </node>
+  <edge id="-1" src_id="4958950" dest_id="4958954" type="successor"/>
+  <node id="4958954" name="" type="Internode">
+    <property name="length" value="0.024588812"/>
+    <property name="diameter" value="0.0070588863"/>
+    <property name="fcolor" value="15"/>
+    <property name="color">
+      <rgb>0.5019608 0.5019608 0.5019608</rgb>
+    </property>
+    <property name="order" value="0"/>
+    <property name="area" value="3.0E-6"/>
+  </node>
+  <edge id="-1" src_id="4958954" dest_id="4958955" type="successor"/>
+  <node id="4958955" name="" type="RU">
+    <property name="angle" value="-6.990672"/>
+  </node>
+  <edge id="-1" src_id="4958955" dest_id="4958956" type="branch"/>
+  <node id="4958956" name="" type="RU">
+    <property name="angle" value="-75.49209"/>
+  </node>
+  <edge id="-1" src_id="4958956" dest_id="4958957" type="successor"/>
+  <node id="4958957" name="" type="AdjustLU"/>
+  <edge id="-1" src_id="4958957" dest_id="4958974" type="successor"/>
+  <node id="4958974" name="" type="Sink">
+    <property name="strength" value="1.5988652"/>
+    <property name="vitality" value="3.6751356"/>
+  </node>
+  <edge id="-1" src_id="4958974" dest_id="4958993" type="successor"/>
+  <node id="4958993" name="" type="Internode">
+    <property name="length" value="0.0044483203"/>
+    <property name="diameter" value="0.005558951"/>
+    <property name="fcolor" value="15"/>
+    <property name="color">
+      <rgb>0.5019608 0.5019608 0.5019608</rgb>
+    </property>
+    <property name="order" value="1"/>
+    <property name="area" value="3.0E-6"/>
+  </node>
+  <edge id="-1" src_id="4958993" dest_id="4958994" type="successor"/>
+  <node id="4958994" name="" type="RU">
+    <property name="angle" value="-3.6130657"/>
+  </node>
+  <edge id="-1" src_id="4958994" dest_id="4958995" type="branch"/>
+  <node id="4958995" name="" type="RU">
+    <property name="angle" value="61.502216"/>
+  </node>
+  <edge id="-1" src_id="4958994" dest_id="4958997" type="successor"/>
+  <node id="4958997" name="" type="Internode">
+    <property name="length" value="0.00805168"/>
+    <property name="diameter" value="0.005414439"/>
+    <property name="fcolor" value="15"/>
+    <property name="color">
+      <rgb>0.5019608 0.5019608 0.5019608</rgb>
+    </property>
+    <property name="order" value="1"/>
+    <property name="area" value="3.0E-6"/>
+  </node>
+  <edge id="-1" src_id="4958997" dest_id="4958998" type="successor"/>
+  <node id="4958998" name="" type="RL">
+    <property name="angle" value="-8.196102"/>
+  </node>
+  <edge id="-1" src_id="4958998" dest_id="4959064" type="successor"/>
+  <node id="4959064" name="" type="Internode">
+    <property name="length" value="0.006301443"/>
+    <property name="diameter" value="0.0052573313"/>
+    <property name="fcolor" value="15"/>
+    <property name="color">
+      <rgb>0.5019608 0.5019608 0.5019608</rgb>
+    </property>
+    <property name="order" value="1"/>
+    <property name="area" value="3.0E-6"/>
+  </node>
+  <edge id="-1" src_id="4959064" dest_id="4959065" type="successor"/>
+  <node id="4959065" name="" type="RU">
+    <property name="angle" value="-4.299033"/>
+  </node>
+  <edge id="-1" src_id="4959065" dest_id="4959066" type="branch"/>
+  <node id="4959066" name="" type="RU">
+    <property name="angle" value="61.890305"/>
+  </node>
+  <edge id="-1" src_id="4959065" dest_id="4959068" type="successor"/>
+  <node id="4959068" name="" type="Internode">
+    <property name="length" value="0.015113663"/>
+    <property name="diameter" value="0.0050847237"/>
+    <property name="fcolor" value="15"/>
+    <property name="color">
+      <rgb>0.5019608 0.5019608 0.5019608</rgb>
+    </property>
+    <property name="order" value="1"/>
+    <property name="area" value="3.0E-6"/>
+  </node>
+  <edge id="-1" src_id="4959068" dest_id="4959069" type="successor"/>
+  <node id="4959069" name="" type="RU">
+    <property name="angle" value="23.317266"/>
+  </node>
+  <edge id="-1" src_id="4959069" dest_id="4959070" type="branch"/>
+  <node id="4959070" name="" type="RU">
+    <property name="angle" value="-68.87461"/>
+  </node>
+  <edge id="-1" src_id="4959069" dest_id="4959072" type="successor"/>
+  <node id="4959072" name="" type="Internode">
+    <property name="length" value="0.021963324"/>
+    <property name="diameter" value="0.004787307"/>
+    <property name="fcolor" value="15"/>
+    <property name="color">
+      <rgb>0.5019608 0.5019608 0.5019608</rgb>
+    </property>
+    <property name="order" value="1"/>
+    <property name="area" value="3.0E-6"/>
+  </node>
+  <edge id="-1" src_id="4959072" dest_id="4959073" type="successor"/>
+  <node id="4959073" name="" type="RU">
+    <property name="angle" value="-5.0432734"/>
+  </node>
+  <edge id="-1" src_id="4959073" dest_id="4959074" type="branch"/>
+  <node id="4959074" name="" type="RU">
+    <property name="angle" value="71.839294"/>
+  </node>
+  <edge id="-1" src_id="4959074" dest_id="4959104" type="successor"/>
+  <node id="4959104" name="" type="Sink">
+    <property name="strength" value="2.2905197"/>
+    <property name="vitality" value="1.7469056"/>
+  </node>
+  <edge id="-1" src_id="4959104" dest_id="4959129" type="successor"/>
+  <node id="4959129" name="" type="Internode">
+    <property name="length" value="0.0044515324"/>
+    <property name="diameter" value="0.0027639533"/>
+    <property name="fcolor" value="15"/>
+    <property name="color">
+      <rgb>0.5019608 0.5019608 0.5019608</rgb>
+    </property>
+    <property name="order" value="2"/>
+    <property name="area" value="3.0E-6"/>
+  </node>
+  <edge id="-1" src_id="4959129" dest_id="4959130" type="successor"/>
+  <node id="4959130" name="" type="RU">
+    <property name="angle" value="-18.421896"/>
+  </node>
+  <edge id="-1" src_id="4959130" dest_id="4959131" type="branch"/>
+  <node id="4959131" name="" type="RU">
+    <property name="angle" value="60.553547"/>
+  </node>
+  <edge id="-1" src_id="4959131" dest_id="4959132" type="successor"/>
+  <node id="4959132" name="" type="Leaf">
+    <property name="length" value="0.08766266"/>
+    <property name="width" value="0.04862271"/>
+    <property name="color">
+      <rgb>0.5019608 0.5019608 0.5019608</rgb>
+    </property>
+    <property name="order" value="3"/>
+    <property name="n" value="0"/>
+    <property name="strength" value="1.8502685"/>
+    <property name="vitality" value="2.2672606"/>
+  </node>
+  <edge id="-1" src_id="4959130" dest_id="4959133" type="successor"/>
+  <node id="4959133" name="" type="Internode">
+    <property name="length" value="0.008048468"/>
+    <property name="diameter" value="0.00195441"/>
+    <property name="fcolor" value="15"/>
+    <property name="color">
+      <rgb>0.5019608 0.5019608 0.5019608</rgb>
+    </property>
+    <property name="order" value="2"/>
+    <property name="area" value="3.0E-6"/>
+  </node>
+  <edge id="-1" src_id="4959133" dest_id="4959134" type="successor"/>
+  <node id="4959134" name="" type="RL">
+    <property name="angle" value="-11.880452"/>
+  </node>
+  <edge id="-1" src_id="4959134" dest_id="4959135" type="successor"/>
+  <node id="4959135" name="" type="Leaf">
+    <property name="length" value="0.0897667"/>
+    <property name="width" value="0.05566001"/>
+    <property name="color">
+      <rgb>0.5019608 0.5019608 0.5019608</rgb>
+    </property>
+    <property name="order" value="2"/>
+    <property name="n" value="1"/>
+    <property name="strength" value="1.4285715"/>
+    <property name="vitality" value="2.2672606"/>
+  </node>
+  <edge id="-1" src_id="4959073" dest_id="4959076" type="successor"/>
+  <node id="4959076" name="" type="Internode">
+    <property name="length" value="0.019121567"/>
+    <property name="diameter" value="0.0033851375"/>
+    <property name="fcolor" value="15"/>
+    <property name="color">
+      <rgb>0.5019608 0.5019608 0.5019608</rgb>
+    </property>
+    <property name="order" value="1"/>
+    <property name="area" value="3.0E-6"/>
+  </node>
+  <edge id="-1" src_id="4959076" dest_id="4959077" type="successor"/>
+  <node id="4959077" name="" type="RL">
+    <property name="angle" value="-4.095866"/>
+  </node>
+  <edge id="-1" src_id="4959077" dest_id="4959136" type="successor"/>
+  <node id="4959136" name="" type="Internode">
+    <property name="length" value="0.0044129626"/>
+    <property name="diameter" value="0.0027639533"/>
+    <property name="fcolor" value="15"/>
+    <property name="color">
+      <rgb>0.5019608 0.5019608 0.5019608</rgb>
+    </property>
+    <property name="order" value="1"/>
+    <property name="area" value="3.0E-6"/>
+  </node>
+  <edge id="-1" src_id="4959136" dest_id="4959137" type="successor"/>
+  <node id="4959137" name="" type="RU">
+    <property name="angle" value="-13.177926"/>
+  </node>
+  <edge id="-1" src_id="4959137" dest_id="4959138" type="branch"/>
+  <node id="4959138" name="" type="RU">
+    <property name="angle" value="65.300064"/>
+  </node>
+  <edge id="-1" src_id="4959138" dest_id="4959139" type="successor"/>
+  <node id="4959139" name="" type="Leaf">
+    <property name="length" value="0.100141585"/>
+    <property name="width" value="0.07217292"/>
+    <property name="color">
+      <rgb>0.5019608 0.5019608 0.5019608</rgb>
+    </property>
+    <property name="order" value="2"/>
+    <property name="n" value="0"/>
+    <property name="strength" value="2.3228614"/>
+    <property name="vitality" value="2.062731"/>
+  </node>
+  <edge id="-1" src_id="4959137" dest_id="4959140" type="successor"/>
+  <node id="4959140" name="" type="Internode">
+    <property name="length" value="0.008087038"/>
+    <property name="diameter" value="0.00195441"/>
+    <property name="fcolor" value="15"/>
+    <property name="color">
+      <rgb>0.5019608 0.5019608 0.5019608</rgb>
+    </property>
+    <property name="order" value="1"/>
+    <property name="area" value="3.0E-6"/>
+  </node>
+  <edge id="-1" src_id="4959140" dest_id="4959141" type="successor"/>
+  <node id="4959141" name="" type="RL">
+    <property name="angle" value="-14.987215"/>
+  </node>
+  <edge id="-1" src_id="4959141" dest_id="4959142" type="successor"/>
+  <node id="4959142" name="" type="Leaf">
+    <property name="length" value="0.093924485"/>
+    <property name="width" value="0.05800372"/>
+    <property name="color">
+      <rgb>0.5019608 0.5019608 0.5019608</rgb>
+    </property>
+    <property name="order" value="1"/>
+    <property name="n" value="3"/>
+    <property name="strength" value="1.457726"/>
+    <property name="vitality" value="2.062731"/>
+  </node>
+  <edge id="-1" src_id="4958955" dest_id="4958959" type="successor"/>
+  <node id="4958959" name="" type="Internode">
+    <property name="length" value="0.028423669"/>
+    <property name="diameter" value="0.006151991"/>
+    <property name="fcolor" value="15"/>
+    <property name="color">
+      <rgb>0.5019608 0.5019608 0.5019608</rgb>
+    </property>
+    <property name="order" value="0"/>
+    <property name="area" value="3.0E-6"/>
+  </node>
+  <edge id="-1" src_id="4958959" dest_id="4958960" type="successor"/>
+  <node id="4958960" name="" type="RU">
+    <property name="angle" value="2.8018932"/>
+  </node>
+  <edge id="-1" src_id="4958960" dest_id="4958961" type="branch"/>
+  <node id="4958961" name="" type="RU">
+    <property name="angle" value="68.49675"/>
+  </node>
+  <edge id="-1" src_id="4958961" dest_id="4958962" type="successor"/>
+  <node id="4958962" name="" type="AdjustLU"/>
+  <edge id="-1" src_id="4958960" dest_id="4958964" type="successor"/>
+  <node id="4958964" name="" type="Internode">
+    <property name="length" value="0.018598257"/>
+    <property name="diameter" value="0.0060467897"/>
+    <property name="fcolor" value="15"/>
+    <property name="color">
+      <rgb>0.5019608 0.5019608 0.5019608</rgb>
+    </property>
+    <property name="order" value="0"/>
+    <property name="area" value="3.0E-6"/>
+  </node>
+  <edge id="-1" src_id="4958964" dest_id="4958965" type="successor"/>
+  <node id="4958965" name="" type="RH">
+    <property name="angle" value="-7.365163"/>
+  </node>
+  <edge id="-1" src_id="4958965" dest_id="4958966" type="successor"/>
+  <node id="4958966" name="" type="RV">
+    <property name="argument" value="-0.22347131"/>
+  </node>
+  <edge id="-1" src_id="4958966" dest_id="4959000" type="successor"/>
+  <node id="4959000" name="" type="Internode">
+    <property name="length" value="0.0064124414"/>
+    <property name="diameter" value="0.0059357923"/>
+    <property name="fcolor" value="15"/>
+    <property name="color">
+      <rgb>0.5019608 0.5019608 0.5019608</rgb>
+    </property>
+    <property name="order" value="0"/>
+    <property name="area" value="3.0E-6"/>
+  </node>
+  <edge id="-1" src_id="4959000" dest_id="4959001" type="successor"/>
+  <node id="4959001" name="" type="RU">
+    <property name="angle" value="0.8060459"/>
+  </node>
+  <edge id="-1" src_id="4959001" dest_id="4959002" type="branch"/>
+  <node id="4959002" name="" type="RU">
+    <property name="angle" value="68.58222"/>
+  </node>
+  <edge id="-1" src_id="4959002" dest_id="4959003" type="successor"/>
+  <node id="4959003" name="" type="AdjustLU"/>
+  <edge id="-1" src_id="4959001" dest_id="4959005" type="successor"/>
+  <node id="4959005" name="" type="Internode">
+    <property name="length" value="0.015420607"/>
+    <property name="diameter" value="0.005818194"/>
+    <property name="fcolor" value="15"/>
+    <property name="color">
+      <rgb>0.5019608 0.5019608 0.5019608</rgb>
+    </property>
+    <property name="order" value="0"/>
+    <property name="area" value="3.0E-6"/>
+  </node>
+  <edge id="-1" src_id="4959005" dest_id="4959006" type="successor"/>
+  <node id="4959006" name="" type="RU">
+    <property name="angle" value="-6.399775"/>
+  </node>
+  <edge id="-1" src_id="4959006" dest_id="4959007" type="branch"/>
+  <node id="4959007" name="" type="RU">
+    <property name="angle" value="-79.11005"/>
+  </node>
+  <edge id="-1" src_id="4959007" dest_id="4959008" type="successor"/>
+  <node id="4959008" name="" type="AdjustLU"/>
+  <edge id="-1" src_id="4959006" dest_id="4959010" type="successor"/>
+  <node id="4959010" name="" type="Internode">
+    <property name="length" value="0.015666952"/>
+    <property name="diameter" value="0.005692998"/>
+    <property name="fcolor" value="15"/>
+    <property name="color">
+      <rgb>0.5019608 0.5019608 0.5019608</rgb>
+    </property>
+    <property name="order" value="0"/>
+    <property name="area" value="3.0E-6"/>
+  </node>
+  <edge id="-1" src_id="4959010" dest_id="4959011" type="successor"/>
+  <node id="4959011" name="" type="RH">
+    <property name="angle" value="-1.9063087"/>
+  </node>
+  <edge id="-1" src_id="4959011" dest_id="4959012" type="successor"/>
+  <node id="4959012" name="" type="RV">
+    <property name="argument" value="-0.19122906"/>
+  </node>
+  <edge id="-1" src_id="4959012" dest_id="4959079" type="successor"/>
+  <node id="4959079" name="" type="Internode">
+    <property name="length" value="0.006259789"/>
+    <property name="diameter" value="0.005558951"/>
+    <property name="fcolor" value="15"/>
+    <property name="color">
+      <rgb>0.5019608 0.5019608 0.5019608</rgb>
+    </property>
+    <property name="order" value="0"/>
+    <property name="area" value="3.0E-6"/>
+  </node>
+  <edge id="-1" src_id="4959079" dest_id="4959080" type="successor"/>
+  <node id="4959080" name="" type="RU">
+    <property name="angle" value="-0.7030374"/>
+  </node>
+  <edge id="-1" src_id="4959080" dest_id="4959081" type="branch"/>
+  <node id="4959081" name="" type="RU">
+    <property name="angle" value="63.366592"/>
+  </node>
+  <edge id="-1" src_id="4959081" dest_id="4959082" type="successor"/>
+  <node id="4959082" name="" type="AdjustLU"/>
+  <edge id="-1" src_id="4959080" dest_id="4959084" type="successor"/>
+  <node id="4959084" name="" type="Internode">
+    <property name="length" value="0.016325634"/>
+    <property name="diameter" value="0.005414439"/>
+    <property name="fcolor" value="15"/>
+    <property name="color">
+      <rgb>0.5019608 0.5019608 0.5019608</rgb>
+    </property>
+    <property name="order" value="0"/>
+    <property name="area" value="3.0E-6"/>
+  </node>
+  <edge id="-1" src_id="4959084" dest_id="4959085" type="successor"/>
+  <node id="4959085" name="" type="RU">
+    <property name="angle" value="-0.76221204"/>
+  </node>
+  <edge id="-1" src_id="4959085" dest_id="4959086" type="branch"/>
+  <node id="4959086" name="" type="RU">
+    <property name="angle" value="-86.02119"/>
+  </node>
+  <edge id="-1" src_id="4959086" dest_id="4959087" type="successor"/>
+  <node id="4959087" name="" type="AdjustLU"/>
+  <edge id="-1" src_id="4959087" dest_id="4959107" type="successor"/>
+  <node id="4959107" name="" type="Sink">
+    <property name="strength" value="2.77779"/>
+    <property name="vitality" value="3.43741"/>
+  </node>
+  <edge id="-1" src_id="4959107" dest_id="4959143" type="successor"/>
+  <node id="4959143" name="" type="Internode">
+    <property name="length" value="0.00551039"/>
+    <property name="diameter" value="0.004370194"/>
+    <property name="fcolor" value="15"/>
+    <property name="color">
+      <rgb>0.5019608 0.5019608 0.5019608</rgb>
+    </property>
+    <property name="order" value="1"/>
+    <property name="area" value="3.0E-6"/>
+  </node>
+  <edge id="-1" src_id="4959143" dest_id="4959144" type="successor"/>
+  <node id="4959144" name="" type="RU">
+    <property name="angle" value="-14.208786"/>
+  </node>
+  <edge id="-1" src_id="4959144" dest_id="4959145" type="branch"/>
+  <node id="4959145" name="" type="RU">
+    <property name="angle" value="63.127453"/>
+  </node>
+  <edge id="-1" src_id="4959145" dest_id="4959146" type="successor"/>
+  <node id="4959146" name="" type="Leaf">
+    <property name="length" value="0.08376967"/>
+    <property name="width" value="0.050308514"/>
+    <property name="color">
+      <rgb>0.5019608 0.5019608 0.5019608</rgb>
+    </property>
+    <property name="order" value="2"/>
+    <property name="n" value="0"/>
+    <property name="strength" value="1.3485816"/>
+    <property name="vitality" value="5.034662"/>
+  </node>
+  <edge id="-1" src_id="4959144" dest_id="4959147" type="successor"/>
+  <node id="4959147" name="" type="Internode">
+    <property name="length" value="0.014430749"/>
+    <property name="diameter" value="0.00390882"/>
+    <property name="fcolor" value="15"/>
+    <property name="color">
+      <rgb>0.5019608 0.5019608 0.5019608</rgb>
+    </property>
+    <property name="order" value="1"/>
+    <property name="area" value="3.0E-6"/>
+  </node>
+  <edge id="-1" src_id="4959147" dest_id="4959148" type="successor"/>
+  <node id="4959148" name="" type="RU">
+    <property name="angle" value="8.52061"/>
+  </node>
+  <edge id="-1" src_id="4959148" dest_id="4959149" type="branch"/>
+  <node id="4959149" name="" type="RU">
+    <property name="angle" value="-79.34668"/>
+  </node>
+  <edge id="-1" src_id="4959149" dest_id="4959150" type="successor"/>
+  <node id="4959150" name="" type="Leaf">
+    <property name="length" value="0.079968214"/>
+    <property name="width" value="0.03460972"/>
+    <property name="color">
+      <rgb>0.5019608 0.5019608 0.5019608</rgb>
+    </property>
+    <property name="order" value="2"/>
+    <property name="n" value="0"/>
+    <property name="strength" value="1.7381018"/>
+    <property name="vitality" value="5.034662"/>
+  </node>
+  <edge id="-1" src_id="4959148" dest_id="4959151" type="successor"/>
+  <node id="4959151" name="" type="Internode">
+    <property name="length" value="0.021587182"/>
+    <property name="diameter" value="0.0033851375"/>
+    <property name="fcolor" value="15"/>
+    <property name="color">
+      <rgb>0.5019608 0.5019608 0.5019608</rgb>
+    </property>
+    <property name="order" value="1"/>
+    <property name="area" value="3.0E-6"/>
+  </node>
+  <edge id="-1" src_id="4959151" dest_id="4959152" type="successor"/>
+  <node id="4959152" name="" type="RU">
+    <property name="angle" value="-6.006957"/>
+  </node>
+  <edge id="-1" src_id="4959152" dest_id="4959153" type="branch"/>
+  <node id="4959153" name="" type="RU">
+    <property name="angle" value="67.44971"/>
+  </node>
+  <edge id="-1" src_id="4959153" dest_id="4959154" type="successor"/>
+  <node id="4959154" name="" type="Leaf">
+    <property name="length" value="0.06331314"/>
+    <property name="width" value="0.026813567"/>
+    <property name="color">
+      <rgb>0.5019608 0.5019608 0.5019608</rgb>
+    </property>
+    <property name="order" value="2"/>
+    <property name="n" value="0"/>
+    <property name="strength" value="1.860063"/>
+    <property name="vitality" value="5.034662"/>
+  </node>
+  <edge id="-1" src_id="4959152" dest_id="4959155" type="successor"/>
+  <node id="4959155" name="" type="Internode">
+    <property name="length" value="0.026811605"/>
+    <property name="diameter" value="0.0027639533"/>
+    <property name="fcolor" value="15"/>
+    <property name="color">
+      <rgb>0.5019608 0.5019608 0.5019608</rgb>
+    </property>
+    <property name="order" value="1"/>
+    <property name="area" value="3.0E-6"/>
+  </node>
+  <edge id="-1" src_id="4959155" dest_id="4959156" type="successor"/>
+  <node id="4959156" name="" type="RU">
+    <property name="angle" value="19.67735"/>
+  </node>
+  <edge id="-1" src_id="4959156" dest_id="4959157" type="branch"/>
+  <node id="4959157" name="" type="RU">
+    <property name="angle" value="-73.53339"/>
+  </node>
+  <edge id="-1" src_id="4959157" dest_id="4959158" type="successor"/>
+  <node id="4959158" name="" type="Leaf">
+    <property name="length" value="0.092744485"/>
+    <property name="width" value="0.03246554"/>
+    <property name="color">
+      <rgb>0.5019608 0.5019608 0.5019608</rgb>
+    </property>
+    <property name="order" value="2"/>
+    <property name="n" value="0"/>
+    <property name="strength" value="2.5704265"/>
+    <property name="vitality" value="5.034662"/>
+  </node>
+  <edge id="-1" src_id="4959156" dest_id="4959159" type="successor"/>
+  <node id="4959159" name="" type="Internode">
+    <property name="length" value="0.019160071"/>
+    <property name="diameter" value="0.00195441"/>
+    <property name="fcolor" value="15"/>
+    <property name="color">
+      <rgb>0.5019608 0.5019608 0.5019608</rgb>
+    </property>
+    <property name="order" value="1"/>
+    <property name="area" value="3.0E-6"/>
+  </node>
+  <edge id="-1" src_id="4959159" dest_id="4959160" type="successor"/>
+  <node id="4959160" name="" type="RL">
+    <property name="angle" value="-16.530676"/>
+  </node>
+  <edge id="-1" src_id="4959160" dest_id="4959161" type="successor"/>
+  <node id="4959161" name="" type="Leaf">
+    <property name="length" value="0.10587385"/>
+    <property name="width" value="0.052640233"/>
+    <property name="color">
+      <rgb>0.5019608 0.5019608 0.5019608</rgb>
+    </property>
+    <property name="order" value="1"/>
+    <property name="n" value="1"/>
+    <property name="strength" value="1.4285715"/>
+    <property name="vitality" value="5.034662"/>
+  </node>
+  <edge id="-1" src_id="4959085" dest_id="4959089" type="successor"/>
+  <node id="4959089" name="" type="Internode">
+    <property name="length" value="0.014914577"/>
+    <property name="diameter" value="0.0033851375"/>
+    <property name="fcolor" value="15"/>
+    <property name="color">
+      <rgb>0.5019608 0.5019608 0.5019608</rgb>
+    </property>
+    <property name="order" value="0"/>
+    <property name="area" value="3.0E-6"/>
+  </node>
+  <edge id="-1" src_id="4959089" dest_id="4959090" type="successor"/>
+  <node id="4959090" name="" type="RH">
+    <property name="angle" value="-19.244308"/>
+  </node>
+  <edge id="-1" src_id="4959090" dest_id="4959091" type="successor"/>
+  <node id="4959091" name="" type="RV">
+    <property name="argument" value="-0.11856741"/>
+  </node>
+  <edge id="-1" src_id="4959091" dest_id="4959162" type="successor"/>
+  <node id="4959162" name="" type="Internode">
+    <property name="length" value="0.004507406"/>
+    <property name="diameter" value="0.0027639533"/>
+    <property name="fcolor" value="15"/>
+    <property name="color">
+      <rgb>0.5019608 0.5019608 0.5019608</rgb>
+    </property>
+    <property name="order" value="0"/>
+    <property name="area" value="3.0E-6"/>
+  </node>
+  <edge id="-1" src_id="4959162" dest_id="4959163" type="successor"/>
+  <node id="4959163" name="" type="RU">
+    <property name="angle" value="0.80567"/>
+  </node>
+  <edge id="-1" src_id="4959163" dest_id="4959164" type="branch"/>
+  <node id="4959164" name="" type="RU">
+    <property name="angle" value="65.29115"/>
+  </node>
+  <edge id="-1" src_id="4959164" dest_id="4959165" type="successor"/>
+  <node id="4959165" name="" type="AdjustLU"/>
+  <edge id="-1" src_id="4959165" dest_id="4959166" type="successor"/>
+  <node id="4959166" name="" type="Leaf">
+    <property name="length" value="0.07863745"/>
+    <property name="width" value="0.046940763"/>
+    <property name="color">
+      <rgb>0.5019608 0.5019608 0.5019608</rgb>
+    </property>
+    <property name="order" value="1"/>
+    <property name="n" value="0"/>
+    <property name="strength" value="1.8656703"/>
+    <property name="vitality" value="2.3174055"/>
+  </node>
+  <edge id="-1" src_id="4959163" dest_id="4959167" type="successor"/>
+  <node id="4959167" name="" type="Internode">
+    <property name="length" value="0.007992594"/>
+    <property name="diameter" value="0.00195441"/>
+    <property name="fcolor" value="15"/>
+    <property name="color">
+      <rgb>0.5019608 0.5019608 0.5019608</rgb>
+    </property>
+    <property name="order" value="0"/>
+    <property name="area" value="3.0E-6"/>
+  </node>
+  <edge id="-1" src_id="4959167" dest_id="4959168" type="successor"/>
+  <node id="4959168" name="" type="RH">
+    <property name="angle" value="-20.818823"/>
+  </node>
+  <edge id="-1" src_id="4959168" dest_id="4959169" type="successor"/>
+  <node id="4959169" name="" type="RV">
+    <property name="argument" value="-0.22555391"/>
+  </node>
+  <edge id="-1" src_id="4959169" dest_id="4959170" type="successor"/>
+  <node id="4959170" name="" type="Leaf">
+    <property name="length" value="0.08371472"/>
+    <property name="width" value="0.048556864"/>
+    <property name="color">
+      <rgb>0.5019608 0.5019608 0.5019608</rgb>
+    </property>
+    <property name="order" value="0"/>
+    <property name="n" value="4"/>
+    <property name="strength" value="1.3015411"/>
+    <property name="vitality" value="2.3174055"/>
+  </node>
+</graph>

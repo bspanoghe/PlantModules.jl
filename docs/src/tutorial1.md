@@ -53,7 +53,7 @@ As such, the workflow to create a model in PlantModules boils down to defining t
 
 The first step in modeling our plant's growth is defining its structure. There are a lot of options for formalizing the structure of a plant, and perhaps the most obvious first choice we need to make is what spatial scale to model on. PlantModules allows for a lot of freedom here, including the option to combine multiple spatial scales.
 For the first tutorial, we'll consider a very simple example: an organ-scale plant model of a plant with two leaves, a stem and a root system.
-PlantModules uses **graphs** to define the relationships between modules. As such, structural modules need to be implemented as graph nodes of some sort. We'll be using the graph implementation from [the PlantGraphs](https://virtualplantlab.com/stable/manual/Graphs/) package for this tutorial, though [any graph implementation can be used](nothinghere).
+PlantModules uses **graphs** to define the relationships between modules. As such, structural modules need to be implemented as graph nodes of some sort. We'll be using the graph implementation from [the PlantGraphs](https://virtualplantlab.com/stable/manual/Graphs/) package for this tutorial, though any graph implementation can be used.
 Then we can define the structural modules of our plant. For our example, we will define three structural modules on the organ scale of the plant.
 
 ````@example tutorial1
@@ -90,7 +90,7 @@ There are five functional modules already provided by PlantModules:
 The first module contains the most important (and theoretically founded) functionality of the package, whereas the other four are mostly to allow for implementing a model that works out of the box. Users that want to create a realistic model are expected to implement some functional modules of their own in accordance with their own use for the package, as will be discussed next tutorial. For now, we will stick to the pre-implemented functional modules.
 
 #### Defining parameter and initial values
-Next to the equations themselves, an important part in describing the plant's functional processes is defining the equations' parameter - and initial values. Since we'll restrict ourselves to hydraulic equations for this tutorial, these parameters and variables are the ones described in the section [Theoretical overview](nothinghere).
+Next to the equations themselves, an important part in describing the plant's functional processes is defining the equations' parameter - and initial values. Since we'll restrict ourselves to hydraulic equations for this tutorial, these parameters and variables are the ones described in the section [Theoretical overview](@ref).
 
 In PlantModules, parameter - and initial values are defined in a hierarchical manner, here listed in ascending priority:
 
@@ -133,7 +133,7 @@ module_defaults = (
 )
 ````
 
-As you can see, we changed the default $shape$ between the root, stem and leaf modules, as well as their initial dimensions $D$ and metabolite concentration $M$. For our soil module, we changed the maximum water content and temperature. For a detailed explanation of the parameters and initial values here, we again refer to the [theoretical overview](nothinghere).
+As you can see, we changed the default $shape$ between the root, stem and leaf modules, as well as their initial dimensions $D$ and metabolite concentration $M$. For our soil module, we changed the maximum water content and temperature. For a detailed explanation of the parameters and initial values here, we again refer to the [Theoretical overview](theory.md).
 
 ### Coupling functional and structural modules
 
@@ -232,7 +232,7 @@ system = PlantModules.generate_system(default_params, default_u0s, module_defaul
 nothing #hide
 ````
 
-This function will generate the `ODESystem` describing the model. It is possible to fine-tune the model even further at this stage as described in the [Customizing the model](nothinghere) section of the docs, thought this should generally not be required.
+This function will generate the `ODESystem` describing the model.
 
 ## Running the model 🏃‍♂️
 The rest of the modeling workflow is mostly taken care of by ModelingToolkit.jl and DifferentialEquations.jl, with some syntactic sugar added by PlantModules. For users that are unfamiliar with the package, it is recommended to take a brief look at [the ModelingToolkit docs](https://docs.sciml.ai/ModelingToolkit/stable/) before proceeding.

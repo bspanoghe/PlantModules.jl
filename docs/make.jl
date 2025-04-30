@@ -1,12 +1,21 @@
+# https://docs.julialang.org/en/v1/manual/documentation/
+# https://documenter.juliadocs.org/stable/
+
 cd(@__DIR__)
 
 using Pkg; Pkg.activate(".")
-using Documenter, Literate, PlantModules
+using Documenter, PlantModules
+# using Literate
+using PlutoStaticHTML
+
+bopts = BuildOptions("./src/tutorials", output_format = documenter_output)
+build_notebooks(bopts, ["1_basics_notebook.jl"])
+
 Literate.markdown("./src/tutorial1.jl", "./src")
 
 pages = [
     "Introduction" => "index.md",
-    "Basics tutorial" => "tutorial1.md",
+    "Basics tutorial" => "tutorial-1.md",
     "API" => "api.md",
     "Theoretical overview" => "theory.md",
 ]
