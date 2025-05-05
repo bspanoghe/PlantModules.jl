@@ -1,11 +1,11 @@
 ### A Pluto.jl notebook ###
-# v0.20.4
+# v0.20.6
 
 using Markdown
 using InteractiveUtils
 
 # ╔═╡ 34fd1713-4d0a-4bc9-81e1-bacf418747a2
-using Pkg; Pkg.activate("..")
+using Pkg; Pkg.activate("../..")
 
 # ╔═╡ c379b857-4a95-42c0-92bd-bf9df430e1e8
 using PlantModules
@@ -61,7 +61,7 @@ md"""
 """
 
 # ╔═╡ 0255cc11-11a2-4c72-b676-26b2f0ace488
-import .PlantModules: Cylinder, Cuboid, volume, convert_to_PG, convert_to_MTG, generate_system #! Are exported, why don't they work >:(
+# import .PlantModules: Cylinder, Cuboid, volume, convert_to_PG, convert_to_MTG, generate_system #! Are exported, why don't they work >:(
 
 # ╔═╡ b6eb66b5-a2d7-4baf-b6a6-87e819309a2d
 md"""
@@ -79,7 +79,7 @@ For practical applications, it is generally not adviced to write out the entire 
 """
 
 # ╔═╡ e920f6aa-4c7b-4fd1-9dca-d9e3d4155ec2
-plantXEG = PlantModules.readXEG("../structures/beech.xeg")
+plantXEG = PlantModules.readXEG("./structures/beech.xeg")
 
 # ╔═╡ 1d3d04e4-7bb2-4dba-a25a-5bcde565ee62
 md"""
@@ -96,26 +96,9 @@ md"""
 For manipulating the graph, working in the MultiScaleTreeGraph.jl format is the easiest.
 """
 
-# ╔═╡ 69480c82-62c9-48d5-bb9e-3d698603c937
-mtg = PlantModules.convert_to_MTG(plantXEG);
-
-# ╔═╡ b1c4c7f6-8a54-41f6-ae08-7521f5b9333a
-DataFrame(mtg, [:diameter, :length, :width])
-
 # ╔═╡ d98e14b1-d636-48d2-8825-793166f093f2
 md"""
 First off, we need to remove all the turtle commands defined in this graph. These are nodes in the graph used to define how the plant should be visualized, but are not actual structural plant parts. Modeling the plant will be easier after removing them. We can easily discern these nodes by the fact they have no dimensions defined (no diameter, length or width).
-"""
-
-# ╔═╡ 0065bb33-2fb8-465e-b908-ba0df2248e18
-plant_graph = delete_nodes!(mtg, filter_fun = node -> all(isnothing.([node.diameter, node.length, node.width])))
-
-# ╔═╡ 1b87aab5-6fb5-446b-8acd-e64d9c00754b
-DataFrame(plant_graph, [:diameter, :length, :width])
-
-# ╔═╡ b53c20bb-f25a-4def-a4ed-1ddd35aa30bf
-md"""
-Secondly, we need to combine the separate dimensions defined in the XEG file into one vector `D`, as is expected by the pre-defined functional modules we'll use.
 """
 
 # ╔═╡ 5a3a91d3-c90f-46b4-a614-d253e46fb81b
@@ -129,22 +112,26 @@ function combine_dimensions(l, d, w)
 	end
 end
 
-# ╔═╡ ffd91a3f-1475-471d-be28-98f5aaaacabb
-transform!(plant_graph, [:length, :diameter, :width] => combine_dimensions => :D)
+# ╔═╡ d18e6205-85a4-4488-9e7a-7dfab43954b2
+begin
+	mtg = PlantModules.convert_to_MTG(plantXEG);
+	plant_graph = delete_nodes!(mtg, filter_fun = node -> all(isnothing.([node.diameter, node.length, node.width])))
+	transform!(plant_graph, [:length, :diameter, :width] => combine_dimensions => :D)
+	traverse!(plant_graph, node -> symbol!(node, "Shoot"), symbol = "ShortShoot")
+end
+
+# ╔═╡ b53c20bb-f25a-4def-a4ed-1ddd35aa30bf
+md"""
+Secondly, we need to combine the separate dimensions defined in the XEG file into one vector `D`, as is expected by the pre-defined functional modules we'll use.
+"""
 
 # ╔═╡ 3499476b-4764-43d8-9886-5e493fb024c5
 md"""
 Lastly, let's also rename the "ShortShoot" nodetype to simply "Shoot":
 """
 
-# ╔═╡ 2919dad7-f954-40b3-a47b-20ae62cdce1b
-traverse!(plant_graph, node -> symbol!(node, "Shoot"), symbol = "ShortShoot")
-
 # ╔═╡ 22bbed9a-f671-4fa1-89b5-c9a80da2e557
 DataFrame(plant_graph, [:D])
-
-# ╔═╡ 068741d7-7d28-4376-9575-2a0f29675928
-convert_to_PG(plant_graph) |> draw
 
 # ╔═╡ 98eac4c4-b39a-4e11-917a-90b03d7385d1
 md"""
@@ -411,18 +398,12 @@ The same goes for the internodes, since their water exchange rate with the leave
 # ╟─1d3d04e4-7bb2-4dba-a25a-5bcde565ee62
 # ╠═d15c0747-6e2a-4b61-9b83-12cc4585cbf9
 # ╟─16f8f64f-130c-4402-87b4-1dc6e7219928
-# ╠═69480c82-62c9-48d5-bb9e-3d698603c937
-# ╠═b1c4c7f6-8a54-41f6-ae08-7521f5b9333a
 # ╟─d98e14b1-d636-48d2-8825-793166f093f2
-# ╠═0065bb33-2fb8-465e-b908-ba0df2248e18
-# ╠═1b87aab5-6fb5-446b-8acd-e64d9c00754b
 # ╟─b53c20bb-f25a-4def-a4ed-1ddd35aa30bf
-# ╠═5a3a91d3-c90f-46b4-a614-d253e46fb81b
-# ╠═ffd91a3f-1475-471d-be28-98f5aaaacabb
 # ╟─3499476b-4764-43d8-9886-5e493fb024c5
-# ╠═2919dad7-f954-40b3-a47b-20ae62cdce1b
+# ╠═5a3a91d3-c90f-46b4-a614-d253e46fb81b
+# ╠═d18e6205-85a4-4488-9e7a-7dfab43954b2
 # ╠═22bbed9a-f671-4fa1-89b5-c9a80da2e557
-# ╠═068741d7-7d28-4376-9575-2a0f29675928
 # ╟─98eac4c4-b39a-4e11-917a-90b03d7385d1
 # ╠═e00c5135-1d66-4dec-8283-40ebe06a8038
 # ╠═dac02191-b640-40f5-a7d6-e6b06b946c23

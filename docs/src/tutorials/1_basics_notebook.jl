@@ -51,9 +51,6 @@ md"""
 Before we can get started, we need to do some basic setup: activating our project and loading in the required packages.
 """
 
-# ╔═╡ f34f8fb6-cdc3-487b-9800-1f1db2faa546
-Pkg.status()
-
 # ╔═╡ aa3b75e4-1868-4c84-8dc8-f9b54d560b3a
 md"""
 ## Modeling with PlantModules
@@ -386,7 +383,6 @@ The plant water dynamics in this tutorials were an oversimplification making the
 # ╟─bc44fae7-6c4a-4f27-be51-dbabf4037601
 # ╠═57b8dcb8-9baa-4ddf-9368-431b1be5850e
 # ╠═662c0476-70aa-4a60-a81c-d7db2248b728
-# ╠═f34f8fb6-cdc3-487b-9800-1f1db2faa546
 # ╠═65f88593-1180-447a-900f-49aef4647cd1
 # ╟─aa3b75e4-1868-4c84-8dc8-f9b54d560b3a
 # ╟─6ef5c63a-b753-43ae-baee-f6c24313a385
