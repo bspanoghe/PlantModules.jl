@@ -16,14 +16,14 @@ using PlantGraphs, MultiScaleTreeGraph
 # ╔═╡ 8f5728b1-fa78-492e-beab-9e40ebc633ef
 using ModelingToolkit, OrdinaryDiffEq, Unitful
 
-# ╔═╡ 876006eb-b8b6-46dc-8077-8f64991c5616
-using PlantBiophysics, PlantBiophysics.PlantMeteo, PlantBiophysics.PlantSimEngine
+# ╔═╡ dc47be70-0bc4-452d-a128-73ff5fce56ce
+using Plots
 
 # ╔═╡ 41b55366-5b6e-4489-b37d-342d57fd7b41
 using Memoization
 
-# ╔═╡ dc47be70-0bc4-452d-a128-73ff5fce56ce
-using Plots
+# ╔═╡ 876006eb-b8b6-46dc-8077-8f64991c5616
+using PlantBiophysics, PlantBiophysics.PlantMeteo, PlantBiophysics.PlantSimEngine
 
 # ╔═╡ 56c3527f-d8df-4f5c-9075-77c34d5c7204
 md"""
@@ -60,9 +60,6 @@ md"""
 ## Loading packages
 """
 
-# ╔═╡ 0255cc11-11a2-4c72-b676-26b2f0ace488
-# import .PlantModules: Cylinder, Cuboid, volume, convert_to_PG, convert_to_MTG, generate_system #! Are exported, why don't they work >:(
-
 # ╔═╡ b6eb66b5-a2d7-4baf-b6a6-87e819309a2d
 md"""
 ## Defining the structural modules
@@ -79,17 +76,7 @@ For practical applications, it is generally not adviced to write out the entire 
 """
 
 # ╔═╡ e920f6aa-4c7b-4fd1-9dca-d9e3d4155ec2
-plantXEG = PlantModules.readXEG("./structures/beech.xeg")
-
-# ╔═╡ 1d3d04e4-7bb2-4dba-a25a-5bcde565ee62
-md"""
-We can then convert the graph to other formats.
-
-`convert_to_PG` converts a graph to PlantGeom.jl format, which can be used for its visualisation functions, for example:
-"""
-
-# ╔═╡ d15c0747-6e2a-4b61-9b83-12cc4585cbf9
-PlantModules.convert_to_PG(plantXEG) |> draw
+plantXEG = PlantModules.readXEG("./structures/beech.xeg");
 
 # ╔═╡ 16f8f64f-130c-4402-87b4-1dc6e7219928
 md"""
@@ -101,25 +88,6 @@ md"""
 First off, we need to remove all the turtle commands defined in this graph. These are nodes in the graph used to define how the plant should be visualized, but are not actual structural plant parts. Modeling the plant will be easier after removing them. We can easily discern these nodes by the fact they have no dimensions defined (no diameter, length or width).
 """
 
-# ╔═╡ 5a3a91d3-c90f-46b4-a614-d253e46fb81b
-function combine_dimensions(l, d, w)
-	if all(isnothing.([l, d, w]))
-		return nothing
-	elseif isnothing(w) # no width defined => shape is a cylinder
-		return 1e2*[d/2, l] # 1e2 to go from m to cm
-	else # otherwise we're dealing with a cuboid
-		return 1e2*[l, w, 5e-4] # leaf thickness assumed to be 0.5 mm
-	end
-end
-
-# ╔═╡ d18e6205-85a4-4488-9e7a-7dfab43954b2
-begin
-	mtg = PlantModules.convert_to_MTG(plantXEG);
-	plant_graph = delete_nodes!(mtg, filter_fun = node -> all(isnothing.([node.diameter, node.length, node.width])))
-	transform!(plant_graph, [:length, :diameter, :width] => combine_dimensions => :D)
-	traverse!(plant_graph, node -> symbol!(node, "Shoot"), symbol = "ShortShoot")
-end
-
 # ╔═╡ b53c20bb-f25a-4def-a4ed-1ddd35aa30bf
 md"""
 Secondly, we need to combine the separate dimensions defined in the XEG file into one vector `D`, as is expected by the pre-defined functional modules we'll use.
@@ -129,6 +97,25 @@ Secondly, we need to combine the separate dimensions defined in the XEG file int
 md"""
 Lastly, let's also rename the "ShortShoot" nodetype to simply "Shoot":
 """
+
+# ╔═╡ 5a3a91d3-c90f-46b4-a614-d253e46fb81b
+function combine_dimensions(l, d, w)
+	if all(isnothing.([l, d, w]))
+		return nothing
+	elseif isnothing(w) # no width defined => shape is a cylinder
+		return 1e2*[d/2, l] # 1e2 to go from m to cm
+	else # otherwise we're dealing with a cuboid
+		return 1e2*[l, w, 5e-4] # leaf thickness assumed to be 0.5 mm
+	end
+end;
+
+# ╔═╡ d18e6205-85a4-4488-9e7a-7dfab43954b2
+begin
+	mtg = PlantModules.convert_to_MTG(plantXEG);
+	plant_graph = delete_nodes!(mtg, filter_fun = node -> all(isnothing.([node.diameter, node.length, node.width])))
+	transform!(plant_graph, [:length, :diameter, :width] => combine_dimensions => :D)
+	traverse!(plant_graph, node -> symbol!(node, "Shoot"), symbol = "ShortShoot")
+end;
 
 # ╔═╡ 22bbed9a-f671-4fa1-89b5-c9a80da2e557
 DataFrame(plant_graph, [:D])
@@ -168,7 +155,7 @@ First thing we need is to define how much photosynthetically active radiation (P
 """
 
 # ╔═╡ 56a3ccbc-8d31-4579-ad36-15882072ebd6
-get_PAR_flux(t) = max(0, 40 * sin(t/24*2*pi - 8))
+get_PAR_flux(t) = max(0, 40 * sin(t/24*2*pi - 8));
 
 # ╔═╡ 00a71441-548d-4172-91a8-6169285a1b11
 @register_symbolic get_PAR_flux(t)
@@ -188,9 +175,9 @@ The second ingredient we'd like to define outside of our differential equations 
 		Beer(k), # calculate amount of light intercepted
 		status = (Tₗ = meteo[:T], LAI = LAI, Cₛ = meteo[:Cₐ], Dₗ = meteo[:VPD], RI_PAR_f = meteo[:Ri_PAR_f])
 	)
-	run!(m, meteo)
-	return only(m[:A]) |> x -> max(x, 0) # extract result of the first (and only) timestep
-end
+	m_out = run!(m, meteo)
+	return only(m_out[:A]) |> x -> max(x, 0) # extract result of the first (and only) timestep
+end;
 
 # ╔═╡ 899b48f7-aed8-4f20-a139-35196940539c
 md"""
@@ -223,10 +210,12 @@ function photosynthesis_module(; name, T, M, shape)
 	)
 
 	@variables (
-        M(t) = M, [description = "Osmotically active metabolite content", unit = u"mol / cm^3"],
+        M(t) = M, [description = "Osmotically active metabolite content", 
+				   unit = u"mol / cm^3"],
 		PF(t), [description = "Incoming PAR flux", unit = u"J / s / m^2"],
 		A(t), [description = "Carbon assimilation rate", unit = u"µmol / m^2 / s"],
-		D(t)[1:length(shape.ϵ_D)], [description = "Dimensions of compartment", unit = u"cm"],
+		D(t)[1:length(shape.ϵ_D)], [description = "Dimensions of compartment", 
+									unit = u"cm"],
     )
 
 	leafarea(::Cuboid, D::AbstractArray) = D[1] * D[2]
@@ -237,7 +226,7 @@ function photosynthesis_module(; name, T, M, shape)
         d(M) ~ uc1 * osmotic_frac * A * leafarea(shape, D) / volume(shape, D) - carbon_decay_rate*M
     ]
     return ODESystem(eqs, t; name, checks = false)
-end
+end;
 
 # ╔═╡ 4d17b269-06b8-4293-b2cb-b6bd9fa0ccc8
 md"""
@@ -256,7 +245,7 @@ module_defaults = Dict(
 	:Leaf => Dict(:shape => Cuboid([1.0, 1.0, 1.0], [0.002, 0.002, 5e-4]), :M => 200e-6, :K_s => 5e-5),
 	:Soil => Dict(:W_max => 1e4, :T => 293.15), #! W_max
 	:Air => Dict(:K => 1e-1)
-)
+);
 
 # ╔═╡ a3551081-5da1-4ed4-b3df-9b8929a46f33
 connecting_modules = [
@@ -267,10 +256,10 @@ connecting_modules = [
 	(:Shoot, :Leaf) => (const_hydraulic_connection, Dict()),
 	(:Internode, :Leaf) => (const_hydraulic_connection, Dict()),
     (:Leaf, :Air) => (hydraulic_connection, Dict())
-]
+];
 
 # ╔═╡ 7958cad6-3454-4c07-a6b7-14457a49b162
-func_connections = PlantFunctionality(; module_defaults, connecting_modules)
+func_connections = PlantFunctionality(; module_defaults, connecting_modules);
 
 # ╔═╡ 930e7ed8-0bfe-4e5a-8890-a1d1ce155881
 md"""
@@ -289,7 +278,7 @@ module_coupling = Dict(
 	:Leaf => [hydraulic_module, photosynthesis_module, K_module],
 	:Soil => [environmental_module, Ψ_soil_module],
 	:Air => [environmental_module, Ψ_air_module, constant_K_module],
-)
+);
 
 # ╔═╡ 210d81ef-153e-4744-8266-80af4099770c
 md"""
@@ -324,13 +313,13 @@ The rest of the modeling workflow is mostly taken care of by the ModelingToolkit
 """
 
 # ╔═╡ bf114636-1e35-49f1-9407-f472b443a9ea
-time_span = (0, 7*24.0) # We'll simulate our problem for a timespan of 7 days
+time_span = (0, 7*24.0); # We'll simulate our problem for a timespan of 7 days
 
 # ╔═╡ 50d6fc31-80f5-4db7-b716-b26765008a0d
-prob = ODEProblem(sys_simpl, [], (0.0, 5*24), sparse = true)
+prob = ODEProblem(sys_simpl, [], (0.0, 5*24));
 
 # ╔═╡ c38b1a71-c5e9-4bfa-a210-bcbf9068f7ed
-@time sol = solve(prob);
+sol = solve(prob);
 
 # ╔═╡ a6608eff-9399-443c-a33a-c62341f7b14c
 md"""
@@ -358,7 +347,7 @@ plotgraph(sol, plant_graph, varname = :M, structmod = :Leaf)
 
 # ╔═╡ 2009c5fc-f237-4bf3-af5a-c0adee2c5aed
 md"""
-We defined the same input radiation, assimilation rate and thickness for all leaves, so it's no surprise they all have the same metabolite concentration.
+We defined the same input radiation, assimilation rate and thickness for all leaves, so it's no surprise they all have a similar metabolite concentration.
 """
 
 # ╔═╡ fe4df2d4-878e-41aa-8860-991c891e2dd2
@@ -387,16 +376,11 @@ The same goes for the internodes, since their water exchange rate with the leave
 # ╠═c379b857-4a95-42c0-92bd-bf9df430e1e8
 # ╠═32b33d71-281e-4d07-b4c1-86f7be6997bf
 # ╠═8f5728b1-fa78-492e-beab-9e40ebc633ef
-# ╠═876006eb-b8b6-46dc-8077-8f64991c5616
-# ╠═41b55366-5b6e-4489-b37d-342d57fd7b41
 # ╠═dc47be70-0bc4-452d-a128-73ff5fce56ce
-# ╠═0255cc11-11a2-4c72-b676-26b2f0ace488
 # ╟─b6eb66b5-a2d7-4baf-b6a6-87e819309a2d
 # ╟─aa3b75e4-1868-4c84-8dc8-f9b54d560b3a
 # ╟─6ef5c63a-b753-43ae-baee-f6c24313a385
 # ╠═e920f6aa-4c7b-4fd1-9dca-d9e3d4155ec2
-# ╟─1d3d04e4-7bb2-4dba-a25a-5bcde565ee62
-# ╠═d15c0747-6e2a-4b61-9b83-12cc4585cbf9
 # ╟─16f8f64f-130c-4402-87b4-1dc6e7219928
 # ╟─d98e14b1-d636-48d2-8825-793166f093f2
 # ╟─b53c20bb-f25a-4def-a4ed-1ddd35aa30bf
@@ -415,6 +399,8 @@ The same goes for the internodes, since their water exchange rate with the leave
 # ╠═56a3ccbc-8d31-4579-ad36-15882072ebd6
 # ╠═00a71441-548d-4172-91a8-6169285a1b11
 # ╟─aeac60ec-1760-4f21-b68e-02c747356af3
+# ╠═41b55366-5b6e-4489-b37d-342d57fd7b41
+# ╠═876006eb-b8b6-46dc-8077-8f64991c5616
 # ╠═f5a529ff-90d9-4601-97df-66c24a7faaa2
 # ╟─899b48f7-aed8-4f20-a139-35196940539c
 # ╠═a417f515-6cad-486a-8ce0-c1eb72bb5939

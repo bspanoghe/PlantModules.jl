@@ -9,18 +9,27 @@ using Documenter, PlantModules
 # using Literate
 using PlutoStaticHTML
 
-bopts = BuildOptions("./src/tutorials", output_format = documenter_output)
-build_notebooks(bopts, ["2_real_model_notebook.jl"])
+cd("./src/tutorials")
+bopts = BuildOptions(".", output_format = documenter_output)
+build_notebooks(bopts)
+cd(@__DIR__)
 
 # Literate.markdown("./src/tutorial1.jl", "./src")
 
 pages = [
     "Introduction" => "index.md",
-    "Basics tutorial" => "tutorial-1.md",
+    "Basics tutorial" => "tutorials/1_basics_notebook.md",
+    "Advanced tutorial" => "tutorials/2_real_model_notebook.md",
     "API" => "api.md",
     "Theoretical overview" => "theory.md",
 ]
 
-makedocs(; sitename = "Whatever", pages, modules = [PlantModules], warnonly = true)
+makedocs(; 
+    sitename = "PlantModules", 
+    pages, 
+    modules = [PlantModules],
+    format = Documenter.HTML(size_threshold = 600 * 1024),
+    warnonly = true
+)
 
 # deploydocs(repo = "https://github.com/bspanoghe/PlantModules.jl")

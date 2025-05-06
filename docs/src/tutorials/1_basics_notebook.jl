@@ -110,15 +110,12 @@ end
 md"And then define the plant structure using a graph"
 
 # ╔═╡ 9af27c17-8f21-4f22-a5bb-e9c95cfdf2f9
-plant_graph = Root() + Stem() + (Leaf([2]), Leaf([2.5])) # Leaves are chosen to be  modelled as spheres and are here given radii of 2 and 2.5 cms
+plant_graph = Root() + Stem() + (Leaf([2]), Leaf([2.5])); # Leaves are chosen to be  modelled as spheres and are here given radii of 2 and 2.5 cms
 
 # ╔═╡ a740d4ab-5ad8-4db4-9a80-aef2625a7d7b
 md"""
 Individual graph nodes can contain parameter values and initial values to allow differences between nodes of the same type. Here, we'll give the leaves a size field `D` so we can start off one of them larger than the other. We'll see more on parameter - and initial values later.
 """
-
-# ╔═╡ 86d81fa3-bea4-40fa-9522-7db9fe2f6a82
-draw(plant_graph, resolution = (500, 400))
 
 # ╔═╡ 98eac4c4-b39a-4e11-917a-90b03d7385d1
 md"""
@@ -143,16 +140,16 @@ To overcome this, PlantModules allows the user to input multiple graphs and then
 """
 
 # ╔═╡ 3bf42137-1551-44d6-b7af-eab13a97b6ef
-soil_graph = Soil()
+soil_graph = Soil();
 
 # ╔═╡ db8fe96d-c8c2-47c0-9377-281ce577a920
-air_graph = Air()
+air_graph = Air();
 
 # ╔═╡ 8980f1eb-e461-4624-9cce-83a7cf822349
-graphs = [plant_graph, soil_graph, air_graph]
+graphs = [plant_graph, soil_graph, air_graph];
 
 # ╔═╡ 61bf737a-2226-42dc-b93a-a8f578048268
-intergraph_connections = [[1, 2] => (:Root, :Soil), [1, 3] => (:Leaf, :Air), [2, 3] => (:Soil, :Air)] # Let's also add a connection between the soil and the air to simulate direct evaporation
+intergraph_connections = [[1, 2] => (:Root, :Soil), [1, 3] => (:Leaf, :Air), [2, 3] => (:Soil, :Air)]; # Let's also add a connection between the soil and the air to simulate direct evaporation
 
 # ╔═╡ 20049311-d6e6-41d3-a0d8-8bad88c174f9
 md"""
@@ -160,7 +157,7 @@ The above syntax means: "connect all Root nodes from `graphs[1]` to all Soil nod
 """
 
 # ╔═╡ caab574a-05c5-4c0d-9ae4-19fd514a6c6c
-struct_connections = PlantStructure(graphs, intergraph_connections)
+struct_connections = PlantStructure(graphs, intergraph_connections);
 
 # ╔═╡ 668e02ee-ac78-4b3d-983d-402ec04584ef
 md"""
@@ -232,7 +229,7 @@ Now imagine we have some information on our plant in question and it calls for d
 """
 
 # ╔═╡ 271d48a7-7022-4766-83d9-a70fab92515e
-default_changes = Dict(:Γ => 0.4, :T => 293.15)
+default_changes = Dict(:Γ => 0.4, :T => 293.15);
 
 # ╔═╡ 3c13c600-5135-44ea-8fc2-a1e11f72d0c5
 md"""
@@ -246,7 +243,7 @@ module_defaults = Dict(
 	:Leaf => Dict(:shape => Sphere(3.0, 0.45), :M => 450e-6),
 	:Soil => Dict(:W_max => 500.0, :K => 5),
 	:Air => Dict(:W_r => 0.7, :K => 0.03)
-)
+);
 
 # ╔═╡ e0e5e7f7-d2f5-404b-a6c6-6848c318eccb
 md"""
@@ -269,7 +266,7 @@ connecting_modules = [
 	(:Stem, :Leaf) => (hydraulic_connection, Dict()),
 	(:Leaf, :Air) => (hydraulic_connection, Dict()),
 	(:Soil, :Air) => (const_hydraulic_connection, Dict(:K => 0.01))
-]
+];
 
 # ╔═╡ a8a725d4-d876-4867-acbc-26bbadc4b462
 md"""
@@ -282,7 +279,7 @@ The functional connections are then defined as follows.
 """
 
 # ╔═╡ ebf46963-bb9d-4604-924c-2b051189debc
-func_connections = PlantFunctionality(; default_changes, module_defaults, connecting_modules)
+func_connections = PlantFunctionality(; default_changes, module_defaults, connecting_modules);
 
 # ╔═╡ fb72735b-3d45-438d-ad83-3e36f42f5bb8
 md"""
@@ -306,7 +303,7 @@ module_coupling = Dict(
 	:Leaf => [hydraulic_module, constant_carbon_module, K_module],
 	:Soil => [environmental_module, Ψ_soil_module, constant_K_module],
 	:Air => [environmental_module, Ψ_air_module, constant_K_module]
-)
+);
 
 # ╔═╡ 210d81ef-153e-4744-8266-80af4099770c
 md"""
@@ -337,7 +334,7 @@ The rest of the modeling workflow is mostly taken care of by ModelingToolkit.jl 
 """
 
 # ╔═╡ bf114636-1e35-49f1-9407-f472b443a9ea
-time_span = (0, 7*24.0) # We'll simulate our problem for a timespan of one week
+time_span = (0, 7*24.0); # We'll simulate our problem for a timespan of one week
 
 # ╔═╡ 2f431e8c-d0e4-4117-896f-3140d9633d1d
 sys_simpl = structural_simplify(system);
@@ -346,7 +343,7 @@ sys_simpl = structural_simplify(system);
 prob = ODEProblem(sys_simpl, [], time_span, warn_initialize_determined = false);
 
 # ╔═╡ c38b1a71-c5e9-4bfa-a210-bcbf9068f7ed
-sol = solve(prob)
+sol = solve(prob);
 
 # ╔═╡ a6608eff-9399-443c-a33a-c62341f7b14c
 md"""
@@ -396,7 +393,6 @@ The plant water dynamics in this tutorials were an oversimplification making the
 # ╟─c4dc4961-ba2b-4b23-b80e-7d4eb8d9a9f4
 # ╠═9af27c17-8f21-4f22-a5bb-e9c95cfdf2f9
 # ╟─a740d4ab-5ad8-4db4-9a80-aef2625a7d7b
-# ╠═86d81fa3-bea4-40fa-9522-7db9fe2f6a82
 # ╟─98eac4c4-b39a-4e11-917a-90b03d7385d1
 # ╠═e00c5135-1d66-4dec-8283-40ebe06a8038
 # ╠═dac02191-b640-40f5-a7d6-e6b06b946c23

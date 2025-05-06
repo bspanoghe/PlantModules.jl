@@ -1,5 +1,5 @@
 ```@docs
 generate_system
-Cilinder
+Cylinder
 plotgraph
 ```

@@ -9,7 +9,7 @@ using BenchmarkTools
 
 
 begin # read in plant
-	plant_graph = readXEG("./tutorials/temp/structures/beech10.xeg")
+	plant_graph = readXEG("./tutorials/temp/structures/beech3.xeg")
 	mtg = convert_to_MTG(plant_graph)
 
 	DataFrame(mtg, [:diameter, :length, :width])
@@ -35,7 +35,7 @@ begin # read in plant
 	mtg = MultiScaleTreeGraph.get_root(mtg)
 
 	if length(mtg) > 100 #!
-		toomuch = [node for node in PlantModules.getnodes(mtg[1][1][1])]
+		toomuch = [node for node in PlantModules.getnodes(mtg[1][1][1][1][1])]
 		mtg = delete_nodes!(mtg, filter_fun = node -> node in toomuch)
 	end
 	DataFrame(mtg)
@@ -69,9 +69,9 @@ default_changes = Dict(:Γ => 0.4, :T => 293.15)
 
 module_defaults = Dict(
 	:Root => Dict(:M => 300e-6),
-	:Stem => Dict(:shape => Cylinder([6.0, 15.0], [0.8, 0.03]), :M => 400e-6),
-	:Shoot => Dict(:shape => Cylinder([3.0, 8.0], [0.3, 0.01]), :M => 400e-6),
-	:Leaf => Dict(:shape => Cuboid([5.0, 5.0, 20.0], [0.02, 0.02, 0.01]), :M => 450e-6, :K_s => 1e-5),
+	:Stem => Dict(:shape => Cylinder(100*[6.0, 15.0], [0.8, 0.03]), :M => 400e-6),
+	:Shoot => Dict(:shape => Cylinder(100*[3.0, 8.0], [0.3, 0.01]), :M => 400e-6),
+	:Leaf => Dict(:shape => Cuboid(100*[5.0, 5.0, 20.0], [0.02, 0.02, 0.01]), :M => 450e-6, :K_s => 1e-5),
 	:Soil => Dict(:W_max => 500.0, :T => 288.15),
 	:Air => Dict(:W_r => 0.7, :K => 1e-4)
 )
@@ -102,11 +102,12 @@ module_coupling = Dict(
 system = generate_system(struct_connections, func_connections, module_coupling, checkunits = false)
 
 sys_simpl = structural_simplify(system);
-prob = ODEProblem(sys_simpl, [], (0.0, 5*24), sparse = true)
+@time prob = ODEProblem(sys_simpl, [], (0.0, 5*24), sparse = true)
 @time sol = solve(prob);
 
 plotgraph(sol, graphs[1], varname = :W)
 plotgraph(sol, graphs[1:2], varname = :Ψ)
+plotgraph(sol, graphs[1], varname = :P)
 plotgraph(sol, graphs[1], varname = :K, structmod = :Leaf)
 
 plotgraph(sol, graphs[1], varname = [:D, :V], structmod = [:Stem, :Leaf]) .|> display
