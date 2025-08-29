@@ -4,11 +4,11 @@
 
 # In this tutorial, we'll cover more advanced functionality of the package with the goal of making a more practically usable plant model.
 using Revise #!
+using Plots
 using Pkg; Pkg.activate("./tutorials")
 using PlantModules
 using PlantGraphs, MultiScaleTreeGraph
 using ModelingToolkit, OrdinaryDiffEq, Unitful
-using Plots
 
 # ## Structure
 
@@ -171,9 +171,7 @@ module_coupling = Dict(
 # ## Generate and run system
 
 system = generate_system(struct_connections, func_connections, module_coupling, checkunits = false)
-
-sys_simpl = structural_simplify(system)
-prob = ODEProblem(sys_simpl, [], (0.0, 5*24), sparse = true)
+prob = ODEProblem(system, [], (0.0, 5*24), sparse = true)
 @time sol = solve(prob);
 
 # ## Plotting

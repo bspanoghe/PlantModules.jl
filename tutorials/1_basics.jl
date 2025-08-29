@@ -3,10 +3,11 @@
 # ## Introduction
 
 # We'll introduce the package by modeling the growth of a small pepper seedling. The goal is to simulate water transport to estimate when the plant will need watering again.
+using Plots
 using Revise, Infiltrator #!
 using Pkg; Pkg.activate("./tutorials")
 using PlantModules
-using PlantGraphs, ModelingToolkit, OrdinaryDiffEq, Plots
+using PlantGraphs, ModelingToolkit, OrdinaryDiffEq
 
 # ## Structure
 
@@ -39,7 +40,7 @@ graphs = [plant_graph, Soil(), Air()]
 
 # The connections between graphs are defined as a pair between the indices of the two graphs in question and what nodes to connect.
 # The latter can be either the node itself, the structural module of the node, or a function that takes two nodes and returns whether they should be connected.
-intergraph_connections = [[1, 2] => (PlantModules.root(plant_graph), :Soil), [1, 3] => (:Leaf, :Air), [2, 3] => (:Soil, :Air)]
+intergraph_connections = [[1, 2] => (PlantModules.root(plant_graph), :Soil), [1, 3] => (:Leaf, :Air)]#, [2, 3] => (:Soil, :Air)]
 
 # Finally we can combine all structural information in one variable:
 struct_connections = PlantStructure(graphs, intergraph_connections)
@@ -84,7 +85,7 @@ connecting_modules = [
 	(:Root, :Stem) => (hydraulic_connection, Dict()),
 	(:Stem, :Leaf) => (const_hydraulic_connection, Dict()),
 	(:Leaf, :Air) => (evaporation_connection, Dict()),
-	(:Soil, :Air) => (const_hydraulic_connection, Dict(:K => 3e-3)),
+	# (:Soil, :Air) => (const_hydraulic_connection, Dict(:K => 3e-3)),
 ]
 
 # All functional information also gets bundled, though the constructor is more complex.
@@ -107,9 +108,7 @@ module_coupling = Dict(
 system = generate_system(struct_connections, func_connections, module_coupling, checkunits = false)
 
 # ...and solving it.
-# We refer to [ModelingToolkit.jl](https://github.com/SciML/ModelingToolkit.jl)'s documentation for more information on this part.
-sys_simpl = structural_simplify(system)
-prob = ODEProblem(sys_simpl, [], (0.0, 5*24))
+prob = ODEProblem(system, [], (0.0, 5*24))
 @time sol = solve(prob);
 
 # ## Plotting
