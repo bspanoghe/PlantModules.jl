@@ -1,7 +1,8 @@
 using Pkg; Pkg.activate("./tutorials")
-include("../../src/PlantModules.jl"); using .PlantModules
+# include("../../src/PlantModules.jl"); using .PlantModules
+using PlantModules
 using PlantGraphs
-using ModelingToolkit, DifferentialEquations, Unitful
+using ModelingToolkit, OrdinaryDiffEq, Unitful
 using Plots
 
 import ModelingToolkit: t
@@ -21,8 +22,9 @@ make_transect(T_ins) = Transect(T_ins[1]) + Transect(T_ins[2]) + Transect(T_ins[
 transect = make_transect(20:0.1:20.9)
 border = Border(28)
 graphs = [transect, border]
-intergraph_connections = [[1, 2] => (PlantModules.nodes(transect)[1], :Border)] #! select nodes
-struct_connections = [graphs, intergraph_connections]
+intergraph_connections = [[1, 2] => (PlantModules.getnodes(transect)[1], :Border)] #! select nodes
+struct_connections = PlantStructure(graphs, intergraph_connections)
+
 
 
 outside_temp(t) = 4*cos((t - 15)/12*pi) + 23
@@ -85,28 +87,15 @@ connecting_modules = [
     (:Transect, :Transect) => (heat_connection, []),
 ]
 
-func_connections = [connecting_modules, PlantModules.multi_connection_eqs]
-
-default_params = (
-    forest_module = (outside_conductance = 0.5, cooling_factor = 2),
-    border_module = (),
-    heat_connection = (transect_conductance = 1,)
+module_defaults = Dict(
+    :forest_module => Dict(:outside_conductance => 0.5, :cooling_factor => 2, :T => 0,),
+    :border_module => Dict(),
+    :heat_connection => Dict(:transect_conductance => 1,)
 )
 
-default_u0s = (
-    forest_module = (T = 0,),
-    border_module = (),
-    heat_connection = ()
-)
+func_connections = PlantFunctionality(; default_values = Dict(), module_defaults, connecting_modules)
 
-module_defaults = (
-    Transect = (),
-    Border = (),
-)
-
-system = PlantModules.generate_system(default_params, default_u0s,
-	module_defaults, module_coupling, struct_connections, func_connections, checkunits = false
-)
+system = generate_system(struct_connections, func_connections, module_coupling, checkunits = false)
 
 sys_simpl = structural_simplify(system);
 prob = ODEProblem(sys_simpl, ModelingToolkit.missing_variable_defaults(sys_simpl), (0.0, 2*24))
