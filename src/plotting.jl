@@ -101,9 +101,12 @@ end
 
 ## Pry the ODE system corresponding with given node out of the ODE solution
 function getnodesystem(sol::ODESolution, node)
-    system = getfield(sol.prob.f, :sys)
     nodename = string(PlantModules.getstructmod(node)) * string(PlantModules.getid(node))
-    nodesystem = [subsys for subsys in getproperty(system, :systems) if get_name(subsys) == Symbol(nodename)][1]
+
+    system = sol.prob.f.sys
+    parentsystem = get_parent(system) # system before simplification
+    nodesystem = [subsys for subsys in get_systems(parentsystem) if get_name(subsys) == Symbol(nodename)][1]
+    
     return nodesystem
 end
 

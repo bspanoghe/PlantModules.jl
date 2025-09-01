@@ -1,4 +1,5 @@
 [deps]
+LaTeXStrings = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f"
 Memoization = "6fafb56a-5788-4b4e-91ca-c0cea6611c73"
 ModelingToolkit = "961ee093-0014-501f-94e3-6117800e7a78"
 MultiScaleTreeGraph = "dd4a991b-8a45-4075-bede-262ee62d5583"

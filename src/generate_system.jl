@@ -112,10 +112,12 @@ function generate_system(struct_connections::PlantStructure, func_connections::P
 		end
 	end
 
-	system = compose(
+	model = compose(
 		ODESystem(connection_eqsets, get_iv(MTK_systems[1]), name = :system, checks = checkunits),
 		MTK_systems..., connection_MTKs...
 	) # combine all subsystems together with equations linking nodes with edges
+
+	system = mtkcompile(model)
 
 	return system
 end

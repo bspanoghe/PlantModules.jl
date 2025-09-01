@@ -1,7 +1,7 @@
 @independent_variables t, [description = "Time", unit = u"hr"];
 d = Differential(t);
 
-sigm_func(x; A = 1.0, s = 1.0, d = 0.0) = A / (1 + exp(-s*(x - d)))
+LSE(x; α) = 1/α * log( sum( [exp(α * i) for i in [x, zero(x)]] ) )
 
 """
     hydraulic_module(; name, T, shape, Γ, P, D)
@@ -45,7 +45,7 @@ function hydraulic_module(; name, T, shape::Shape, Γ, Ψ, D, M)
         ΔW ~ ΣF, # Water content changes due to flux (depending on water potentials as defined in connections)
         V ~ W / ρ_w, # Volume is directly related to water content  
         V ~ volume(shape, D), # Volume is also directly related to compartment dimensions
-        [ΔD[i] ~ D[i] * (ΔP/(P + ϵ_D[i]) + ϕ_D[i] * sigm_func((P - Γ)/MPa_unit, A = P - Γ, s = 10)) for i in eachindex(D)]..., # Compartment dimensions can only change due to a change in pressure
+        [ΔD[i] ~ D[i] * (ΔP/(P + ϵ_D[i]) + ϕ_D[i] * MPa_unit*LSE((P - Γ)/MPa_unit, α = 10)) for i in eachindex(D)]..., # Compartment dimensions can only change due to a change in pressure
 
         d(P) ~ ΔP,
         d(W) ~ ΔW,
