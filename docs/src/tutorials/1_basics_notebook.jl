@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.20.6
+# v0.20.14
 
 using Markdown
 using InteractiveUtils
@@ -156,13 +156,13 @@ md"""
 The above syntax means: "connect all Root nodes from `graphs[1]` to all Soil nodes from `graphs[2]`", and so on. Note that the order matters! For example, `[1, 2] => (:Root, :Soil)` is not the same as `[2, 1] => (:Root, :Soil)`.
 """
 
-# ╔═╡ caab574a-05c5-4c0d-9ae4-19fd514a6c6c
-struct_connections = PlantStructure(graphs, intergraph_connections);
-
 # ╔═╡ 668e02ee-ac78-4b3d-983d-402ec04584ef
 md"""
-The full structural connection information can then be acquired by putting them together in a vector.
+The full structural connection information can then be acquired by bundling the graphs and connections into the `PlantStructure` wrapper.
 """
+
+# ╔═╡ caab574a-05c5-4c0d-9ae4-19fd514a6c6c
+struct_connections = PlantStructure(graphs, intergraph_connections);
 
 # ╔═╡ f03a61ce-a0ff-43ff-abdd-2342f76e8c93
 md"""
@@ -229,7 +229,7 @@ Now imagine we have some information on our plant in question and it calls for d
 """
 
 # ╔═╡ 271d48a7-7022-4766-83d9-a70fab92515e
-default_changes = Dict(:Γ => 0.4, :T => 293.15);
+default_changes = Dict(:K_s => 0.5, :K => 0.5, :T => 293.15);
 
 # ╔═╡ 3c13c600-5135-44ea-8fc2-a1e11f72d0c5
 md"""
@@ -265,7 +265,7 @@ connecting_modules = [
 	(:Root, :Stem) => (hydraulic_connection, Dict()),
 	(:Stem, :Leaf) => (hydraulic_connection, Dict()),
 	(:Leaf, :Air) => (hydraulic_connection, Dict()),
-	(:Soil, :Air) => (const_hydraulic_connection, Dict(:K => 0.01))
+	(:Soil, :Air) => (const_hydraulic_connection, Dict(:K => 1e-3))
 ];
 
 # ╔═╡ a8a725d4-d876-4867-acbc-26bbadc4b462
@@ -336,11 +336,8 @@ The rest of the modeling workflow is mostly taken care of by ModelingToolkit.jl 
 # ╔═╡ bf114636-1e35-49f1-9407-f472b443a9ea
 time_span = (0, 7*24.0); # We'll simulate our problem for a timespan of one week
 
-# ╔═╡ 2f431e8c-d0e4-4117-896f-3140d9633d1d
-sys_simpl = structural_simplify(system);
-
 # ╔═╡ 50d6fc31-80f5-4db7-b716-b26765008a0d
-prob = ODEProblem(sys_simpl, [], time_span, warn_initialize_determined = false);
+prob = ODEProblem(system, [], time_span, warn_initialize_determined = false);
 
 # ╔═╡ c38b1a71-c5e9-4bfa-a210-bcbf9068f7ed
 sol = solve(prob);
@@ -402,8 +399,8 @@ The plant water dynamics in this tutorials were an oversimplification making the
 # ╠═8980f1eb-e461-4624-9cce-83a7cf822349
 # ╠═61bf737a-2226-42dc-b93a-a8f578048268
 # ╟─20049311-d6e6-41d3-a0d8-8bad88c174f9
-# ╠═caab574a-05c5-4c0d-9ae4-19fd514a6c6c
 # ╟─668e02ee-ac78-4b3d-983d-402ec04584ef
+# ╠═caab574a-05c5-4c0d-9ae4-19fd514a6c6c
 # ╟─f03a61ce-a0ff-43ff-abdd-2342f76e8c93
 # ╟─43211f69-6bfe-4fd1-b474-65d0601558de
 # ╟─a6552c16-b013-43af-9483-639a79944749
@@ -435,7 +432,6 @@ The plant water dynamics in this tutorials were an oversimplification making the
 # ╟─d3d7b52b-016b-4c17-a4cc-18ec4ad8d686
 # ╟─6b46bf1d-b54e-48e3-b4eb-364b4e2b1dfd
 # ╠═bf114636-1e35-49f1-9407-f472b443a9ea
-# ╠═2f431e8c-d0e4-4117-896f-3140d9633d1d
 # ╠═50d6fc31-80f5-4db7-b716-b26765008a0d
 # ╠═c38b1a71-c5e9-4bfa-a210-bcbf9068f7ed
 # ╟─a6608eff-9399-443c-a33a-c62341f7b14c
