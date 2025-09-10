@@ -33,33 +33,17 @@ Creates a container for functional parameters to be used in the function `genera
 # Arguments
 - `default_values`: Model-wide default values of parameters and initial values.
 - `module_defaults`: Module-specific default values of parameters and initial values.
-- `connecting_modules`: The ODESystem to use for edges between specified nodes.
+- `connecting_modules`: The `System` to use for edges between specified nodes.
 - `connecting_eqs`: A function returning a vector of equations linking a node and all its edges.
 - `default_changes`: Values to add to `default_values`
 """
 function PlantFunctionality(; default_values::Dict = PlantModules.default_values, module_defaults::Dict = Dict(),
-	connecting_modules::Vector,	connecting_eqs::Function = PlantModules.multi_connection_eqs, default_changes::Dict = Dict{Symbol, Int64}()
+	connecting_modules::Vector,	connecting_eqs::Function = PlantModules.multi_connection_eqs, default_changes::Dict = typeof(default_values)()
 	)
-	#! add input tests ?
+
 	changed_defaults = merge(default_values, default_changes)
 	
 	return PlantFunctionality(changed_defaults, module_defaults, connecting_modules, connecting_eqs)
-end
-
-struct PlantSystem
-	struc::PlantStructure
-	func::PlantFunctionality
-	coupling::Dict
-end
-
-function PlantSystem(; graphs, intergraph_connections = [],	default_values = PlantModules.default_values, module_defaults = Dict(),
-	connecting_modules, connecting_eqs = PlantModules.multi_connection_eqs, default_changes = Dict{Symbol, Int64}(), module_coupling
-	)
-
-	struc = PlantStructure(graphs, intergraph_connections)
-	func = PlantFunctionality(default_values, module_defaults, connecting_modules, connecting_eqs, default_changes)
-
-	return PlantSystem(struc, func, module_coupling)
 end
 
 # # Functions
@@ -68,7 +52,7 @@ end
 	generate_system(default_params::NamedTuple, default_u0s::NamedTuple, module_defaults::NamedTuple,
 		module_coupling::Vector, struct_connections::Vector, func_connections::Vector; checkunits::Bool)
 
-Creates a ModelingToolkit.jl [`ODESystem`](@ref) that describes the functional behaviour of the input graph structure.
+Creates a ModelingToolkit.jl [`System`](@ref) that describes the functional behaviour of the input graph structure.
 
 # Arguments
 - `default_params`: Model-wide default parameter values.
@@ -88,15 +72,15 @@ function generate_system(struct_connections::PlantStructure, func_connections::P
 	) # Vector of a dict per graph with (node id => node MTK system)
 	MTK_systems = vcat(collect.(values.(MTK_system_dicts))...) # node MTK systems
 
-	connection_MTKs = ODESystem[] # MTK systems of edges
+	connection_MTKs = System[] # MTK systems of edges
 	connection_eqsets = Equation[] # equations linking nodes with edges
 
 	for (graphnr, graph) in enumerate(struct_connections.graphs) # go over all graphs
 		for node in PlantModules.getnodes(graph) # go over every node in the graph
 			
 			node_id = PlantModules.getid(node)
-			nb_nodes, nb_node_graphnrs = get_nb_getnodes(node, struct_connections.graphs, graphnr, struct_connections.intergraph_connections) # collect neighbour nodes
-			current_connection_MTKs = Vector{ODESystem}(undef, length(nb_nodes)) # MTKs of current node's connections
+			nb_nodes, nb_node_graphnrs = get_nb_nodes(node, struct_connections.graphs, graphnr, struct_connections.intergraph_connections) # collect neighbour nodes
+			current_connection_MTKs = Vector{System}(undef, length(nb_nodes)) # MTKs of current node's connections
 
 			for (nb_idx, (nb_node, nb_node_graphnr)) in enumerate(zip(nb_nodes, nb_node_graphnrs)) # go over all neighbours of the node
 				connecting_module, reverse_order = get_connecting_module(node, nb_node, func_connections.connecting_modules)
@@ -113,7 +97,7 @@ function generate_system(struct_connections::PlantStructure, func_connections::P
 	end
 
 	model = compose(
-		ODESystem(connection_eqsets, get_iv(MTK_systems[1]), name = :system, checks = checkunits),
+		System(connection_eqsets, get_iv(MTK_systems[1]), name = :system, checks = checkunits),
 		MTK_systems..., connection_MTKs...
 	) # combine all subsystems together with equations linking nodes with edges
 
@@ -138,7 +122,7 @@ function getMTKsystem(node, default_values, module_defaults, module_coupling, ch
 	!haskey(module_coupling, structmodule) && error("No functional module defined for structural module `$structmodule`.")
 	func_modules = module_coupling[structmodule]
 
-	component_systems = Vector{ODESystem}(undef, length(func_modules)) #! error if no func_modules found for structural module
+	component_systems = Vector{System}(undef, length(func_modules)) #! error if no func_modules found for structural module
 
 	for (modulenum, func_module) in enumerate(func_modules)
 		nodevalues = getnodevalues(node, structmodule, func_module, module_defaults, default_values)
@@ -168,7 +152,7 @@ function getnodevalues(node, structmodule, func_module, module_defaults, default
 end
 
 # filters the values required for `funcmod` out of `default_values`
-# intended to use with `ODESystem` functions so filters out `name` kwarg
+# intended to use with `System` functions so filters out `name` kwarg
 function get_func_defaults(default_values::Dict, funcmod::Function)
 	func_argnames = only(methods(funcmod)) |> Base.kwarg_decl |> x -> x[x .!= :name]
 	return Dict([func_argname => default_values[func_argname] for func_argname in func_argnames if func_argname in keys(default_values)])
@@ -274,7 +258,7 @@ function get_connection_info(node, graphnr, nb_node, nb_node_graphnr, connecting
 end
 
 # get neighbouring nodes of a node both from the same graph and all connected graphs
-function get_nb_getnodes(node, graphs, graphnr, intergraph_connections)
+function get_nb_nodes(node, graphs, graphnr, intergraph_connections)
 	graph = graphs[graphnr]
 	
 	intra_nb_nodes = PlantModules.getneighbours(node, graph)
