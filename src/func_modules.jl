@@ -6,11 +6,11 @@ LSE(x; α) = 1/α * log( sum( [exp(α * i) for i in [x, zero(x)]] ) )
 """
     hydraulic_module(; name, T, shape, Γ, P, D)
 
-Returns a ModelingToolkit ODESystem describing the turgor-driven growth of a plant compartment.
+Returns a ModelingToolkit System describing the turgor-driven growth of a plant compartment.
 WARNING: this module still requires an equation to be given for the osmotically active metabolite content M.
 """
 function hydraulic_module(; name, T, shape::Shape, Γ, Ψ, D, M)
-    num_D = length(shape.ϵ_D)
+    num_D = length(shape.ϕ_D)
     R = 8.314
     P = Ψ + M*R*T
     @constants (
@@ -19,8 +19,8 @@ function hydraulic_module(; name, T, shape::Shape, Γ, Ψ, D, M)
     )
     @parameters (
         T = T, [description = "Temperature", unit = u"K"],
-        ϵ_D[1:num_D] = shape.ϵ_D, [description = "Dimensional elastic modulus", unit = u"MPa"],
         ϕ_D[1:num_D] = shape.ϕ_D, [description = "Dimensional extensibility", unit = u"MPa^-1 * hr^-1"],
+        ϵ_D[1:num_D] = shape.ϵ_D, [description = "Dimensional elastic modulus", unit = u"MPa"],
         Γ = Γ, [description = "Critical turgor pressure", unit = u"MPa"],
         ρ_w = 1.0, [description = "Density of water", unit = u"g / cm^3"],
     )
@@ -45,20 +45,20 @@ function hydraulic_module(; name, T, shape::Shape, Γ, Ψ, D, M)
         ΔW ~ ΣF, # Water content changes due to flux (depending on water potentials as defined in connections)
         V ~ W / ρ_w, # Volume is directly related to water content  
         V ~ volume(shape, D), # Volume is also directly related to compartment dimensions
-        [ΔD[i] ~ D[i] * (ΔP/(P + ϵ_D[i]) + ϕ_D[i] * MPa_unit*LSE((P - Γ)/MPa_unit, α = 10)) for i in eachindex(D)]..., # Compartment dimensions can only change due to a change in pressure
+        [ΔD[i] ~ D[i]*ϕ_D[i]*MPa_unit*LSE((P - Γ)/MPa_unit, α = 10) + D[i]*ϵ_D[i]*ΔP/P for i in eachindex(D)]..., # Compartment dimensions can only change due to a change in pressure
 
         d(P) ~ ΔP,
         d(W) ~ ΔW,
         [d(D[i]) ~ ΔD[i] for i in eachindex(D)]...,
     ]
-    # return ODESystem(eqs, t; name, continuous_events = [P ~ Γ]) #!
-    return ODESystem(eqs, t; name)
+    # return System(eqs, t; name, continuous_events = [P ~ Γ]) #!
+    return System(eqs, t; name)
 end
 
 """
     environmental_module(; name, T, W_max, W_r)
 
-Returns a ModelingToolkit ODESystem describing a non-growing water reservoir.
+Returns a ModelingToolkit System describing a non-growing water reservoir.
 WARNING: this module still requires an equation to be given for the total water potential Ψ.
 """
 function environmental_module(; name, T, W_max, W_r)
@@ -80,13 +80,13 @@ function environmental_module(; name, T, W_max, W_r)
         ΔW ~ ΣF, # Water content changes due to flux (depending on water potentials as defined in connections)
         d(W) ~ ΔW,
     ]
-    return ODESystem(eqs, t; name)
+    return System(eqs, t; name)
 end
 
 """
     constant_carbon_module(; name, C)
 
-Returns a ModelingToolkit ODESystem describing a constant concentration of osmotically active metabolite content.
+Returns a ModelingToolkit System describing a constant concentration of osmotically active metabolite content.
 """
 function constant_carbon_module(; name, M)
     @parameters (
@@ -100,13 +100,13 @@ function constant_carbon_module(; name, M)
     eqs = [
         M ~ M_value
     ]
-    return ODESystem(eqs, t; name)
+    return System(eqs, t; name)
 end
 
 """
     Ψ_soil_module(; name)
 
-Returns a ModelingToolkit ODESystem describing an empirical relationship between
+Returns a ModelingToolkit System describing an empirical relationship between
 the total water potential of the soil and its relative water content.
 """
 function Ψ_soil_module(; name)
@@ -118,13 +118,13 @@ function Ψ_soil_module(; name)
 
 	eqs = [Ψ ~ MPa_unit * -(1/W_r) * exp(-30*W_r)]
 
-	return ODESystem(eqs, t; name)
+	return System(eqs, t; name)
 end
 
 """
     Ψ_air_module(; name, T)
 
-Returns a ModelingToolkit ODESystem describing the relationship between
+Returns a ModelingToolkit System describing the relationship between
 the total water potential of the air and its relative water content.
 """
 function Ψ_air_module(; name, T)
@@ -140,7 +140,7 @@ function Ψ_air_module(; name, T)
 
 	eqs = [Ψ ~ R * T / V_w * log(W_r)] # Spanner equation (see e.g. https://academic.oup.com/insilicoplants/article/4/1/diab038/6510844)
 
-	return ODESystem(eqs, t; name)
+	return System(eqs, t; name)
 end
 
 #! documentation
@@ -159,7 +159,7 @@ function K_module(; name, K_s, shape::PlantModules.Shape)
 		K ~ K_s * cross_area(shape, D)
     ]
 
-    return ODESystem(eqs, t; name)
+    return System(eqs, t; name)
 end
 
 #! documentation
@@ -175,7 +175,7 @@ function constant_K_module(; name, K)
 		K ~ K_value
     ]
 
-    return ODESystem(eqs, t; name)
+    return System(eqs, t; name)
 end
 
 # Module connections #
@@ -185,7 +185,7 @@ end
 """
     hydraulic_connection(; name)
 
-Returns a ModelingToolkit ODESystem describing a water flow connection between two hydraulics-based compartments.
+Returns a ModelingToolkit System describing a water flow connection between two hydraulics-based compartments.
 
 This module assumes the compartments have a specified hydraulic conductivities.
 """
@@ -210,13 +210,13 @@ function hydraulic_connection(; name)
 		connection_MTK.K_1 ~ node_MTK.K,
         connection_MTK.K_2 ~ nb_node_MTK.K,
     ]
-    return ODESystem(eqs, t; name), get_connection_eqset
+    return System(eqs, t; name), get_connection_eqset
 end
 
 """
     const_hydraulic_connection(; name, K)
 
-Returns a ModelingToolkit ODESystem describing a water flow connection between two hydraulics-based functional modules.
+Returns a ModelingToolkit System describing a water flow connection between two hydraulics-based functional modules.
 
 This module specifies a constant hydraulic conductivity between the compartments.
 """
@@ -239,7 +239,7 @@ function const_hydraulic_connection(; name, K)
         connection_MTK.Ψ_1 ~ node_MTK.Ψ,
         connection_MTK.Ψ_2 ~ nb_node_MTK.Ψ,
     ]
-    return ODESystem(eqs, t; name), get_connection_eqset
+    return System(eqs, t; name), get_connection_eqset
 end
 
 function evaporation_connection(; name, sunrise, sunset, te_night)
@@ -279,7 +279,7 @@ function evaporation_connection(; name, sunrise, sunset, te_night)
         ]
     end
 
-    return ODESystem(eqs, t; name), get_connection_eqset
+    return System(eqs, t; name), get_connection_eqset
 end
 
 # Get value that smoothly switches between `ymax` at day and `ymin` at night
@@ -306,7 +306,7 @@ multi_connection_eqs(node_MTK, connection_MTKs) = [
 soilfunc(W_r) = -(1/W_r) * exp(-30*W_r)
 
 default_values = Dict(
-    :T => 298.15, :shape => Cylinder(0.5, 0.005), :Γ => 0.3,
+    :T => 298.15, :shape => Cylinder(0.005, 0.5), :Γ => 0.3,
     :Ψ => soilfunc(0.8), :D => [0.5, 5.0], :M => 300e-6, :W_max => 1e6, :W_r => 0.8, 
     :K_s => 500, :K => 500, :sunrise => 8, :sunset => 20, :te_night => 0.1
 )

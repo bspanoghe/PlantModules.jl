@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.20.14
+# v0.20.16
 
 using Markdown
 using InteractiveUtils
@@ -95,14 +95,11 @@ md"""
 Then we can define the structural modules of our plant. For our example, we will define three structural modules on the organ scale of the plant.
 """
 
-# ╔═╡ e920f6aa-4c7b-4fd1-9dca-d9e3d4155ec2
-mutable struct Root <: Node end
-
 # ╔═╡ 6b7ebc68-f4a1-4ed6-b12b-e4ac5ee9b00a
-mutable struct Stem <: Node end
+struct Stem <: Node end
 
 # ╔═╡ d57718c2-c77d-42a8-924f-ebdfcd51d919
-mutable struct Leaf <: Node
+struct Crown <: Node
 	D::Vector
 end
 
@@ -110,7 +107,7 @@ end
 md"And then define the plant structure using a graph"
 
 # ╔═╡ 9af27c17-8f21-4f22-a5bb-e9c95cfdf2f9
-plant_graph = Root() + Stem() + (Leaf([2]), Leaf([2.5])); # Leaves are chosen to be  modelled as spheres and are here given radii of 2 and 2.5 cms
+plant_graph = Stem() + (Stem() + Crown([200.0, 50.0, 0.05]), Crown([150.0, 30.0, 0.05]))
 
 # ╔═╡ a740d4ab-5ad8-4db4-9a80-aef2625a7d7b
 md"""
@@ -149,7 +146,7 @@ air_graph = Air();
 graphs = [plant_graph, soil_graph, air_graph];
 
 # ╔═╡ 61bf737a-2226-42dc-b93a-a8f578048268
-intergraph_connections = [[1, 2] => (:Root, :Soil), [1, 3] => (:Leaf, :Air), [2, 3] => (:Soil, :Air)]; # Let's also add a connection between the soil and the air to simulate direct evaporation
+intergraph_connections = [[1, 2] => (PlantModules.root(plant_graph), :Soil), [1, 3] => (:Crown, :Air)];
 
 # ╔═╡ 20049311-d6e6-41d3-a0d8-8bad88c174f9
 md"""
@@ -229,7 +226,7 @@ Now imagine we have some information on our plant in question and it calls for d
 """
 
 # ╔═╡ 271d48a7-7022-4766-83d9-a70fab92515e
-default_changes = Dict(:K_s => 0.5, :K => 0.5, :T => 293.15);
+default_changes = Dict(:K_s => 500, :K => 0.5, :T => 293.15);
 
 # ╔═╡ 3c13c600-5135-44ea-8fc2-a1e11f72d0c5
 md"""
@@ -238,10 +235,9 @@ Next to changing functional values over the entire model, some of the informatio
 
 # ╔═╡ 5f21a4b0-f663-4777-94f3-d00acba109b3
 module_defaults = Dict(
-	:Root => Dict(:shape => Cuboid([5.0, 10.0, 20.0], [0.7, 0.1, 0.05]), :D => [30, 3, 1], :M => 300e-6),
-	:Stem => Dict(:D => [1.5, 10], :M => 400e-6),
-	:Leaf => Dict(:shape => Sphere(3.0, 0.45), :M => 450e-6),
-	:Soil => Dict(:W_max => 500.0, :K => 5),
+	:Stem => Dict(:D => [7.5, 200.0], :M => 400e-6),
+	:Crown => Dict(:shape => Cuboid([0.45, 0.45, 0.01], [3.0, 2.0, 0.5]), :M => 450e-6),
+	:Soil => Dict(:W_max => 1e4, :K => 5),
 	:Air => Dict(:W_r => 0.7, :K => 0.03)
 );
 
@@ -261,11 +257,10 @@ The next step is to define how nodes interact with eachother, which is again imp
 
 # ╔═╡ 611289e9-e22c-4e6e-beec-ccea90eb48c9
 connecting_modules = [
-	(:Soil, :Root) => (hydraulic_connection, Dict()),
-	(:Root, :Stem) => (hydraulic_connection, Dict()),
-	(:Stem, :Leaf) => (hydraulic_connection, Dict()),
-	(:Leaf, :Air) => (hydraulic_connection, Dict()),
-	(:Soil, :Air) => (const_hydraulic_connection, Dict(:K => 1e-3))
+	(:Soil, :Stem) => (hydraulic_connection, Dict()),
+	(:Stem, :Stem) => (hydraulic_connection, Dict()),
+	(:Stem, :Crown) => (hydraulic_connection, Dict()),
+	(:Crown, :Air) => (hydraulic_connection, Dict()),
 ];
 
 # ╔═╡ a8a725d4-d876-4867-acbc-26bbadc4b462
@@ -298,9 +293,8 @@ Our model needs to know which structural modules make use of which functional mo
 
 # ╔═╡ d54705b3-d8f4-4cc2-a780-369343749113
 module_coupling = Dict(
-	:Root => [hydraulic_module, constant_carbon_module, K_module],
 	:Stem => [hydraulic_module, constant_carbon_module, K_module],
-	:Leaf => [hydraulic_module, constant_carbon_module, K_module],
+	:Crown => [hydraulic_module, constant_carbon_module, K_module],
 	:Soil => [environmental_module, Ψ_soil_module, constant_K_module],
 	:Air => [environmental_module, Ψ_air_module, constant_K_module]
 );
@@ -384,7 +378,6 @@ The plant water dynamics in this tutorials were an oversimplification making the
 # ╟─aec7bcd6-6f27-4cf5-a955-f4d59e778fd3
 # ╟─659e911c-8af2-4a66-855a-e333c41120c1
 # ╟─0cc02e82-4fe8-4f27-a2d2-eb4bfba6b291
-# ╠═e920f6aa-4c7b-4fd1-9dca-d9e3d4155ec2
 # ╠═6b7ebc68-f4a1-4ed6-b12b-e4ac5ee9b00a
 # ╠═d57718c2-c77d-42a8-924f-ebdfcd51d919
 # ╟─c4dc4961-ba2b-4b23-b80e-7d4eb8d9a9f4

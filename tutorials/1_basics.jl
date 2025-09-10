@@ -16,9 +16,9 @@ using PlantGraphs, ModelingToolkit, OrdinaryDiffEq
 # The plant structure is defined as a **graph**. For this tutorial, we'll make use of [PlantGraphs.jl](https://github.com/VirtualPlantLab/PlantGraphs.jl)'s graph implementation.
 # The different types of nodes in the graph represent different (repeating) structural parts of the plant, which we here refer to as **structural modules**.
 
-mutable struct Root <: Node end
-mutable struct Stem <: Node end
-mutable struct Leaf <: Node
+struct Root <: Node end
+struct Stem <: Node end
+struct Leaf <: Node
 	D::Vector
 end
 
@@ -66,7 +66,7 @@ default_changes = Dict(:Γ => 0.4, :Ψ => -0.05, :T => 293.15)
 module_defaults = Dict(
 	:Root => Dict(:D => [0.2, 3], :M => 300e-6),
 	:Stem => Dict(:D => [0.1, 5], :M => 400e-6),
-	:Leaf => Dict(:shape => Cuboid(0.1, 0.02), :M => 450e-6, :K_s => 3e-4),
+	:Leaf => Dict(:shape => Cuboid(0.02, 0.1), :M => 450e-6, :K_s => 3e-4),
 	:Soil => Dict(:W_max => 50.0, :T => 288.15, :W_r => 1.0),
 )
 
