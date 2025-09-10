@@ -33,7 +33,7 @@ function lotka_volterra(; name, α, β, δ, γ, N, P)
         d(N) ~ α*N - β*N*P + ΣF_N,
         d(P) ~ δ*N*P - γ*P + ΣF_P
     ]
-    return ODESystem(eqs, t; name)
+    return System(eqs, t; name)
 end
 
 function fountain_of_rabbits(; name, η, N, P)
@@ -42,7 +42,7 @@ function fountain_of_rabbits(; name, η, N, P)
         d(N) ~ η + ΣF_N,
         d(P) ~ ΣF_P
     ]
-    return ODESystem(eqs, t; name)
+    return System(eqs, t; name)
 end
 
 function wandering_animals(; name, κ)
@@ -61,7 +61,7 @@ function wandering_animals(; name, κ)
         connection_MTK.P_2 ~ nb_node_MTK.P,
     ]
 
-    return ODESystem(eqs, t; name), wandering_eqs
+    return System(eqs, t; name), wandering_eqs
 end
 
 default_values = Dict(:α => 1.5, :β => 1.9, :δ => 1.5, :γ => 0.8, :N => 30, :P => 10, :κ => 0.01, :η => 10)
@@ -96,20 +96,20 @@ module_coupling = Dict(
 
 node1, node2, node3, node4 = collect(values(graph.nodes))
 
-## nodes
-@test issetequal(PlantModules.nodes(graph), [node1, node2, node3, node4])
+## getnodes
+@test issetequal(PlantModules.getnodes(graph), [node1, node2, node3, node4])
 
-## neighbours
-@test issetequal(PlantModules.neighbours(node2, graph), [node1, node3, node4])
+## getneighbours
+@test issetequal(PlantModules.getneighbours(node2, graph), [node1, node3, node4])
 
-## attributes
-@test issetequal(PlantModules.attributes(node4), [:P => 0, :N => 5, :δ => 2.3])
+## getattributes
+@test issetequal(PlantModules.getattributes(node4), [:P => 0, :N => 5, :δ => 2.3])
 
-## structmod
-@test PlantModules.structmod(node1) == :Grassland
+## getstructmod
+@test PlantModules.getstructmod(node1) == :Grassland
 
-## id
-@test allunique(PlantModules.id.([node1, node2, node3, node4]))
+## getid
+@test allunique(PlantModules.getid.([node1, node2, node3, node4]))
 
 
 # generate_system #
@@ -119,7 +119,7 @@ node1, node2, node3, node4 = collect(values(graph.nodes))
 
 checkunits = false
 sys1 = PlantModules.getMTKsystem(node1, default_values, module_defaults, module_coupling, checkunits)
-@test get_name(sys1) == Symbol(string(PlantModules.structmod(node1)) * string(PlantModules.id(node1)))
+@test get_name(sys1) == Symbol(string(PlantModules.getstructmod(node1)) * string(PlantModules.getid(node1)))
 
 ## get_MTK_system_dicts
 MTK_system_dicts = PlantModules.get_MTK_system_dicts(graphs, default_values, module_defaults, module_coupling, checkunits)
@@ -131,7 +131,7 @@ MTK_system_dicts = PlantModules.get_MTK_system_dicts(graphs, default_values, mod
 node = node4
 graphnr = 1
 nb_nodes, nb_node_graphnrs = PlantModules.get_nb_nodes(node, graphs, graphnr, intergraph_connections)
-@test issetequal(nb_nodes, [node2, PlantModules.nodes(graphs[2])[1]])
+@test issetequal(nb_nodes, [node2, PlantModules.getnodes(graphs[2])[1]])
 
 ## get_connecting_module
 node = node4
@@ -147,7 +147,7 @@ connection_MTK, connection_equations = PlantModules.get_connection_info(node, gr
  connecting_module, reverse_order, default_values, MTK_system_dicts
 )
 
-@test connection_MTK isa ODESystem
+@test connection_MTK isa System
 @test only(values(get_defaults(connection_MTK))) == 0.03
 @test connection_equations isa Vector{Equation}
 
@@ -158,7 +158,7 @@ func_module = lotka_volterra
 nodevalues = PlantModules.getnodevalues(node, structmodule, func_module, module_defaults, default_values)
 @test issetequal(nodevalues, [:α => 1.5, :β => 1.9, :γ => 0.8,  :δ => 2.3, :N => 5, :P => 0])
 
-node = PlantModules.nodes(graph2)[1]
+node = PlantModules.getnodes(graph2)[1]
 structmodule = :Cave
 func_module = fountain_of_rabbits
 nodeu0s = PlantModules.getnodevalues(node, structmodule, func_module, module_defaults, default_values)
@@ -167,14 +167,12 @@ nodeu0s = PlantModules.getnodevalues(node, structmodule, func_module, module_def
 ## generate_system
 sys = PlantModules.generate_system(struct_connections, func_connections, module_coupling)
 
-sys_simpl = structural_simplify(sys);
-
-prob = ODEProblem(sys_simpl, [], (0, 48))
+prob = ODEProblem(sys, [], (0, 48))
 sol = solve(prob)
 
 # plot functions #
-@test PlantModules.plotnode(sol, PlantModules.nodes(graphs[2])[1]) isa Vector{AbstractPlot}
-@test PlantModules.plotnode(sol, PlantModules.nodes(graphs[1])[1], varname = :N) isa AbstractPlot
+@test PlantModules.plotnode(sol, PlantModules.getnodes(graphs[2])[1]) isa Vector{AbstractPlot}
+@test PlantModules.plotnode(sol, PlantModules.getnodes(graphs[1])[1], varname = :N) isa AbstractPlot
 
 @test PlantModules.plotgraph(sol, graphs[1]) isa Vector{AbstractPlot}
 @test PlantModules.plotgraph(sol, graphs[1], structmod = :Forest) isa Vector{AbstractPlot}
