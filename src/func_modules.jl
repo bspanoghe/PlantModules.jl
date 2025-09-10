@@ -6,7 +6,7 @@ LSE(x; α) = 1/α * log( sum( [exp(α * i) for i in [x, zero(x)]] ) )
 """
     hydraulic_module(; name, T, shape, Γ, P, D)
 
-Returns a ModelingToolkit System describing the turgor-driven growth of a plant compartment.
+Return a ModelingToolkit System describing the turgor-driven growth of a plant compartment.
 WARNING: this module still requires an equation to be given for the osmotically active metabolite content M.
 """
 function hydraulic_module(; name, T, shape::Shape, Γ, Ψ, D, M)
@@ -20,7 +20,7 @@ function hydraulic_module(; name, T, shape::Shape, Γ, Ψ, D, M)
     @parameters (
         T = T, [description = "Temperature", unit = u"K"],
         ϕ_D[1:num_D] = shape.ϕ_D, [description = "Dimensional extensibility", unit = u"MPa^-1 * hr^-1"],
-        ϵ_D[1:num_D] = shape.ϵ_D, [description = "Dimensional elastic modulus", unit = u"MPa"],
+        ϵ_D[1:num_D] = shape.ϵ_D, [description = "Dimensional elastic modulus", unit = u"MPa^-1"],
         Γ = Γ, [description = "Critical turgor pressure", unit = u"MPa"],
         ρ_w = 1.0, [description = "Density of water", unit = u"g / cm^3"],
     )
@@ -45,20 +45,19 @@ function hydraulic_module(; name, T, shape::Shape, Γ, Ψ, D, M)
         ΔW ~ ΣF, # Water content changes due to flux (depending on water potentials as defined in connections)
         V ~ W / ρ_w, # Volume is directly related to water content  
         V ~ volume(shape, D), # Volume is also directly related to compartment dimensions
-        [ΔD[i] ~ D[i]*ϕ_D[i]*MPa_unit*LSE((P - Γ)/MPa_unit, α = 10) + D[i]*ϵ_D[i]*ΔP/P for i in eachindex(D)]..., # Compartment dimensions can only change due to a change in pressure
+        [ΔD[i] ~ D[i]*ϕ_D[i]*MPa_unit*LSE((P - Γ)/MPa_unit, α = 10) + D[i]*ϵ_D[i]*ΔP for i in eachindex(D)]..., # Compartment dimensions can only change due to a change in pressure
 
         d(P) ~ ΔP,
         d(W) ~ ΔW,
         [d(D[i]) ~ ΔD[i] for i in eachindex(D)]...,
     ]
-    # return System(eqs, t; name, continuous_events = [P ~ Γ]) #!
     return System(eqs, t; name)
 end
 
 """
     environmental_module(; name, T, W_max, W_r)
 
-Returns a ModelingToolkit System describing a non-growing water reservoir.
+Return a ModelingToolkit System describing a non-growing water reservoir.
 WARNING: this module still requires an equation to be given for the total water potential Ψ.
 """
 function environmental_module(; name, T, W_max, W_r)
@@ -86,7 +85,7 @@ end
 """
     constant_carbon_module(; name, C)
 
-Returns a ModelingToolkit System describing a constant concentration of osmotically active metabolite content.
+Return a ModelingToolkit System describing a constant concentration of osmotically active metabolite content.
 """
 function constant_carbon_module(; name, M)
     @parameters (
@@ -106,7 +105,7 @@ end
 """
     Ψ_soil_module(; name)
 
-Returns a ModelingToolkit System describing an empirical relationship between
+Return a ModelingToolkit System describing an empirical relationship between
 the total water potential of the soil and its relative water content.
 """
 function Ψ_soil_module(; name)
@@ -124,7 +123,7 @@ end
 """
     Ψ_air_module(; name, T)
 
-Returns a ModelingToolkit System describing the relationship between
+Return a ModelingToolkit System describing the relationship between
 the total water potential of the air and its relative water content.
 """
 function Ψ_air_module(; name, T)
@@ -143,8 +142,13 @@ function Ψ_air_module(; name, T)
 	return System(eqs, t; name)
 end
 
-#! documentation
-function K_module(; name, K_s, shape::PlantModules.Shape)
+"""
+    K_module(; name, K_s, shape::Shape)
+
+Return a ModelingToolkit System describing the hydraulic conductance of a 
+compartment as the product of its specific hydraulic conductance and its cross area.
+"""
+function K_module(; name, K_s, shape::Shape)
     num_D = length(shape.ϵ_D)
 
     @parameters (
@@ -162,7 +166,12 @@ function K_module(; name, K_s, shape::PlantModules.Shape)
     return System(eqs, t; name)
 end
 
-#! documentation
+"""
+    constant_K_module(; name, K_s, shape::Shape)
+
+Return a ModelingToolkit System describing the hydraulic conductance of a 
+compartment as a constant.
+"""
 function constant_K_module(; name, K)
     @parameters (
         K_value = K, [description = "Value for the hydraulic conductivity of compartment", unit = u"g / hr / MPa"],
