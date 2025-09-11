@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.20.16
+# v0.20.14
 
 using Markdown
 using InteractiveUtils
@@ -82,7 +82,7 @@ md"""
 ### The plant
 
 The first step in modeling our plant's growth is defining its structure.
-For the first tutorial, we'll consider a very simple example: an organ-scale plant model of a plant with two leaves, a stem and a root system.
+For the first tutorial, we'll consider a very simple example: a coarse organ-scale plant model where both the stem and crown are divided into three parts.
 """
 
 # ╔═╡ 659e911c-8af2-4a66-855a-e333c41120c1
@@ -92,11 +92,13 @@ PlantModules uses **graphs** to define the relationships between modules. As suc
 
 # ╔═╡ 0cc02e82-4fe8-4f27-a2d2-eb4bfba6b291
 md"""
-Then we can define the structural modules of our plant. For our example, we will define three structural modules on the organ scale of the plant.
+For our example, we will define two structural modules: a stem module and a crown module. We will give both modules an attribute `D`, which corresponds to the name of the variable expressing the dimensions of the structural module. This is a vector containing one to three numbers, depending on whether the plant part is modelled as a sphere, a cylinder or a cuboid. The crown parts will be represented as big, flat cuboids using the idea of the \"big leaf\" model, while the stem parts will be represented by cylinders.
 """
 
 # ╔═╡ 6b7ebc68-f4a1-4ed6-b12b-e4ac5ee9b00a
-struct Stem <: Node end
+struct Stem <: Node
+	D::Vector
+end
 
 # ╔═╡ d57718c2-c77d-42a8-924f-ebdfcd51d919
 struct Crown <: Node
@@ -104,15 +106,16 @@ struct Crown <: Node
 end
 
 # ╔═╡ c4dc4961-ba2b-4b23-b80e-7d4eb8d9a9f4
-md"And then define the plant structure using a graph"
+md"We now define the plant structure using a graph. By specifying the value of the attribute `D`, we can specify different initial sizes for the different crown and stem parts."
 
 # ╔═╡ 9af27c17-8f21-4f22-a5bb-e9c95cfdf2f9
-plant_graph = Stem() + (Stem() + Crown([200.0, 50.0, 0.05]), Crown([150.0, 30.0, 0.05]))
-
-# ╔═╡ a740d4ab-5ad8-4db4-9a80-aef2625a7d7b
-md"""
-Individual graph nodes can contain parameter values and initial values to allow differences between nodes of the same type. Here, we'll give the leaves a size field `D` so we can start off one of them larger than the other. We'll see more on parameter - and initial values later.
-"""
+plant_graph = Stem([10.0, 100.0]) + (
+	Crown([150.0, 30.0, 0.05]),
+	Stem([8.0, 80.0]) + (
+		Crown([200.0, 50.0, 0.05]),
+		Stem([7.0, 70.0]) + Crown([220.0, 60.0, 0.05])
+	)
+);
 
 # ╔═╡ 98eac4c4-b39a-4e11-917a-90b03d7385d1
 md"""
@@ -382,7 +385,6 @@ The plant water dynamics in this tutorials were an oversimplification making the
 # ╠═d57718c2-c77d-42a8-924f-ebdfcd51d919
 # ╟─c4dc4961-ba2b-4b23-b80e-7d4eb8d9a9f4
 # ╠═9af27c17-8f21-4f22-a5bb-e9c95cfdf2f9
-# ╟─a740d4ab-5ad8-4db4-9a80-aef2625a7d7b
 # ╟─98eac4c4-b39a-4e11-917a-90b03d7385d1
 # ╠═e00c5135-1d66-4dec-8283-40ebe06a8038
 # ╠═dac02191-b640-40f5-a7d6-e6b06b946c23
