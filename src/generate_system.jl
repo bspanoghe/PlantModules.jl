@@ -16,6 +16,17 @@ end
 
 PlantStructure(graph) = PlantStructure([graph], [])
 
+"""
+	PlantFunctionality
+
+A container for functional parameters to be used in the function `generate_system`.
+
+# Fields
+- `default_values`: Model-wide default values of parameters and initial values.
+- `module_defaults`: Module-specific default values of parameters and initial values.
+- `connecting_modules`: The `System` to use for edges between specified nodes.
+- `connecting_eqs`: A function returning a vector of equations linking a node and all its edges.
+"""
 struct PlantFunctionality
 	default_values::Dict{Symbol, <:Any}
 	module_defaults::Dict{Symbol, Dict}
@@ -28,17 +39,13 @@ end
 	connecting_modules, connecting_eqs = PlantModules.multi_connection_eqs, extra_defaults = Dict()
 	)
 
-Creates a container for functional parameters to be used in the function `generate_system`.
+Constructor function for `PlantFunctionality` variables.
 
-# Arguments
-- `default_values`: Model-wide default values of parameters and initial values.
-- `module_defaults`: Module-specific default values of parameters and initial values.
-- `connecting_modules`: The `System` to use for edges between specified nodes.
-- `connecting_eqs`: A function returning a vector of equations linking a node and all its edges.
-- `default_changes`: Values to add to `default_values`
+`default_changes` is a dictionary with values to add to `default_values`. Refer to the `PlantFunctionality` type for a description of the other inputs.
 """
 function PlantFunctionality(; default_values::Dict = PlantModules.default_values, module_defaults::Dict = Dict(),
-	connecting_modules::Vector,	connecting_eqs::Function = PlantModules.multi_connection_eqs, default_changes::Dict = typeof(default_values)()
+	connecting_modules::Vector,	connecting_eqs::Function = PlantModules.multi_connection_eqs, 
+	default_changes::Dict = typeof(default_values)()
 	)
 
 	changed_defaults = merge(default_values, default_changes)
