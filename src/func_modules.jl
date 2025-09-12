@@ -1,26 +1,32 @@
-@independent_variables t, [description = "Time", unit = u"hr"];
-d = Differential(t);
+# # Setup
+@independent_variables t, [description = "Time", unit = u"hr"]; # independent variable
+d = Differential(t); # differential operator
 
-LSE(x; α) = 1/α * log( sum( [exp(α * i) for i in [x, zero(x)]] ) )
+# # Modules
 
+# ## Hydraulics
 """
-    hydraulic_module(; name, T, shape, Γ, P, D)
+    hydraulic_module(; name, shape, ϕ_D, ϵ_D, Γ, T, D, Ψ, M)
 
 Return a ModelingToolkit System describing the turgor-driven growth of a plant compartment.
-WARNING: this module still requires an equation to be given for the osmotically active metabolite content M.
+
+This module still requires a module describing the osmotically active metabolite content M.
 """
-function hydraulic_module(; name, T, shape::Shape, Γ, Ψ, D, M)
-    num_D = length(shape.ϕ_D)
+function hydraulic_module(; name, shape::Shape, ϕ_D, ϵ_D, Γ, T, D, Ψ, M)
+    D, ϕ_D, ϵ_D = [correctdimensionality(shape, var) for var in [D, ϕ_D, ϵ_D]] 
+
+    num_D = getdimensionality(shape)
     R = 8.314
     P = Ψ + M*R*T
+
     @constants (
         R = R, [description = "Ideal gas constant", unit = u"MPa * cm^3 / K / mol"], # Pa = J/m^3 => J = Pa * m^3 = MPa * cm^3
         MPa_unit = 1.0, [description = "Dummy constant for correcting units", unit = u"MPa"],
     )
     @parameters (
         T = T, [description = "Temperature", unit = u"K"],
-        ϕ_D[1:num_D] = shape.ϕ_D, [description = "Dimensional extensibility", unit = u"MPa^-1 * hr^-1"],
-        ϵ_D[1:num_D] = shape.ϵ_D, [description = "Dimensional elastic modulus", unit = u"MPa^-1"],
+        ϕ_D[1:num_D] = ϕ_D, [description = "Dimensional extensibility", unit = u"MPa^-1 * hr^-1"],
+        ϵ_D[1:num_D] = ϵ_D, [description = "Dimensional elastic modulus", unit = u"MPa"],
         Γ = Γ, [description = "Critical turgor pressure", unit = u"MPa"],
         ρ_w = 1.0, [description = "Density of water", unit = u"g / cm^3"],
     )
@@ -45,7 +51,7 @@ function hydraulic_module(; name, T, shape::Shape, Γ, Ψ, D, M)
         ΔW ~ ΣF, # Water content changes due to flux (depending on water potentials as defined in connections)
         V ~ W / ρ_w, # Volume is directly related to water content  
         V ~ volume(shape, D), # Volume is also directly related to compartment dimensions
-        [ΔD[i] ~ D[i]*ϕ_D[i]*MPa_unit*LSE((P - Γ)/MPa_unit, α = 10) + D[i]*ϵ_D[i]*ΔP for i in eachindex(D)]..., # Compartment dimensions can only change due to a change in pressure
+        [ΔD[i] ~ D[i]*ϕ_D[i]*MPa_unit*logsumexp((P - Γ)/MPa_unit, α = 10) + D[i]*ΔP/ϵ_D[i] for i in eachindex(D)]..., # Compartment dimensions can only change due to a change in pressure
 
         d(P) ~ ΔP,
         d(W) ~ ΔW,
@@ -58,7 +64,8 @@ end
     environmental_module(; name, T, W_max, W_r)
 
 Return a ModelingToolkit System describing a non-growing water reservoir.
-WARNING: this module still requires an equation to be given for the total water potential Ψ.
+
+This module still requires a module describing the total water potential Ψ.
 """
 function environmental_module(; name, T, W_max, W_r)
     @parameters (
@@ -82,6 +89,38 @@ function environmental_module(; name, T, W_max, W_r)
     return System(eqs, t; name)
 end
 
+# ## Carbon dynamics
+
+"""
+    simple_photosynthesis_module(; name, M, shape)
+
+Return a ModelingToolkit System describing a changing concentration of osmotically active metabolite content.
+
+This simple model includes nightly carbon consumption.
+"""
+function simple_photosynthesis_module(; name, M, shape, sunrise, sunset, A_max, M_c)
+    @constants (
+        hr_unit = 1, [unit = u"hr"],
+    )
+    @parameters (
+        sunrise = sunrise, [description = "Time of sunrise (hours past midnight)", unit = u"hr"],
+        sunset = sunset, [description = "Time of sunset (hours past midnight)", unit = u"hr"],
+        A_max = A_max, [description = "Maximum carbon assimilation rate", unit = u"mol / cm^2 / hr"],
+        M_c = M_c, [description = "Rate of carbon consumption", unit = u"hr^-1"],
+	)
+	@variables (
+        M(t) = M, [description = "Osmotically active metabolite content", unit = u"mol / cm^3"],
+		A(t), [description = "Carbon assimilation rate", unit = u"mol / cm^2 / hr"],
+		D(t)[1:getdimensionality(shape)], [description = "Dimensions of compartment", unit = u"cm"],
+    )
+
+    eqs = [
+		A ~ smooth_daynight(t/hr_unit, sunrise/hr_unit, sunset/hr_unit, zero(A_max), A_max, smoothing = 1.0)
+        d(M) ~ A * cross_area(shape, D) / volume(shape, D) - M_c * M
+    ]
+    return System(eqs, t; name)
+end
+
 """
     constant_carbon_module(; name, C)
 
@@ -101,6 +140,8 @@ function constant_carbon_module(; name, M)
     ]
     return System(eqs, t; name)
 end
+
+# ## Water potentials (for parts that don't use `hydraulic_module`)
 
 """
     Ψ_soil_module(; name)
@@ -142,6 +183,8 @@ function Ψ_air_module(; name, T)
 	return System(eqs, t; name)
 end
 
+# ## Hydraulic conductivity
+
 """
     K_module(; name, K_s, shape::Shape)
 
@@ -149,7 +192,7 @@ Return a ModelingToolkit System describing the hydraulic conductance of a
 compartment as the product of its specific hydraulic conductance and its cross area.
 """
 function K_module(; name, K_s, shape::Shape)
-    num_D = length(shape.ϵ_D)
+    num_D = getdimensionality(shape)
 
     @parameters (
         K_s = K_s, [description = "Specific hydraulic conductivity of compartment", unit = u"g / hr / MPa / cm^2"],
@@ -187,9 +230,7 @@ function constant_K_module(; name, K)
     return System(eqs, t; name)
 end
 
-# Module connections #
-
-## Connection information
+# # Module connections
 
 """
     hydraulic_connection(; name)
@@ -291,31 +332,19 @@ function evaporation_connection(; name, sunrise, sunset, te_night)
     return System(eqs, t; name), get_connection_eqset
 end
 
-# Get value that smoothly switches between `ymax` at day and `ymin` at night
-function smooth_daynight(t, sunrise, sunset, ymin, ymax = 1)
-    daywave(t, sunrise, sunset) |>
-        smooth_sign |>
-        x -> rebound_sign(x, ymin, ymax)
-end
-
-get_offset(d) = -sin((1-2*d)/2 * pi) # get value of `a` so that the roots of sin(x) + a = 0 have a largest distance of `d`
-offset_sin(x, d) = sin(x + asin(-get_offset(d))) + get_offset(d) # offset a sine a vertical height of `d`, and offset it horizontally so f(0) = 0
-daywave(x, sunrise, sunset) = offset_sin(2*pi*(x - sunrise) / 24, (sunset-sunrise)/24) # get an offset sine wave in hours with values >0 for the day
-smooth_sign(x, smoothing = 0.01) = x / (sqrt(x^2 + smoothing^2)) # smooth approximation of the `sign` function
-rebound_sign(x, ymin, ymax) = 1/2 * ((ymax+ymin) + (ymax-ymin) * x) # for a function with range [-1, 1], change its range to [ymin, ymax]
-
-## Node behaviour in function of all their connections
+# # Node behaviour in function of all their connections
 
 multi_connection_eqs(node_MTK, connection_MTKs) = [
     node_MTK.ΣF ~ sum([connection_MTK.F for connection_MTK in connection_MTKs])
+        # "node's net incoming water flux equals the sum of all connected water flows"
 ]
 
-# Default values #
+# # Default values
 
 soilfunc(W_r) = -(1/W_r) * exp(-30*W_r)
 
 default_values = Dict(
-    :T => 298.15, :shape => Cylinder(0.005, 0.5), :Γ => 0.3,
-    :Ψ => soilfunc(0.8), :D => [0.5, 5.0], :M => 300e-6, :W_max => 1e6, :W_r => 0.8, 
-    :K_s => 500, :K => 500, :sunrise => 8, :sunset => 20, :te_night => 0.1
+    :shape => Cylinder(), :ϕ_D => 0.02, :ϵ_D => 50.0, :Γ => 0.3,
+    :T => 298.15, :D => [0.5, 5.0], :Ψ => soilfunc(0.8), :M => 300e-6, :W_max => 1e6, :W_r => 0.8, 
+    :K_s => 10.0, :K => 1e3, :sunrise => 8, :sunset => 20, :te_night => 0.1, :A_max => 2e-6, :M_c => 0.2
 )
