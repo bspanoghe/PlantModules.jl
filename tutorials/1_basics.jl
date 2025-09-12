@@ -51,7 +51,7 @@ struct_connections = PlantStructure(graphs, intergraph_connections)
 # ### Defining functionality
 
 # Now that plant's structural modules are defined, we need to define their functional behaviour.
-# This is done in the form of [ModelingToolkit.jl](https://github.com/SciML/ModelingToolkit.jl) `ODESystem`s.
+# This is done in the form of [ModelingToolkit.jl](https://github.com/SciML/ModelingToolkit.jl) `System`s.
 # You can define new ones yourself, but here we'll use ones already defined by PlantModules. You can consult a list of available functional modules [here](https://www.youtube.com/watch?v=xvFZjo5PgG0).
 
 # ### Finetuning
@@ -66,7 +66,7 @@ default_changes = Dict(:Γ => 0.4, :Ψ => -0.05, :T => 293.15)
 module_defaults = Dict(
 	:Root => Dict(:D => [0.2, 3], :M => 300e-6),
 	:Stem => Dict(:D => [0.1, 5], :M => 400e-6),
-	:Leaf => Dict(:shape => Cuboid(0.02, 0.1), :M => 450e-6, :K_s => 3e-4),
+	:Leaf => Dict(:shape => Cuboid(), :M => 450e-6, :K_s => 3e-4),
 	:Soil => Dict(:W_max => 50.0, :T => 288.15, :W_r => 1.0),
 )
 
@@ -97,7 +97,7 @@ func_connections = PlantFunctionality(; module_defaults, connecting_modules, def
 module_coupling = Dict(
 	:Root => [hydraulic_module, constant_carbon_module, K_module],
 	:Stem => [hydraulic_module, constant_carbon_module, K_module],
-	:Leaf => [hydraulic_module, constant_carbon_module, K_module],
+	:Leaf => [hydraulic_module, simple_photosynthesis_module, K_module],
 	:Soil => [environmental_module, Ψ_soil_module, constant_K_module],
 	:Air => [environmental_module, Ψ_air_module, constant_K_module],
 )
@@ -105,7 +105,7 @@ module_coupling = Dict(
 # ## Generate and run system
 
 # All that's left to do is running `generate_system` to get the plant's ODESystem
-system = generate_system(struct_connections, func_connections, module_coupling, checkunits = false)
+system = generate_system(struct_connections, func_connections, module_coupling)
 
 # ...and solving it.
 prob = ODEProblem(system, [], (0.0, 5*24))
@@ -124,4 +124,4 @@ plotgraph(sol, graphs[1:2], varname = :Ψ)
 # and the net water flux in all components of the system
 plotgraph(sol, graphs, varname = :ΣF)
 
-plotgraph(sol, graphs[1], varname = :W)
+plotgraph(sol, graphs[1], varname = :P)

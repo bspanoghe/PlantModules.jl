@@ -75,7 +75,7 @@ struct_connections = PlantStructure(graphs, intergraph_connections)
 # This allows you to, for example, write a function which interpolates between observed PAR values. 
 # We'll just use a sine function bound to the positive values to simulate a simple day-night cycle:
 
-get_PAR_flux(t) = max(0, 40 * sin(t/24*2*pi - 8))
+get_PAR_flux(t) = logsumexp(40 * sin(t/24*2*pi - 8))
 plot(get_PAR_flux, xlims = (0, 48))
 
 # We also need the actual photosynthesis model.
@@ -104,7 +104,7 @@ end
 # Most (complex) functions need to be registered using `@register_symbolic` before we can use them in ModelingToolkit.
 @register_symbolic get_assimilation_rate(PAR_flux, T, LAI, k)
 
-import PlantModules: t, d #!
+import PlantModules: t, d
 
 # Finally we define the actual photosynthesis module. The one defined here is very simple for illustration purposes.
 function photosynthesis_module(; name, T, M, shape)
@@ -119,10 +119,10 @@ function photosynthesis_module(; name, T, M, shape)
 		carbon_decay_rate = 0.2, [description = "Rate at which carbon is consumed for growth", unit = u"hr^-1"],
 	)
 	@variables (
-        M(t) = M, [description = "Osmotically active metabolite content", unit = u"mol / cm^3"], # m^3 so units match in second equation (Pa = J/m^3)
+        M(t) = M, [description = "Osmotically active metabolite content", unit = u"mol / cm^3"],
 		PF(t), [description = "Incoming PAR flux", unit = u"J / s / m^2"],
 		A(t), [description = "Carbon assimilation rate", unit = u"µmol / m^2 / s"],
-		D(t)[1:length(shape.ϵ_D)], [description = "Dimensions of compartment", unit = u"cm"],
+		D(t)[1:getdimensionality(shape)], [description = "Dimensions of compartment", unit = u"cm"],
     )
 
     eqs = [
@@ -130,7 +130,7 @@ function photosynthesis_module(; name, T, M, shape)
 		A ~ get_assimilation_rate(PF, T, LAI, k)
         d(M) ~ uc1 * A * cross_area(shape, D) / volume(shape, D) - carbon_decay_rate*M
     ]
-    return ODESystem(eqs, t; name, checks = false) #! checks back to true?
+    return System(eqs, t; name, checks = false)
 end
 
 # This part is the same as in the first tutorial, except that we'll also make use of the non-constant `hydraulic_connection`.
@@ -139,11 +139,11 @@ end
 # This is why this hydraulic conductance should only be used for a connection with the air, and connections with plant parts need to use a constant hydraulic connection.
 
 module_defaults = Dict(
-	:Internode => Dict(:shape => Cylinder([0.002, 0.0001], [0.1, 0.1]), :M => 300e-6, :K_s => 200),
-	:Shoot => Dict(:shape => Cylinder([0.002, 0.0001], [0.1, 0.1]), :M => 350e-6, :K_s => 50),
-	:Leaf => Dict(:shape => Cuboid([0.002, 0.002, 5e-4], [1.0, 1.0, 1.0]), :M => 200e-6, :K_s => 5e-5),
-	:Soil => Dict(:W_max => 1e4, :T => 293.15), #! W_max
-	:Air => Dict(:K => 1e-1)
+	:Internode => Dict(:shape => Cylinder(), :M => 300e-6, :K_s => 200, :ϕ_D => 0.005),
+	:Shoot => Dict(:shape => Cylinder(), :M => 350e-6, :K_s => 50, :ϵ_D => 100.0),
+	:Leaf => Dict(:shape => Cuboid(), :M => 400e-6, :K_s => 5e-3),
+	:Soil => Dict(:W_max => 1e4, :T => 293.15),
+	:Air => Dict(:K => 1e-3)
 )
 
 connecting_modules = [
@@ -151,9 +151,9 @@ connecting_modules = [
     (:Internode, :Internode) => (hydraulic_connection, Dict()),
 	(:Internode, :Shoot) => (hydraulic_connection, Dict()),
 	(:Shoot, :Shoot) => (hydraulic_connection, Dict()),
-	(:Shoot, :Leaf) => (const_hydraulic_connection, Dict()),
+	(:Shoot, :Leaf) => (const_hydraulic_connection, Dict(:K => 1.0)),
 	(:Internode, :Leaf) => (const_hydraulic_connection, Dict()),
-    (:Leaf, :Air) => (hydraulic_connection, Dict())
+    (:Leaf, :Air) => (evaporation_connection, Dict())
 ]
 
 func_connections = PlantFunctionality(; module_defaults, connecting_modules)
@@ -189,5 +189,5 @@ plotgraph(sol, graphs[1], varname = :K)
 plotgraph(sol, graphs[1:2], varname = :Ψ)
 plotgraph(sol, graphs[3], varname = :Ψ)
 
-plotgraph(sol, graphs[1], varname = :ΔD)
+plotgraph(sol, graphs[1], varname = :D)
 plotgraph(sol, graphs[3], varname = :ΣF)

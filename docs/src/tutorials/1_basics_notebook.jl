@@ -239,7 +239,7 @@ Next to changing functional values over the entire model, some of the informatio
 # ╔═╡ 5f21a4b0-f663-4777-94f3-d00acba109b3
 module_defaults = Dict(
 	:Stem => Dict(:D => [7.5, 200.0], :M => 400e-6),
-	:Crown => Dict(:shape => Cuboid([0.45, 0.45, 0.01], [3.0, 2.0, 0.5]), :M => 450e-6),
+	:Crown => Dict(:shape => Cuboid(), :M => 450e-6),
 	:Soil => Dict(:W_max => 1e4, :K => 5),
 	:Air => Dict(:W_r => 0.7, :K => 0.03)
 );

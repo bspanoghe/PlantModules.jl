@@ -240,9 +240,9 @@ This part is again largely the same as in the previous tutorial, except that we 
 
 # ╔═╡ 6ffd0511-639d-4304-af8f-93e277e2a4a8
 module_defaults = Dict(
-	:Internode => Dict(:shape => Cylinder([0.1, 0.1], [0.002, 0.0001]), :M => 300e-6, :K_s => 200),
-	:Shoot => Dict(:shape => Cylinder([0.1, 0.1], [0.002, 0.0001]), :M => 350e-6, :K_s => 50),
-	:Leaf => Dict(:shape => Cuboid([1.0, 1.0, 1.0], [0.002, 0.002, 5e-4]), :M => 200e-6, :K_s => 5e-5),
+	:Internode => Dict(:shape => Cylinder(), :M => 300e-6, :K_s => 200),
+	:Shoot => Dict(:shape => Cylinder(), :M => 350e-6, :K_s => 50),
+	:Leaf => Dict(:shape => Cuboid(), :M => 200e-6, :K_s => 5e-5),
 	:Soil => Dict(:W_max => 1e4, :T => 293.15), #! W_max
 	:Air => Dict(:K => 1e-1)
 );
