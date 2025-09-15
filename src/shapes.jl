@@ -47,7 +47,7 @@ If `var` is a scalar, return a vector of the length matching `s` with the value 
 If `var` is an array, either return the same vector if the dimensions match or throw an error if they do not.
 """
 function correctdimensionality(s::Shape, var)
-    @info "A scalar value was found for a variable that need to be defined for every dimensions of the shape (D, ϕ_D, ϵ_D)." *
+    @info "A scalar value was found for a variable that needs to be defined for every dimensions of the shape (D, ϕ_D, ϵ_D)." *
     "This value will be used for every dimension." maxlog = 1
     return fill(var, getdimensionality(s))
 end
