@@ -259,7 +259,12 @@ function get_connection_info(node, graphnr, nb_node, nb_node_graphnr, connecting
 	node_MTK = MTK_system_dicts[graphnr][PlantModules.getid(node)]
 	nb_node_MTK = MTK_system_dicts[nb_node_graphnr][PlantModules.getid(nb_node)]
 
-	connection_eqset = get_connection_eqset(node_MTK, nb_node_MTK, connection_MTK, reverse_order)
+	if applicable(get_connection_eqset, node_MTK, nb_node_MTK, connection_MTK) 
+		# check if `reverse_order` is specified by user (needed for asymmetrical connections)
+		connection_eqset = get_connection_eqset(node_MTK, nb_node_MTK, connection_MTK)
+	else
+		connection_eqset = get_connection_eqset(node_MTK, nb_node_MTK, connection_MTK, reverse_order)
+	end
 
 	return connection_MTK, connection_eqset
 end
@@ -275,6 +280,8 @@ function get_nb_nodes(node, graphs, graphnr, intergraph_connections)
 
 	nb_nodes = vcat(intra_nb_nodes, inter_nb_nodes)
 	nb_node_graphnrs = vcat(intra_nb_node_graphnrs, inter_nb_node_graphnrs)
+
+	#! add error message if no neighbours found
 
 	return nb_nodes, nb_node_graphnrs
 end
