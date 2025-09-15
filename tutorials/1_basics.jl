@@ -66,8 +66,9 @@ default_changes = Dict(:Γ => 0.4, :Ψ => -0.05, :T => 293.15)
 module_defaults = Dict(
 	:Root => Dict(:D => [0.2, 3], :M => 300e-6),
 	:Stem => Dict(:D => [0.1, 5], :M => 400e-6),
-	:Leaf => Dict(:shape => Cuboid(), :M => 450e-6, :K_s => 3e-4),
-	:Soil => Dict(:W_max => 50.0, :T => 288.15, :W_r => 1.0),
+	:Leaf => Dict(:shape => Cuboid(), :M => 450e-6),
+	:Soil => Dict(:W_max => 50.0, :T => 288.15, :W_r => 0.5),
+	:Air => Dict(:K => 3e-4)
 )
 
 # Changing the values for specific nodes is also possible, as discussed during the section on graph creation. 
@@ -83,7 +84,7 @@ module_defaults = Dict(
 connecting_modules = [
 	(:Soil, :Root) => (hydraulic_connection, Dict()),
 	(:Root, :Stem) => (hydraulic_connection, Dict()),
-	(:Stem, :Leaf) => (const_hydraulic_connection, Dict()),
+	(:Stem, :Leaf) => (hydraulic_connection, Dict()),
 	(:Leaf, :Air) => (evaporation_connection, Dict()),
 	# (:Soil, :Air) => (const_hydraulic_connection, Dict(:K => 3e-3)),
 ]

@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.20.14
+# v0.20.16
 
 using Markdown
 using InteractiveUtils
@@ -11,7 +11,7 @@ using Pkg; Pkg.activate("../..")
 using PlantModules
 
 # ╔═╡ 65f88593-1180-447a-900f-49aef4647cd1
-using PlantGraphs, ModelingToolkit, OrdinaryDiffEq, Plots
+using PlantGraphs, ModelingToolkit, OrdinaryDiffEq, GLMakie, Plots
 
 # ╔═╡ 56c3527f-d8df-4f5c-9075-77c34d5c7204
 md"""
@@ -101,7 +101,7 @@ struct Stem <: Node
 end
 
 # ╔═╡ d57718c2-c77d-42a8-924f-ebdfcd51d919
-struct Crown <: Node
+struct Leaf <: Node
 	D::Vector
 end
 
@@ -109,13 +109,13 @@ end
 md"We now define the plant structure using a graph. By specifying the value of the attribute `D`, we can specify different initial sizes for the different crown and stem parts."
 
 # ╔═╡ 9af27c17-8f21-4f22-a5bb-e9c95cfdf2f9
-plant_graph = Stem([10.0, 100.0]) + (
-	Crown([150.0, 30.0, 0.05]),
-	Stem([8.0, 80.0]) + (
-		Crown([200.0, 50.0, 0.05]),
-		Stem([7.0, 70.0]) + Crown([220.0, 60.0, 0.05])
-	)
+plant_graph = Stem([0.5, 10.0]) + (
+	Leaf([5.0, 3.0, 0.05]),
+	Leaf([4.0, 2.5, 0.05])
 );
+
+# ╔═╡ d660118d-2994-4f81-9557-60e4081745b1
+draw(plant_graph)
 
 # ╔═╡ 98eac4c4-b39a-4e11-917a-90b03d7385d1
 md"""
@@ -149,7 +149,7 @@ air_graph = Air();
 graphs = [plant_graph, soil_graph, air_graph];
 
 # ╔═╡ 61bf737a-2226-42dc-b93a-a8f578048268
-intergraph_connections = [[1, 2] => (PlantModules.root(plant_graph), :Soil), [1, 3] => (:Crown, :Air)];
+intergraph_connections = [[1, 2] => (PlantModules.root(plant_graph), :Soil), [1, 3] => (:Leaf, :Air)];
 
 # ╔═╡ 20049311-d6e6-41d3-a0d8-8bad88c174f9
 md"""
@@ -229,7 +229,7 @@ Now imagine we have some information on our plant in question and it calls for d
 """
 
 # ╔═╡ 271d48a7-7022-4766-83d9-a70fab92515e
-default_changes = Dict(:K_s => 500, :K => 0.5, :T => 293.15);
+default_changes = Dict(:Ψ => -0.5);
 
 # ╔═╡ 3c13c600-5135-44ea-8fc2-a1e11f72d0c5
 md"""
@@ -238,10 +238,9 @@ Next to changing functional values over the entire model, some of the informatio
 
 # ╔═╡ 5f21a4b0-f663-4777-94f3-d00acba109b3
 module_defaults = Dict(
-	:Stem => Dict(:D => [7.5, 200.0], :M => 400e-6),
-	:Crown => Dict(:shape => Cuboid(), :M => 450e-6),
-	:Soil => Dict(:W_max => 1e4, :K => 5),
-	:Air => Dict(:W_r => 0.7, :K => 0.03)
+	:Leaf => Dict(:shape => Cuboid(), :M => 550e-6, :M_c => 0.05),
+	:Soil => Dict(:W_max => 1e3, :K => 0.1),
+	:Air => Dict(:W_r => 0.7, :K => 1e-5)
 );
 
 # ╔═╡ e0e5e7f7-d2f5-404b-a6c6-6848c318eccb
@@ -261,9 +260,9 @@ The next step is to define how nodes interact with eachother, which is again imp
 # ╔═╡ 611289e9-e22c-4e6e-beec-ccea90eb48c9
 connecting_modules = [
 	(:Soil, :Stem) => (hydraulic_connection, Dict()),
-	(:Stem, :Stem) => (hydraulic_connection, Dict()),
-	(:Stem, :Crown) => (hydraulic_connection, Dict()),
-	(:Crown, :Air) => (hydraulic_connection, Dict()),
+	(:Stem, :Stem) => (const_hydraulic_connection, Dict()),
+	(:Stem, :Leaf) => (hydraulic_connection, Dict()),
+	(:Leaf, :Air) => (evaporation_connection, Dict()),
 ];
 
 # ╔═╡ a8a725d4-d876-4867-acbc-26bbadc4b462
@@ -297,7 +296,7 @@ Our model needs to know which structural modules make use of which functional mo
 # ╔═╡ d54705b3-d8f4-4cc2-a780-369343749113
 module_coupling = Dict(
 	:Stem => [hydraulic_module, constant_carbon_module, K_module],
-	:Crown => [hydraulic_module, constant_carbon_module, K_module],
+	:Leaf => [hydraulic_module, simple_photosynthesis_module, K_module],
 	:Soil => [environmental_module, Ψ_soil_module, constant_K_module],
 	:Air => [environmental_module, Ψ_air_module, constant_K_module]
 );
@@ -331,7 +330,7 @@ The rest of the modeling workflow is mostly taken care of by ModelingToolkit.jl 
 """
 
 # ╔═╡ bf114636-1e35-49f1-9407-f472b443a9ea
-time_span = (0, 7*24.0); # We'll simulate our problem for a timespan of one week
+time_span = (0, 48.0); # We'll simulate our problem for a timespan of one week
 
 # ╔═╡ 50d6fc31-80f5-4db7-b716-b26765008a0d
 prob = ODEProblem(system, [], time_span, warn_initialize_determined = false);
@@ -347,7 +346,8 @@ Finding the answer to our toy problem now comes down to plotting out the soil wa
 """
 
 # ╔═╡ 042fec92-2ab0-4f21-8214-e574b2deb963
-plotgraph(sol, graphs[1:2], varname = :W)
+[plotgraph(sol, graphs[i], varname = :W) for i in 1:2] |>
+	x -> Plots.plot(x..., layout = (2, 1))
 
 # ╔═╡ 2d131155-f62b-4f4a-92d8-9e7443202434
 md"""
@@ -356,6 +356,18 @@ We see the plant is readily taking up the soil's water until around 100h, at whi
 
 # ╔═╡ cf30d4f4-a5de-4def-8674-48088eabf17b
 plotgraph(sol, graphs[1:2], varname = :Ψ)
+
+# ╔═╡ 6a6de4fe-88b2-46f9-affe-abdd693e03dc
+begin
+	module_defaults2 = deepcopy(module_defaults)
+	module_defaults2[:Leaf][:A_max] = 3e-6
+	func_connections2 = PlantFunctionality(; default_changes, module_defaults = module_defaults2, connecting_modules);
+	sys2 = generate_system(struct_connections, func_connections2, module_coupling)
+	sol2 = ODEProblem(sys2, [], time_span) |> solve
+end;
+
+# ╔═╡ ae5742a1-ea82-40b3-a34c-7926b196eb64
+plotgraph(sol2, graphs[1:2], varname = :Ψ)
 
 # ╔═╡ 45db790e-7c61-4242-bc14-0132545ae13f
 md"""
@@ -366,6 +378,9 @@ And so we may conclude that we should water the plant again shortly after the 10
 md"""
 The plant water dynamics in this tutorials were an oversimplification making these results are very iffy at best. Next tutorial we'll see how we can create our own functional processes to make the model more realistic.
 """
+
+# ╔═╡ be5401cb-6c88-4852-b121-a18943d7e2be
+plotgraph(sol, graphs[1], varname = :M)
 
 # ╔═╡ Cell order:
 # ╟─56c3527f-d8df-4f5c-9075-77c34d5c7204
@@ -385,6 +400,7 @@ The plant water dynamics in this tutorials were an oversimplification making the
 # ╠═d57718c2-c77d-42a8-924f-ebdfcd51d919
 # ╟─c4dc4961-ba2b-4b23-b80e-7d4eb8d9a9f4
 # ╠═9af27c17-8f21-4f22-a5bb-e9c95cfdf2f9
+# ╠═d660118d-2994-4f81-9557-60e4081745b1
 # ╟─98eac4c4-b39a-4e11-917a-90b03d7385d1
 # ╠═e00c5135-1d66-4dec-8283-40ebe06a8038
 # ╠═dac02191-b640-40f5-a7d6-e6b06b946c23
@@ -433,5 +449,8 @@ The plant water dynamics in this tutorials were an oversimplification making the
 # ╠═042fec92-2ab0-4f21-8214-e574b2deb963
 # ╟─2d131155-f62b-4f4a-92d8-9e7443202434
 # ╠═cf30d4f4-a5de-4def-8674-48088eabf17b
+# ╠═6a6de4fe-88b2-46f9-affe-abdd693e03dc
+# ╠═ae5742a1-ea82-40b3-a34c-7926b196eb64
 # ╟─45db790e-7c61-4242-bc14-0132545ae13f
 # ╟─ad371259-cdf3-4c71-8dcf-92858104b284
+# ╠═be5401cb-6c88-4852-b121-a18943d7e2be
