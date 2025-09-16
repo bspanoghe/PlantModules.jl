@@ -40,7 +40,7 @@ graphs = [plant_graph, Soil(), Air()]
 
 # The connections between graphs are defined as a pair between the indices of the two graphs in question and what nodes to connect.
 # The latter can be either the node itself, the structural module of the node, or a function that takes two nodes and returns whether they should be connected.
-intergraph_connections = [[1, 2] => (PlantModules.root(plant_graph), :Soil), [1, 3] => (:Leaf, :Air)]#, [2, 3] => (:Soil, :Air)]
+intergraph_connections = [[1, 2] => (PlantModules.getroot(plant_graph), :Soil), [1, 3] => (:Leaf, :Air)]#, [2, 3] => (:Soil, :Air)]
 
 # Finally we can combine all structural information in one variable:
 struct_connections = PlantStructure(graphs, intergraph_connections)
@@ -98,7 +98,7 @@ func_connections = PlantFunctionality(; module_defaults, connecting_modules, def
 module_coupling = Dict(
 	:Root => [hydraulic_module, constant_carbon_module, K_module],
 	:Stem => [hydraulic_module, constant_carbon_module, K_module],
-	:Leaf => [hydraulic_module, simple_photosynthesis_module, K_module],
+	:Leaf => [hydraulic_module, daynight_carbon_module, K_module],
 	:Soil => [environmental_module, Ψ_soil_module, constant_K_module],
 	:Air => [environmental_module, Ψ_air_module, constant_K_module],
 )
@@ -126,3 +126,5 @@ plotgraph(sol, graphs[1:2], varname = :Ψ)
 plotgraph(sol, graphs, varname = :ΣF)
 
 plotgraph(sol, graphs[1], varname = :P)
+
+plotgraph(sol, graphs[1], varname = :M)

@@ -93,13 +93,11 @@ end
 # ## Carbon dynamics
 
 """
-    simple_photosynthesis_module(; name, M, shape)
+    daynight_carbon_module(; name, M, shape)
 
-Return a ModelingToolkit System describing a changing concentration of osmotically active metabolite content.
-
-This simple model includes nightly carbon consumption.
+Return a ModelingToolkit System describing a concentration of osmotically active metabolite content increasing during day and decreasing in function of the current concentration.
 """
-function simple_photosynthesis_module(; name, M, shape, sunrise, sunset, A_max, M_c)
+function daynight_carbon_module(; name, M, shape, sunrise, sunset, A_max, M_c)
     @constants (
         t_unit = 1, [description = "Dummy constant for correcting units", unit = u"hr"],
     )
@@ -145,26 +143,6 @@ end
 # ## Water potentials (for parts that don't use `hydraulic_module`)
 
 """
-    Ψ_soil_module(; name)
-
-Return a ModelingToolkit System describing an empirical relationship between
-the total water potential of the soil and its relative water content.
-"""
-function Ψ_soil_module(; name)
-	@variables (
-        Ψ(t), [description = "Total water potential", unit = u"MPa"],
-        W_r(t), [description = "Relative water content", unit = u"g / g"],
-    )
-    @constants Ψ_unit = 1 [description = "Dummy constant for correcting units", unit = u"MPa"]
-
-	eqs = [Ψ ~ Ψ_unit * soilfunc(W_r)]
-
-	return System(eqs, t; name)
-end
-
-soilfunc(W_r) = -(1/W_r) * exp(-30*W_r) # empirical equation for soil water potential
-
-"""
     Ψ_air_module(; name, T)
 
 Return a ModelingToolkit System describing the relationship between
@@ -185,6 +163,27 @@ function Ψ_air_module(; name, T)
 
 	return System(eqs, t; name)
 end
+
+"""
+    Ψ_soil_module(; name)
+
+Return a ModelingToolkit System describing an empirical relationship between
+the total water potential of the soil and its relative water content.
+"""
+function Ψ_soil_module(; name)
+	@variables (
+        Ψ(t), [description = "Total water potential", unit = u"MPa"],
+        W_r(t), [description = "Relative water content", unit = u"g / g"],
+    )
+    @constants Ψ_unit = 1 [description = "Dummy constant for correcting units", unit = u"MPa"]
+
+	eqs = [Ψ ~ Ψ_unit * soilfunc(W_r)]
+
+	return System(eqs, t; name)
+end
+
+soilfunc(W_r) = -(1/W_r) * exp(-30*W_r) # empirical equation for soil water potential
+
 
 # ## Hydraulic conductivity
 
@@ -270,13 +269,55 @@ function hydraulic_connection(; name)
 end
 
 """
-    const_hydraulic_connection(; name, K)
+    evaporation_connection(; name, sunrise, sunset, rhc_night)
+
+Returns a ModelingToolkit System describing a water flow connection between two hydraulics-based compartments that decreases at night.
+
+This module assumes the compartments have a specified hydraulic conductivities.
+"""
+function evaporation_connection(; name, sunrise, sunset, rhc_night)
+    @constants (
+        t_unit = 1, [description = "Dummy constant for correcting units", unit = u"hr"],
+        K_unit = 1, [description = "Dummy constant for correcting units", unit = u"g / hr / MPa"],
+    )
+    @parameters (
+        sunrise = sunrise, [description = "Time of sunrise (hours past midnight)", unit = u"hr"],
+        sunset = sunset, [description = "Time of sunset (hours past midnight)", unit = u"hr"],
+        rhc_night = rhc_night, [description = "Relative hydraulic conductivity at night", unit = u"(g / hr / MPa) / (g / hr / MPa)"]
+    )
+    @variables (
+        F(t), [description = "Water flux from compartment 2 to compartment 1", unit = u"g / hr"],
+        K(t), [description = "Hydraulic conductivity of connection", unit = u"g / hr / MPa"],
+        K_1(t), [description = "Hydraulic conductivity of compartment 1", unit = u"g / hr / MPa"],
+        K_2(t), [description = "Hydraulic conductivity of compartment 2", unit = u"g / hr / MPa"],
+        Ψ_1(t), [description = "Total water potential of compartment 1", unit = u"MPa"],
+        Ψ_2(t), [description = "Total water potential of compartment 2", unit = u"MPa"],
+    )
+
+    eqs = [
+        F ~ K * (Ψ_2 - Ψ_1) * smooth_daynight(t/t_unit, sunrise/t_unit, sunset/t_unit, rhc_night),
+        K ~ min(K_1, K_2)
+    ]
+
+    get_connection_eqset(node_MTK, nb_node_MTK, connection_MTK) = 
+        [ 
+            connection_MTK.Ψ_1 ~ node_MTK.Ψ,
+            connection_MTK.Ψ_2 ~ nb_node_MTK.Ψ,
+            connection_MTK.K_1 ~ node_MTK.K,
+            connection_MTK.K_2 ~ nb_node_MTK.K,
+        ]
+    
+    return System(eqs, t; name), get_connection_eqset
+end
+
+"""
+    constant_hydraulic_connection(; name, K)
 
 Returns a ModelingToolkit System describing a water flow connection between two hydraulics-based functional modules.
 
 This module specifies a constant hydraulic conductivity between the compartments.
 """
-function const_hydraulic_connection(; name, K)
+function constant_hydraulic_connection(; name, K)
     @parameters (
         K = K, [description = "Hydraulic conductivity of connection", unit = u"g / hr / MPa"],
     )
@@ -298,41 +339,6 @@ function const_hydraulic_connection(; name, K)
     return System(eqs, t; name), get_connection_eqset
 end
 
-function evaporation_connection(; name, sunrise, sunset, te_night)
-    @constants (
-        t_unit = 1, [description = "Dummy constant for correcting units", unit = u"hr"],
-        K_unit = 1, [description = "Dummy constant for correcting units", unit = u"g / hr / MPa"],
-    )
-    @parameters (
-        sunrise = sunrise, [description = "Time of sunrise (hours past midnight)", unit = u"hr"],
-        sunset = sunset, [description = "Time of sunset (hours past midnight)", unit = u"hr"],
-        te_night = te_night, [description = "Transpiration efficiency at night", unit = u"(g / hr / MPa) / (g / hr / MPa)"]
-    )
-    @variables (
-        F(t), [description = "Water flux from compartment 2 to compartment 1", unit = u"g / hr"],
-        K(t), [description = "Hydraulic conductivity of connection", unit = u"g / hr / MPa"],
-        K_1(t), [description = "Hydraulic conductivity of compartment 1", unit = u"g / hr / MPa"],
-        K_2(t), [description = "Hydraulic conductivity of compartment 2", unit = u"g / hr / MPa"],
-        Ψ_1(t), [description = "Total water potential of compartment 1", unit = u"MPa"],
-        Ψ_2(t), [description = "Total water potential of compartment 2", unit = u"MPa"],
-    )
-
-    eqs = [
-        F ~ K * (Ψ_2 - Ψ_1) * smooth_daynight(t/t_unit, sunrise/t_unit, sunset/t_unit, te_night),
-        K ~ min(K_1, K_2)
-    ]
-
-    get_connection_eqset(node_MTK, nb_node_MTK, connection_MTK) = 
-        [ 
-            connection_MTK.Ψ_1 ~ node_MTK.Ψ,
-            connection_MTK.Ψ_2 ~ nb_node_MTK.Ψ,
-            connection_MTK.K_1 ~ node_MTK.K,
-            connection_MTK.K_2 ~ nb_node_MTK.K,
-        ]
-    
-    return System(eqs, t; name), get_connection_eqset
-end
-
 # # Node behaviour in function of all their connections
 
 multi_connection_eqs(node_MTK, connection_MTKs) = [
@@ -345,5 +351,5 @@ multi_connection_eqs(node_MTK, connection_MTKs) = [
 default_values = Dict(
     :shape => Cylinder(), :ϕ_D => 0.02, :ϵ_D => 50.0, :Γ => 0.3,
     :T => 298.15, :D => [0.5, 5.0], :Ψ => soilfunc(0.5), :M => 300e-6, :W_max => 1e6, :W_r => 0.5, 
-    :K_s => 10.0, :K => 1e3, :sunrise => 8, :sunset => 20, :te_night => 0.1, :A_max => 2e-6, :M_c => 0.2
+    :K_s => 10.0, :K => 1e3, :sunrise => 8, :sunset => 20, :rhc_night => 0.1, :A_max => 2e-6, :M_c => 0.2
 )

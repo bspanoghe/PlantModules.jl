@@ -50,7 +50,7 @@ air_graph = Air()
 ## Combined
 
 graphs = [plant, soil_graph, air_graph]
-intergraph_connections = [(1, 2) => (PlantModules.root(plant), :Soil), (1, 3) => (:Leaf, :Air)]
+intergraph_connections = [(1, 2) => (PlantModules.getroot(plant), :Soil), (1, 3) => (:Leaf, :Air)]
 struct_connections = PlantStructure(graphs, intergraph_connections)
 
 # Functional processes
@@ -141,8 +141,8 @@ plotgraph(sol, graphs[1], varname = :W)
 plotgraph(sol, graphs[2], varname = :W)
 plotgraph(sol, graphs[1], xlims = (0, 0.1)) .|> display
 
-plotnode(sol, PlantModules.root(graphs[1]), varname = :D)
-plotnode(sol, PlantModules.root(graphs[1]), varname = :D, xlims = (0, 48), ylims = (0.4, 0.6))
+plotnode(sol, PlantModules.getroot(graphs[1]), varname = :D)
+plotnode(sol, PlantModules.getroot(graphs[1]), varname = :D, xlims = (0, 48), ylims = (0.4, 0.6))
 plotnode(sol, PlantModules.nodes(graphs[1])[end], varname = :D)
 
 plotgraph(sol, graphs[1:2], varname = :Ψ)

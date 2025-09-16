@@ -109,48 +109,48 @@ getid(node::MultiScaleTreeGraph.Node) = MultiScaleTreeGraph.node_id(node)
 # Functions for Tree Graphs #
 
 """
-	root(graph)
+	getroot(graph)
 
 Returns the root node of the graph.
 """
-root(graph) = error("Function not yet defined for input type $(typeof(graph)).")
+getroot(graph) = error("Function not yet defined for input type $(typeof(graph)).")
 
 """
-	children(node, graph)
+	getchildren(node, graph)
 
 Returns the child nodes of a node.
 """
-children(node, graph) = error("Function not yet defined for input types $(typeof(node)) and $(typeof(graph)).")
+getchildren(node, graph) = error("Function not yet defined for input types $(typeof(node)) and $(typeof(graph)).")
 
 """
-	parent(node, graph)
+	getparent(node, graph)
 
 Returns the parent node of a node.
 """
-parent(node, graph) = error("Function not yet defined for input types $(typeof(node)) and $(typeof(graph)).")
+getparent(node, graph) = error("Function not yet defined for input types $(typeof(node)) and $(typeof(graph)).")
 
 ## Implementation for Base Julia representation as Dicts
 
-root(graph::Dict) = [node for node in getnodes(graph) if node[:parent_id] == -1][1]
-children(node::Dict, graph::Dict) = [graph[child_id] for child_id in node[:child_ids]]
-parent(node::Dict, graph::Dict) = node[:parent_id] == -1 ? nothing : graph[node[:parent_id]]
+getroot(graph::Dict) = [node for node in getnodes(graph) if node[:parent_id] == -1][1]
+getchildren(node::Dict, graph::Dict) = [graph[child_id] for child_id in node[:child_ids]]
+getparent(node::Dict, graph::Dict) = node[:parent_id] == -1 ? nothing : graph[node[:parent_id]]
 
 ## Implementation for PlantGraphs.jl
 
 ### StaticGraph
 
-root(graph::PlantGraphs.StaticGraph) = graph[graph.root]
-children(node::PlantGraphs.GraphNode, graph::PlantGraphs.StaticGraph) = [graph[child_id] for child_id in node.children_id]
-parent(node::PlantGraphs.GraphNode, graph::PlantGraphs.StaticGraph) = graph[node.parent_id]
+getroot(graph::PlantGraphs.StaticGraph) = graph[graph.root]
+getchildren(node::PlantGraphs.GraphNode, graph::PlantGraphs.StaticGraph) = [graph[child_id] for child_id in node.children_id]
+getparent(node::PlantGraphs.GraphNode, graph::PlantGraphs.StaticGraph) = graph[node.parent_id]
 
 ### (dynamic) Graph
 
-root(graph::PlantGraphs.Graph) = root(graph.graph)
-children(node::PlantGraphs.GraphNode, graph::PlantGraphs.Graph) = children(node, graph.graph)
-parent(node::PlantGraphs.GraphNode, graph::PlantGraphs.Graph) = parent(node, graph.graph)
+getroot(graph::PlantGraphs.Graph) = getroot(graph.graph)
+getchildren(node::PlantGraphs.GraphNode, graph::PlantGraphs.Graph) = getchildren(node, graph.graph)
+getparent(node::PlantGraphs.GraphNode, graph::PlantGraphs.Graph) = getparent(node, graph.graph)
 
 ## Implementation for MultiScaleTreeGraph.jl
 
-root(graph::MultiScaleTreeGraph.Node) = MultiScaleTreeGraph.get_root(graph)
-children(node::MultiScaleTreeGraph.Node, _) = getfield(node, :children)
-parent(node::MultiScaleTreeGraph.Node, _) = MultiScaleTreeGraph.parent(node)
+getroot(graph::MultiScaleTreeGraph.Node) = MultiScaleTreeGraph.get_root(graph)
+getchildren(node::MultiScaleTreeGraph.Node, _) = getfield(node, :children)
+getparent(node::MultiScaleTreeGraph.Node, _) = MultiScaleTreeGraph.parent(node)

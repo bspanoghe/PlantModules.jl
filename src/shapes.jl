@@ -24,7 +24,7 @@ struct Cylinder <: Shape end
 """
     Cuboid <: Shape
 
-A cuboidal compartment shape, defined by three dimensions: the length, the width and the height.
+A cuboidal compartment shape, defined by three dimensions: the length, the width and the thickness.
 """
 struct Cuboid <: Shape end
 
@@ -83,7 +83,7 @@ volume(::Cylinder, D::AbstractArray) = D[1]^2 * pi * D[2] # Write dimensions in 
 
 Calculate the volume of a cuboid.
 """
-volume(::Cuboid, D::AbstractArray) = D[1] * D[2] * D[3] # Write dimensions in the order: length - width - height
+volume(::Cuboid, D::AbstractArray) = D[1] * D[2] * D[3] # Write dimensions in the order: length - width - thickness
 
 
 """
@@ -109,7 +109,7 @@ cross_area(s::Cylinder, D::AbstractArray) = D[1]^2 * pi # Write dimensions in th
 
 Calculate the cross-sectional area of a cuboid, defined as the product of its first two dimensions.
 """
-cross_area(s::Cuboid, D::AbstractArray) = D[1] * D[2] # Write dimensions in the order: length - width - height
+cross_area(s::Cuboid, D::AbstractArray) = D[1] * D[2] # Write dimensions in the order: length - width - thickness
 
 """
     surface_area(s::Shape, ::AbstractArray)
