@@ -23,19 +23,19 @@ function hydraulic_module(; name, shape::Shape, ϕ_D, ϵ_D, Γ, T, D, Ψ, M)
     @constants (
         R = R, [description = "Ideal gas constant", unit = u"MPa * cm^3 / K / mol"], # Pa = J/m^3 => J = Pa * m^3 = MPa * cm^3
         P_unit = 1.0, [description = "Dummy constant for correcting units", unit = u"MPa"],
+        ρ_w = 1.0, [description = "Density of water", unit = u"g / cm^3"],
     )
     @parameters (
         T = T, [description = "Temperature", unit = u"K"],
         ϕ_D[1:num_D] = ϕ_D, [description = "Dimensional extensibility", unit = u"MPa^-1 * hr^-1"],
         ϵ_D[1:num_D] = ϵ_D, [description = "Dimensional elastic modulus", unit = u"MPa"],
-        Γ = Γ, [description = "Critical turgor pressure", unit = u"MPa"],
-        ρ_w = 1.0, [description = "Density of water", unit = u"g / cm^3"],
+        Γ = Γ, [description = "Yield turgor pressure", unit = u"MPa"],
     )
     @variables (
         Ψ(t), [description = "Total water potential", unit = u"MPa"],
         Π(t), [description = "Osmotic water potential", unit = u"MPa"],
         P(t) = P, [description = "Hydrostatic potential", unit = u"MPa"],
-        M(t), [description = "Osmotically active metabolite content", unit = u"mol / cm^3"], # m^3 so units match in second equation () #! extend validation function so L is ok?
+        M(t), [description = "Osmotically active metabolite content", unit = u"mol / cm^3"], # m^3 so units match in second equation ()
         W(t) = volume(shape, D) / ρ_w, [description = "Water content", unit = u"g"],
         D(t)[1:num_D] = D, [description = "Dimensions of compartment", unit = u"cm"],
         V(t), [description = "Volume of compartment", unit = u"cm^3"],
@@ -93,17 +93,17 @@ end
 # ## Carbon dynamics
 
 """
-    daynight_carbon_module(; name, M, shape)
+    simple_photosynthesis_module(; name, M, shape)
 
 Return a ModelingToolkit System describing a concentration of osmotically active metabolite content increasing during day and decreasing in function of the current concentration.
 """
-function daynight_carbon_module(; name, M, shape, sunrise, sunset, A_max, M_c)
+function simple_photosynthesis_module(; name, M, shape, t_sunrise, t_sunset, A_max, M_c)
     @constants (
         t_unit = 1, [description = "Dummy constant for correcting units", unit = u"hr"],
     )
     @parameters (
-        sunrise = sunrise, [description = "Time of sunrise (hours past midnight)", unit = u"hr"],
-        sunset = sunset, [description = "Time of sunset (hours past midnight)", unit = u"hr"],
+        t_sunrise = t_sunrise, [description = "Time of sunrise (hours past midnight)", unit = u"hr"],
+        t_sunset = t_sunset, [description = "Time of sunset (hours past midnight)", unit = u"hr"],
         A_max = A_max, [description = "Maximum carbon assimilation rate", unit = u"mol / cm^2 / hr"],
         M_c = M_c, [description = "Rate of carbon consumption", unit = u"hr^-1"],
 	)
@@ -114,7 +114,7 @@ function daynight_carbon_module(; name, M, shape, sunrise, sunset, A_max, M_c)
     )
 
     eqs = [
-		A ~ smooth_daynight(t/t_unit, sunrise/t_unit, sunset/t_unit, zero(A_max), A_max, smoothing = 1.0)
+		A ~ smooth_daynight(t/t_unit, t_sunrise/t_unit, t_sunset/t_unit, zero(A_max), A_max, smoothing = 1.0)
         d(M) ~ A * cross_area(shape, D) / volume(shape, D) - M_c * M
     ]
     return System(eqs, t; name)
@@ -197,7 +197,7 @@ function K_module(; name, K_s, shape::Shape)
     num_D = getdimensionality(shape)
 
     @parameters (
-        K_s = K_s, [description = "Specific hydraulic conductivity of compartment", unit = u"g / hr / MPa / cm^2"],
+        K_s = K_s, [description = "Specific hydraulic conductivity", unit = u"g / hr / MPa / cm^2"],
     )
     @variables (
         K(t), [description = "Hydraulic conductivity of compartment", unit = u"g / hr / MPa"],
@@ -219,7 +219,7 @@ compartment as a constant.
 """
 function constant_K_module(; name, K)
     @parameters (
-        K_value = K, [description = "Value for the hydraulic conductivity of compartment", unit = u"g / hr / MPa"],
+        K_value = K, [description = "Hydraulic conductivity of compartment", unit = u"g / hr / MPa"],
     )
     @variables (
         K(t), [description = "Hydraulic conductivity of compartment", unit = u"g / hr / MPa"],
@@ -269,21 +269,21 @@ function hydraulic_connection(; name)
 end
 
 """
-    evaporation_connection(; name, sunrise, sunset, rhc_night)
+    evaporation_connection(; name, t_sunrise, t_sunset, η_night)
 
 Returns a ModelingToolkit System describing a water flow connection between two hydraulics-based compartments that decreases at night.
 
 This module assumes the compartments have a specified hydraulic conductivities.
 """
-function evaporation_connection(; name, sunrise, sunset, rhc_night)
+function evaporation_connection(; name, t_sunrise, t_sunset, η_night)
     @constants (
         t_unit = 1, [description = "Dummy constant for correcting units", unit = u"hr"],
         K_unit = 1, [description = "Dummy constant for correcting units", unit = u"g / hr / MPa"],
     )
     @parameters (
-        sunrise = sunrise, [description = "Time of sunrise (hours past midnight)", unit = u"hr"],
-        sunset = sunset, [description = "Time of sunset (hours past midnight)", unit = u"hr"],
-        rhc_night = rhc_night, [description = "Relative hydraulic conductivity at night", unit = u"(g / hr / MPa) / (g / hr / MPa)"]
+        t_sunrise = t_sunrise, [description = "Time of t_sunrise (hours past midnight)", unit = u"hr"],
+        t_sunset = t_sunset, [description = "Time of t_sunset (hours past midnight)", unit = u"hr"],
+        η_night = η_night, [description = "Relative hydraulic conductivity at night", unit = u"(g / hr / MPa) / (g / hr / MPa)"]
     )
     @variables (
         F(t), [description = "Water flux from compartment 2 to compartment 1", unit = u"g / hr"],
@@ -295,7 +295,7 @@ function evaporation_connection(; name, sunrise, sunset, rhc_night)
     )
 
     eqs = [
-        F ~ K * (Ψ_2 - Ψ_1) * smooth_daynight(t/t_unit, sunrise/t_unit, sunset/t_unit, rhc_night),
+        F ~ K * (Ψ_2 - Ψ_1) * smooth_daynight(t/t_unit, t_sunrise/t_unit, t_sunset/t_unit, η_night),
         K ~ min(K_1, K_2)
     ]
 
@@ -350,6 +350,6 @@ multi_connection_eqs(node_MTK, connection_MTKs) = [
 
 default_values = Dict(
     :shape => Cylinder(), :ϕ_D => 0.02, :ϵ_D => 50.0, :Γ => 0.3,
-    :T => 298.15, :D => [0.5, 5.0], :Ψ => soilfunc(0.5), :M => 300e-6, :W_max => 1e6, :W_r => 0.5, 
-    :K_s => 10.0, :K => 1e3, :sunrise => 8, :sunset => 20, :rhc_night => 0.1, :A_max => 2e-6, :M_c => 0.2
+    :T => 298.15, :D => [0.5, 5.0], :Ψ => 0.0, :M => 300e-6, :W_max => 1e6, :W_r => 0.5, 
+    :K_s => 10.0, :K => 1e3, :t_sunrise => 8, :t_sunset => 20, :η_night => 0.1, :A_max => 2e-6, :M_c => 0.05
 )
