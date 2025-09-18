@@ -1,4 +1,4 @@
-using Revise, Infiltrator #!
+using Revise, Infiltrator
 using Pkg; Pkg.activate("./tutorials")
 using PlantModules
 using PlantGraphs
@@ -22,7 +22,7 @@ end
 
 graphs = [plant_graph, Soil(), Air()]
 
-intergraph_connections = [[1, 2] => (:Root, :Soil), [1, 3] => (:Leaf, :Air), [2, 3] => (:Soil, :Air)] #! order matters now
+intergraph_connections = [[1, 2] => (:Root, :Soil), [1, 3] => (:Leaf, :Air), [2, 3] => (:Soil, :Air)]
 
 struct_connections = PlantStructure(graphs, intergraph_connections)
 
@@ -49,7 +49,7 @@ C_leaf = 450e-6 # And here!
 default_changes = Dict(:Γ => 0.4, :P => 0.2, :T => 293.15)
 
 module_defaults = Dict(
-	:Root => Dict(:shape => Cuboid([5.0, 10.0, 20.0], [0.7, 0.1, 0.05]), :D => [30, 3, 1], :M => C_root), #! changed C to M_const #! include check whether module_defaults variabkle names correspond with default_params / default_u0s ?
+	:Root => Dict(:shape => Cuboid([5.0, 10.0, 20.0], [0.7, 0.1, 0.05]), :D => [30, 3, 1], :M => C_root),
 	:Stem => Dict(:shape => Cylinder([6.0, 15.0], [0.8, 0.03]), :D => [1.5, 10], :M => C_stem),
 	:Leaf => Dict(:shape => Sphere([3.0], [0.45]), :M => C_leaf),
 	:Soil => Dict(:W_max => 666.0, :T => 288.15, :K => 100.0),

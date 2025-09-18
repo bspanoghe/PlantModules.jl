@@ -3,7 +3,7 @@
 # ## Introduction
 
 # In this tutorial, we'll cover more advanced functionality of the package with the goal of making a more practically usable plant model.
-using Revise #!
+using Revise
 using Plots
 using Pkg; Pkg.activate("./tutorials")
 using PlantModules
@@ -16,7 +16,7 @@ using ModelingToolkit, OrdinaryDiffEq, Unitful
 # For this model, we'll assume we have a **file** containing the plant's structure, which we may have gotten from some other plant modeling program.
 # Currently, the package only has a function for reading XEG files. However, any file format can be used provided the user is able to convert it to a graph.
 
-plant_graph = readXEG("./tutorials/temp/structures/beech3.xeg") #! change to beech
+plant_graph = readXEG("./tutorials/temp/structures/beech3.xeg")
 
 # The graph still requires some processing to make it suitable for modeling with PlantModules.
 # Luckily, the [MultiScaleTreeGraph.jl](https://github.com/VEZY/MultiScaleTreeGraph.jl) package has some excellent functionality for processing graphs.
@@ -44,7 +44,7 @@ traverse!(mtg, node -> symbol!(node, "Shoot"), symbol = "ShortShoot")
 # Delete nodes without any dimensions defined. These are for graph visualisation purposes but are not actual physical structures.
 mtg = delete_nodes!(mtg, filter_fun = node -> isnothing(node.D))
 
-if length(mtg) > 100 #!
+if length(mtg) > 100
 	toomuch = [node for node in PlantModules.nodes(mtg[1][1][1])]
 	mtg = delete_nodes!(mtg, filter_fun = node -> node in toomuch)
 end

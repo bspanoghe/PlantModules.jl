@@ -67,7 +67,6 @@ WARNING: large values for γ combined with large input arguments
 will result in numerical overflow and cause the function to return Inf.
 """
 LSE(x::Real...; γ = 1) = log(sum(exp.(γ .* x)) ) / γ 
-    #! add warning for users in case pressures are incorrect unit?
 @register_symbolic LSE(x)
 
 # Define compartments #
@@ -95,7 +94,7 @@ function hydraulic_module(; name, shape::Shape)
         Ψ(t), [description = "Total water potential", unit = u"MPa"],
         Π(t), [description = "Osmotic water potential", unit = u"MPa"],
         P(t), [description = "Hydrostatic potential", unit = u"MPa"],
-        M(t), [description = "Osmotically active metabolite content", unit = u"mol / m^3"], # m^3 so units match in second equation (Pa = J/m^3) #! extend validation function so L is ok?
+        M(t), [description = "Osmotically active metabolite content", unit = u"mol / m^3"], # m^3 so units match in second equation (Pa = J/m^3)
         W(t), [description = "Water content", unit = u"g"],
         D(t)[1:num_D], [description = "Dimensions of compartment", unit = u"m"],
         ΣF(t), [description = "Net incoming water flux", unit = u"g / hr"],
