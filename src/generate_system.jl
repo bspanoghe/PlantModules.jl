@@ -1,105 +1,136 @@
-# # Types & constructors
+# # Types
 
 """
-	PlantFunctionality
+	PlantStructure
 
-A container for functional parameters to be used in the function `generate_system`.
+A container for the plant structure. Used in [`generate_system`](@ref).
 
 # Fields
-- `graphs`: A vector of graphs representing the plants and their environment.
-- `intergraph_connections`: A vector of pairs between 2 indexes of above graphs and how they are linked.
+- `graphs::Vector`: A vector of graphs representing the plants and their environment.
+- `intergraph_connections::Vector`: A vector of pairs between 2 indexes of above graphs and how they are linked.
 """
 struct PlantStructure
 	graphs::Vector
 	intergraph_connections::Vector
 end
 
-PlantStructure(graph) = PlantStructure([graph], [])
-
 """
-	PlantFunctionality
+	PlantCoupling
 
-A container for functional parameters to be used in the function `generate_system`.
+A container for the coupling of plant structure and function. Used in [`generate_system`](@ref).
 
 # Fields
-- `default_values`: Model-wide default values of parameters and initial values.
-- `module_defaults`: Module-specific default values of parameters and initial values.
-- `connecting_modules`: The `System` to use for edges between specified nodes.
-- `connecting_eqs`: A function returning a vector of equations linking a node and all its edges.
+- `module_coupling::Dict`: Coupling between functional and structural modules.
+- `connecting_modules::Dict{Tuple{Symbol, Symbol}, Function}`: The `System` to use for edges between specified nodes.
+- `connecting_eqs::Function`: A function returning a vector of equations linking a node and all its edges.
 """
-struct PlantFunctionality
-	default_values::Dict{Symbol, <:Any}
-	module_defaults::Dict{Symbol, Dict}
-	connecting_modules::Vector
+struct PlantCoupling
+	module_coupling::Dict
+	connecting_modules::Dict{Tuple{Symbol, Symbol}, Function}
 	connecting_eqs::Function
 end
 
 """
-	PlantFunctionality(; default_values = PlantModules.default_values, module_defaults = Dict(),
-	connecting_modules, connecting_eqs = PlantModules.multi_connection_eqs, extra_defaults = Dict()
-	)
+	PlantParameters
 
-Constructor function for `PlantFunctionality` variables.
+A container for functional parameters. Used in [`generate_system`](@ref).
 
-`default_changes` is a dictionary with values to add to `default_values`. Refer to the `PlantFunctionality` type for a description of the other inputs.
+# Fields
+- `default_values::Dict{Symbol, <:Any}`: The model-wide default values of parameters and initial values.
+- `module_defaults::Dict{Symbol, Dict}`: Module-specific default values of parameters and initial values.
+- `connection_values::Dict{Tuple{Symbol, Symbol}, Dict}`: Connection-specific values of parameters and initial values.
 """
-function PlantFunctionality(; default_values::Dict = PlantModules.default_values, module_defaults::Dict = Dict(),
-	connecting_modules::Vector,	connecting_eqs::Function = PlantModules.multi_connection_eqs, 
-	default_changes::Dict = typeof(default_values)()
-	)
+struct PlantParameters
+	default_values::Dict{Symbol, <:Any}
+	module_defaults::Dict{Symbol, Dict}
+	connection_values::Dict{Tuple{Symbol, Symbol}, Dict}
+end
+
+# # Constructors
+
+"""
+	PlantStructure(graph)
+
+Constructor function for `PlantStructure` variables.
+"""
+function PlantStructure(graph)
+	return PlantStructure([graph], [])
+end
+
+function PlantStructure(::AbstractArray)
+	error("`intergraph_connections` must be specified when the structure consists of multiple graphs.")
+end
+
+"""
+	PlantCoupling(; module_coupling::Dict, connecting_modules::Dict,
+		connecting_eqs::Function = PlantModules.multi_connection_eqs)
+
+Constructor function for `PlantCoupling` variables.
+"""
+function PlantCoupling(; module_coupling::Dict, connecting_modules::Dict,
+	connecting_eqs::Function = PlantModules.multi_connection_eqs)
+	
+	return PlantCoupling(module_coupling, connecting_modules, connecting_eqs)
+end
+
+"""
+	PlantParameters(; default_values = PlantModules.default_values, 
+		module_defaults = Dict(), extra_defaults = Dict())
+
+Constructor function for `PlantParameters` variables.
+
+`default_changes` is a dictionary with values to add to `default_values`. Refer to the `PlantParameters` type for a description of the other inputs.
+"""
+function PlantParameters(; default_values::Dict = PlantModules.default_values, module_defaults::Dict = Dict(), 
+	connection_values::Dict = Dict(), default_changes::Dict = typeof(default_values)())
 
 	changed_defaults = merge(default_values, default_changes)
 	
-	return PlantFunctionality(changed_defaults, module_defaults, connecting_modules, connecting_eqs)
+	return PlantParameters(changed_defaults, module_defaults, connection_values)
 end
 
 # # Functions
 
 """
-	generate_system(default_params::NamedTuple, default_u0s::NamedTuple, module_defaults::NamedTuple,
-		module_coupling::Vector, struct_connections::Vector, func_connections::Vector; checkunits::Bool)
+	generate_system(plantstructure::PlantStructure, plantparams::PlantParameters,
+		plantcoupling::PlantCoupling; checkunits::Bool = true)
 
-Creates a ModelingToolkit.jl [`System`](@ref) that describes the functional behaviour of the input graph structure.
+Create a ModelingToolkit.jl [`System`](@ref) that describes the functional behaviour of the input graph structure.
 
 # Arguments
-- `default_params`: Model-wide default parameter values.
-- `default_u0s`: Model-wide default initial values.
-- `module_defaults`: Module-specific default values of both parameters and initial values.
-- `module_coupling`: Coupling between functional and structural modules.
-- `struct_connections`: One or more graphs specifying how the structural modules are connected, alongside the connections between graphs.
-- `func_connections`: Additional functional information about the connections between structural modules.
+- `plantstructure`: One or more graphs specifying how the structural modules are connected, alongside the connections between graphs. See [`PlantStructure`](@ref).
+- `plantparams`: Additional functional information about the connections between structural modules. See [`PlantParameters`](@ref).
+- `plantcoupling`: Coupling between functional and structural modules. See [`PlantCoupling`](@ref).
 - `checkunits`: Should the model check the units of the given equations? Defaults to `true`.
 """
-function generate_system(struct_connections::PlantStructure, func_connections::PlantFunctionality,
-	module_coupling::Dict; checkunits::Bool = true
-	)
+function generate_system(plantstructure::PlantStructure, plantcoupling::PlantCoupling, plantparams::PlantParameters;
+		checkunits::Bool = true)
 
-	MTK_system_dicts = get_MTK_system_dicts(
-		struct_connections.graphs, func_connections.default_values, func_connections.module_defaults, module_coupling, checkunits
-	) # Vector of a dict per graph with (node id => node MTK system)
+	MTK_system_dicts = get_MTK_system_dicts(plantstructure, plantparams, plantcoupling, checkunits) 
+		# Vector of a dict per graph with (node id => node MTK system)
 	MTK_systems = vcat(collect.(values.(MTK_system_dicts))...) # node MTK systems
 
 	connection_MTKs = System[] # MTK systems of edges
 	connection_eqsets = Equation[] # equations linking nodes with edges
 
-	for (graphnr, graph) in enumerate(struct_connections.graphs) # go over all graphs
+	for (graphnr, graph) in enumerate(plantstructure.graphs) # go over all graphs
 		for node in PlantModules.getnodes(graph) # go over every node in the graph
 			
 			node_id = PlantModules.getid(node)
-			nb_nodes, nb_node_graphnrs = get_nb_nodes(node, struct_connections.graphs, graphnr, struct_connections.intergraph_connections) # collect neighbour nodes
+			nb_nodes, nb_node_graphnrs = get_nb_nodes(node, graphnr, plantstructure) # collect neighbour nodes
 			current_connection_MTKs = Vector{System}(undef, length(nb_nodes)) # MTKs of current node's connections
 
 			for (nb_idx, (nb_node, nb_node_graphnr)) in enumerate(zip(nb_nodes, nb_node_graphnrs)) # go over all neighbours of the node
-				connecting_module, reverse_order = get_connecting_module(node, nb_node, func_connections.connecting_modules)
+				connecting_module, reverse_order = get_connecting_module(node, nb_node, plantcoupling)
 				connection_MTK, connection_eqset = get_connection_info( 
 					node, graphnr, nb_node, nb_node_graphnr, connecting_module,
-					reverse_order, func_connections.default_values, MTK_system_dicts
+					reverse_order, plantparams, MTK_system_dicts
 				)
 				current_connection_MTKs[nb_idx] = connection_MTK
 				append!(connection_eqsets, connection_eqset)
 			end
 			append!(connection_MTKs, current_connection_MTKs)
-			append!(connection_eqsets, func_connections.connecting_eqs(MTK_system_dicts[graphnr][node_id], current_connection_MTKs))
+			append!(connection_eqsets, plantcoupling.connecting_eqs(MTK_system_dicts[graphnr][node_id], current_connection_MTKs))
 		end
 	end
 
@@ -114,25 +145,26 @@ function generate_system(struct_connections::PlantStructure, func_connections::P
 end
 
 # get node idx => node MTK system
-function get_MTK_system_dicts(graphs, default_values, module_defaults, module_coupling, checkunits) 
+function get_MTK_system_dicts(plantstructure, plantparams, plantcoupling, checkunits) 
 	return [
 		[PlantModules.getid(node) => 
-			getMTKsystem(node, default_values, module_defaults, module_coupling, checkunits)
+			getMTKsystem(node, plantparams, plantcoupling, checkunits)
 			for node in PlantModules.getnodes(graph)
-		] |> Dict for graph in graphs
+		] |> Dict for graph in plantstructure.graphs
 	]
 end
 
 # Get MTK system corresponding with node
-function getMTKsystem(node, default_values, module_defaults, module_coupling, checkunits)
+function getMTKsystem(node, plantparams, plantcoupling, checkunits)
 	structmodule = PlantModules.getstructmod(node)
-	!haskey(module_coupling, structmodule) && error("No functional module defined for structural module `$structmodule`.")
-	func_modules = module_coupling[structmodule]
+	(!haskey(plantcoupling.module_coupling, structmodule) || isempty(plantcoupling.module_coupling[structmodule])) &&
+		error("No functional module defined for structural module `$structmodule`.")
+	func_modules = plantcoupling.module_coupling[structmodule]
 
-	component_systems = Vector{System}(undef, length(func_modules)) #! error if no func_modules found for structural module
+	component_systems = Vector{System}(undef, length(func_modules))
 
 	for (modulenum, func_module) in enumerate(func_modules)
-		nodevalues = getnodevalues(node, structmodule, func_module, module_defaults, default_values)
+		nodevalues = getnodevalues(node, structmodule, func_module, plantparams)
 
 		component_systems[modulenum] = func_module(; :name => Symbol(string(structmodule) * string(PlantModules.getid(node))),
 			Pair.(keys(nodevalues), values(nodevalues))...)
@@ -148,10 +180,10 @@ function getMTKsystem(node, default_values, module_defaults, module_coupling, ch
 end
 
 # get correct parameter/initial values for node between those defined in the model defaults, module defaults and node values
-function getnodevalues(node, structmodule, func_module, module_defaults, default_values)
+function getnodevalues(node, structmodule, func_module, plantparams)
 
-	node_defaults = get_func_defaults(default_values, func_module)
-	node_module_defaults = get(module_defaults, structmodule, Dict())
+	node_defaults = get_func_defaults(plantparams.default_values, func_module)
+	node_module_defaults = get(plantparams.module_defaults, structmodule, Dict())
 	node_attributes = PlantModules.getattributes(node)
 
 	nodevalues = overwrite!(deepcopy(node_defaults), node_module_defaults, node_attributes)
@@ -222,35 +254,38 @@ function extend(sys::ModelingToolkit.AbstractSystem, basesys::ModelingToolkit.Ab
 end
 
 # Get the MTK system of the edge between the two nodes, and whether it exists in correct order
-function get_connecting_module(node, nb_node, connecting_modules)
+function get_connecting_module(node, nb_node, plantcoupling)
 	structmodule = PlantModules.getstructmod(node)
 	nb_structmodule = PlantModules.getstructmod(nb_node)
 
-	connecting_module_idx = findfirst(x -> issetequal(x.first, (structmodule, nb_structmodule)), connecting_modules)
-
-	if isnothing(connecting_module_idx)
+	if haskey(plantcoupling.connecting_modules, (structmodule, nb_structmodule))
+		connecting_module = plantcoupling.connecting_modules[(structmodule, nb_structmodule)]
+		reverse_order = false
+	elseif haskey(plantcoupling.connecting_modules, (nb_structmodule, structmodule))
+		connecting_module = plantcoupling.connecting_modules[(nb_structmodule, structmodule)]
+		reverse_order = true
+	else
 		error("No connection module found for edges between nodes of types $structmodule and $nb_structmodule.")
 	end
 
-	connecting_module = connecting_modules[connecting_module_idx]
-	reverse_order = connecting_module.first[1] == nb_structmodule
 	return connecting_module, reverse_order
 end
 
 # get MTK system of connection between a node and its neighbour node AND the equations connecting the edge with the nodes
 function get_connection_info(node, graphnr, nb_node, nb_node_graphnr, connecting_module,
-	reverse_order, default_values, MTK_system_dicts
-	)
+		reverse_order, plantparams, MTK_system_dicts)
 
 	structmodule = PlantModules.getstructmod(node)
 	nb_structmodule = PlantModules.getstructmod(nb_node)
 
-	connector_func, connection_specific_values = connecting_module.second
+	connection_specific_values = reverse_order ?
+		get(plantparams.connection_values, (nb_structmodule, structmodule), Dict()) : 
+		get(plantparams.connection_values, (structmodule, nb_structmodule), Dict())
 	
-	default_values_conn = get_func_defaults(default_values, connector_func)
+	default_values_conn = get_func_defaults(plantparams.default_values, connecting_module)
 	conn_info = merge(default_values_conn, connection_specific_values)
 
-	connection_MTK, get_connection_eqset = connector_func(;
+	connection_MTK, get_connection_eqset = connecting_module(;
 		name = Symbol(string(structmodule) * string(PlantModules.getid(node)) * "_" *
 			string(nb_structmodule) * string(PlantModules.getid(nb_node))),
 		Pair.(keys(conn_info), values(conn_info))...
@@ -270,34 +305,34 @@ function get_connection_info(node, graphnr, nb_node, nb_node_graphnr, connecting
 end
 
 # get neighbouring nodes of a node both from the same graph and all connected graphs
-function get_nb_nodes(node, graphs, graphnr, intergraph_connections)
-	graph = graphs[graphnr]
+function get_nb_nodes(node, graphnr, plantstructure)
+	graph = plantstructure.graphs[graphnr]
 	
 	intra_nb_nodes = PlantModules.getneighbours(node, graph)
 	intra_nb_node_graphnrs = repeat([graphnr], length(intra_nb_nodes))
 
-	inter_nb_nodes, inter_nb_node_graphnrs = get_intergraph_neighbours(node, graphnr, graphs, intergraph_connections)
+	inter_nb_nodes, inter_nb_node_graphnrs = get_intergraph_neighbours(node, graphnr, plantstructure)
 
 	nb_nodes = vcat(intra_nb_nodes, inter_nb_nodes)
 	nb_node_graphnrs = vcat(intra_nb_node_graphnrs, inter_nb_node_graphnrs)
 
-	#! add error message if no neighbours found
+	isempty(nb_nodes) && error("No neighbours found for node $node.")
 
 	return nb_nodes, nb_node_graphnrs
 end
 
 # get neighbouring nodes from different graphs
 ## go over all intergraph connections
-function get_intergraph_neighbours(node, node_graphnr, graphs, intergraph_connections::Vector)
+function get_intergraph_neighbours(node, node_graphnr, plantstructure)
 	nb_nodes = []
 	nb_node_graphnrs = []
 	
 	# Go over all graphs and add nodes to neighbouring nodes if the graphs are connected
-	for intergraph_connection in intergraph_connections
+	for intergraph_connection in plantstructure.intergraph_connections
 		if node_graphnr in first(intergraph_connection)
 			node_idx, nb_idx = first(intergraph_connection)[1] == node_graphnr ? (1, 2) : (2, 1)
 			nb_graphnr = first(intergraph_connection)[nb_idx]
-			nb_graph = graphs[nb_graphnr]
+			nb_graph = plantstructure.graphs[nb_graphnr]
 			connection = intergraph_connection[2]
 			if connection isa Tuple
 				_nb_nodes = _get_intergraph_neighbours(node, nb_graph, connection[node_idx], connection[nb_idx])

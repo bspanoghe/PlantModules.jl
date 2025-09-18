@@ -17,7 +17,7 @@ graph = Grassland() + Grassland(N = 50, P = 3) + (Forest(δ = 1.8), Forest(N = 5
 graph2 = Cave() + Forest() + Grassland()
 graphs = [graph, graph2]
 intergraph_connections = [[1, 2] => (:Forest, :Cave)]
-struct_connections = PlantStructure(graphs, intergraph_connections)
+plantstructure = PlantStructure(graphs, intergraph_connections)
 
 # Function #
 
@@ -54,7 +54,7 @@ function wandering_animals(; name, κ)
         F_P ~ κ * (P_2 - P_1)
     ]
 
-    wandering_eqs(node_MTK, nb_node_MTK, connection_MTK, reverse_order) = [
+    wandering_eqs(node_MTK, nb_node_MTK, connection_MTK) = [
         connection_MTK.N_1 ~ node_MTK.N,
         connection_MTK.P_1 ~ node_MTK.P,
         connection_MTK.N_2 ~ nb_node_MTK.N,
@@ -64,6 +64,29 @@ function wandering_animals(; name, κ)
     return System(eqs, t; name), wandering_eqs
 end
 
+## Coupling
+
+module_coupling = Dict(
+    :Grassland => [lotka_volterra],
+    :Forest => [lotka_volterra],
+    :Cave => [fountain_of_rabbits]
+)
+
+connecting_modules = Dict(
+    (:Grassland, :Forest) => wandering_animals,
+    (:Forest, :Cave) => wandering_animals,
+    (:Grassland, :Grassland) => wandering_animals
+)
+
+connecting_eqs(node_MTK, connection_MTKs) = [
+    node_MTK.ΣF_N ~ sum([connection_MTK.F_N for connection_MTK in connection_MTKs]),
+    node_MTK.ΣF_P ~ sum([connection_MTK.F_P for connection_MTK in connection_MTKs])
+]
+
+plantcoupling = PlantCoupling(; module_coupling, connecting_modules, connecting_eqs)
+
+## Parameters
+
 default_values = Dict(:α => 1.5, :β => 1.9, :δ => 1.5, :γ => 0.8, :N => 30, :P => 10, :κ => 0.01, :η => 10)
 
 module_defaults = Dict(
@@ -72,25 +95,13 @@ module_defaults = Dict(
     :Cave => Dict(:β => 0, :N => 1, :P => 0)
 )
 
-connecting_modules = [
-    (:Grassland, :Forest) => (wandering_animals, Dict(:κ => 0.03)),
-    (:Forest, :Cave) => (wandering_animals, Dict(:κ => 0.05)),
-    (:Grassland, :Grassland) => (wandering_animals, Dict(:κ => 0.2)),
-]
-
-multi_connection_eqs(node_MTK, connection_MTKs) = [
-    node_MTK.ΣF_N ~ sum([connection_MTK.F_N for connection_MTK in connection_MTKs]),
-    node_MTK.ΣF_P ~ sum([connection_MTK.F_P for connection_MTK in connection_MTKs])
-]
-
-func_connections = PlantFunctionality(default_values = default_values, module_defaults = module_defaults,
-    connecting_modules = connecting_modules, connecting_eqs = multi_connection_eqs)
-
-module_coupling = Dict(
-    :Grassland => [lotka_volterra],
-    :Forest => [lotka_volterra],
-    :Cave => [fountain_of_rabbits]
+connection_values = Dict(
+    (:Grassland, :Forest) => Dict(:κ => 0.03),
+    (:Forest, :Cave) => Dict(:κ => 0.05),
+    (:Grassland, :Grassland) => Dict(:κ => 0.2),
 )
+
+plantparams = PlantParameters(; default_values, module_defaults, connection_values)
 
 # graphfuncs #
 
@@ -118,11 +129,11 @@ node1, node2, node3, node4 = collect(values(graph.nodes))
 node1, node2, node3, node4 = collect(values(graph.nodes))
 
 checkunits = false
-sys1 = PlantModules.getMTKsystem(node1, default_values, module_defaults, module_coupling, checkunits)
+sys1 = PlantModules.getMTKsystem(node1, plantparams, plantcoupling, checkunits)
 @test get_name(sys1) == Symbol(string(PlantModules.getstructmod(node1)) * string(PlantModules.getid(node1)))
 
 ## get_MTK_system_dicts
-MTK_system_dicts = PlantModules.get_MTK_system_dicts(graphs, default_values, module_defaults, module_coupling, checkunits)
+MTK_system_dicts = PlantModules.get_MTK_system_dicts(plantstructure, plantparams, plantcoupling, checkunits)
 @test length(MTK_system_dicts) == 2
 @test length(MTK_system_dicts[1]) == 4
 @test length(MTK_system_dicts[2]) == 3
@@ -130,22 +141,21 @@ MTK_system_dicts = PlantModules.get_MTK_system_dicts(graphs, default_values, mod
 ## get_nb_nodes
 node = node4
 graphnr = 1
-nb_nodes, nb_node_graphnrs = PlantModules.get_nb_nodes(node, graphs, graphnr, intergraph_connections)
+nb_nodes, nb_node_graphnrs = PlantModules.get_nb_nodes(node, graphnr, plantstructure)
 @test issetequal(nb_nodes, [node2, PlantModules.getnodes(graphs[2])[1]])
 
 ## get_connecting_module
 node = node4
 nb_node = nb_nodes[1]
 
-connecting_module, reverse_order = PlantModules.get_connecting_module(node, nb_node, connecting_modules)
+connecting_module, reverse_order = PlantModules.get_connecting_module(node, nb_node, plantcoupling)
 
 ## get_connection_info
 graphnr = 1
 nb_node_graphnr = nb_node_graphnrs[1]
 
-connection_MTK, connection_equations = PlantModules.get_connection_info(node, graphnr, nb_node, nb_node_graphnr,
- connecting_module, reverse_order, default_values, MTK_system_dicts
-)
+connection_MTK, connection_equations = PlantModules.get_connection_info(node, graphnr, nb_node, nb_node_graphnr, connecting_module,
+	reverse_order, plantparams, MTK_system_dicts)
 
 @test connection_MTK isa System
 @test only(values(get_defaults(connection_MTK))) == 0.03
@@ -155,17 +165,17 @@ connection_MTK, connection_equations = PlantModules.get_connection_info(node, gr
 node = node4
 structmodule = :Forest
 func_module = lotka_volterra
-nodevalues = PlantModules.getnodevalues(node, structmodule, func_module, module_defaults, default_values)
+nodevalues = PlantModules.getnodevalues(node, structmodule, func_module, plantparams)
 @test issetequal(nodevalues, [:α => 1.5, :β => 1.9, :γ => 0.8,  :δ => 2.3, :N => 5, :P => 0])
 
 node = PlantModules.getnodes(graph2)[1]
 structmodule = :Cave
 func_module = fountain_of_rabbits
-nodeu0s = PlantModules.getnodevalues(node, structmodule, func_module, module_defaults, default_values)
+nodeu0s = PlantModules.getnodevalues(node, structmodule, func_module, plantparams)
 @test issetequal(nodeu0s, [:η => 10, :P => 0, :N => 1])
 
 ## generate_system
-sys = PlantModules.generate_system(struct_connections, func_connections, module_coupling)
+sys = PlantModules.generate_system(plantstructure, plantcoupling, plantparams)
 
 prob = ODEProblem(sys, [], (0, 48))
 sol = solve(prob)

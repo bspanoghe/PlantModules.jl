@@ -1,12 +1,12 @@
 module PlantModules
 
 # # Exports
-export generate_system, PlantStructure, PlantFunctionality # generate system
+export generate_system, PlantStructure, PlantCoupling, PlantParameters # generate system
 export Shape, Sphere, Cylinder, Cuboid # shapes
 export getnodes, getroot # graph functions
 export getdimensionality, volume, cross_area, surface_area # shape functions
 export logsumexp, smooth_daynight # smooth functions
-export hydraulic_module, environmental_module, constant_carbon_module, daynight_carbon_module, Ψ_soil_module, Ψ_air_module, K_module, constant_K_module # node modules
+export hydraulic_module, environmental_module, constant_carbon_module, simple_photosynthesis_module, Ψ_soil_module, Ψ_air_module, K_module, constant_K_module # node modules
 export hydraulic_connection, constant_hydraulic_connection, evaporation_connection # edge modules
 export readXEG, convert_to_MTG, convert_to_PG # graph reading and converting
 export plotgraph, plotnode # plotting

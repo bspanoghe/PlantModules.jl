@@ -4,7 +4,7 @@
 
 # We'll introduce the package by modeling the growth of a small pepper seedling. The goal is to simulate water transport to estimate when the plant will need watering again.
 using Plots
-using Revise, Infiltrator #!
+using Revise, Infiltrator
 using Pkg; Pkg.activate("./tutorials")
 using PlantModules
 using PlantGraphs, ModelingToolkit, OrdinaryDiffEq
@@ -43,7 +43,7 @@ graphs = [plant_graph, Soil(), Air()]
 intergraph_connections = [[1, 2] => (PlantModules.getroot(plant_graph), :Soil), [1, 3] => (:Leaf, :Air)]#, [2, 3] => (:Soil, :Air)]
 
 # Finally we can combine all structural information in one variable:
-struct_connections = PlantStructure(graphs, intergraph_connections)
+plantstructure = PlantStructure(graphs, intergraph_connections)
 
 
 # ## Function
@@ -54,10 +54,35 @@ struct_connections = PlantStructure(graphs, intergraph_connections)
 # This is done in the form of [ModelingToolkit.jl](https://github.com/SciML/ModelingToolkit.jl) `System`s.
 # You can define new ones yourself, but here we'll use ones already defined by PlantModules. You can consult a list of available functional modules [here](https://www.youtube.com/watch?v=xvFZjo5PgG0).
 
-# ### Finetuning
+# ### Coupling
+# Our model needs to know which structural modules make use of which functional modules:
+module_coupling = Dict(
+	:Root => [hydraulic_module, constant_carbon_module, K_module],
+	:Stem => [hydraulic_module, constant_carbon_module, K_module],
+	:Leaf => [hydraulic_module, simple_photosynthesis_module, K_module],
+	:Soil => [environmental_module, Ψ_soil_module, constant_K_module],
+	:Air => [environmental_module, Ψ_air_module, constant_K_module],
+)
+
+# Aside from the graph's nodes, the edges also need to be assigned functionality.
+# For this model, that comes down to describing how water flows from one plant part to another.
+# We can use one of PlantModules' predefined functional modules again as follows:
+connecting_modules = Dict(
+	(:Soil, :Root) => hydraulic_connection,
+	(:Root, :Stem) => hydraulic_connection,
+	(:Stem, :Leaf) => hydraulic_connection,
+	(:Leaf, :Air) => evaporation_connection,
+)
+
+plantcoupling = PlantCoupling(; module_coupling, connecting_modules)
+
+# ### Parameter and initial values
 
 # The parameters and initial values of the ODE systems defining the different plant parts are generally not identical.
 # We can therefore change them as shown below.
+
+# When multiple specifications for a value exist, PlantModules follows the following list of priority:
+# > **Model-wide default values / module-specific default values / node-specific values**
 
 # For __every node__:
 default_changes = Dict(:Γ => 0.4, :Ψ => -0.05, :T => 293.15) 
@@ -71,42 +96,21 @@ module_defaults = Dict(
 	:Air => Dict(:K => 3e-4)
 )
 
-# Changing the values for specific nodes is also possible, as discussed during the section on graph creation. 
+# Note that changing the values for specific nodes is also possible, as discussed during the section on graph creation. 
 
-# When multiple specifications for a value exist, PlantModules follows the following list of priority:
-# > **Model-wide default values / module-specific default values / node-specific values**
-
-# ### Edge functionality
-
-# Aside from the graph's nodes, the edges also need to be assigned functionality.
-# For this model, that comes down to describing how water flows from one plant part to another.
-# We can use one of PlantModules' predefined functional modules again and simply change the parameters as follows:
-connecting_modules = [
-	(:Soil, :Root) => (hydraulic_connection, Dict()),
-	(:Root, :Stem) => (hydraulic_connection, Dict()),
-	(:Stem, :Leaf) => (hydraulic_connection, Dict()),
-	(:Leaf, :Air) => (evaporation_connection, Dict()),
-	# (:Soil, :Air) => (const_hydraulic_connection, Dict(:K => 3e-3)),
-]
+# The parameters of the connections can also be changed.
+connection_values = Dict(
+    (:Leaf, :Air) => Dict(:t_sunrise => 6.0, :t_sunset => 22.0)
+)
 
 # All functional information also gets bundled, though the constructor is more complex.
 # Check out its help page to see all the possible arguments and their defaults. 
-func_connections = PlantFunctionality(; module_defaults, connecting_modules, default_changes)
-
-# ## Coupling
-# As the final piece of required information, our model needs to know which structural modules make use of which functional modules:
-module_coupling = Dict(
-	:Root => [hydraulic_module, constant_carbon_module, K_module],
-	:Stem => [hydraulic_module, constant_carbon_module, K_module],
-	:Leaf => [hydraulic_module, daynight_carbon_module, K_module],
-	:Soil => [environmental_module, Ψ_soil_module, constant_K_module],
-	:Air => [environmental_module, Ψ_air_module, constant_K_module],
-)
+plantparams = PlantParameters(; module_defaults, default_changes, connection_values)
 
 # ## Generate and run system
 
 # All that's left to do is running `generate_system` to get the plant's ODESystem
-system = generate_system(struct_connections, func_connections, module_coupling)
+system = generate_system(plantstructure, plantcoupling, plantparams)
 
 # ...and solving it.
 prob = ODEProblem(system, [], (0.0, 5*24))
