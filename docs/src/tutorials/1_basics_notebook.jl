@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.20.14
+# v0.20.16
 
 using Markdown
 using InteractiveUtils
@@ -36,7 +36,7 @@ In this tutorial, we'll cover the basics of using the PlantModules package. Here
 md"""
 ### Context
 
-
+For the first tutorial, we will model the response of a hypothetical tomato plant to different transpiration rates.
 """
 
 # ╔═╡ bc44fae7-6c4a-4f27-be51-dbabf4037601
@@ -102,8 +102,8 @@ end
 md"We now define the plant structure using a graph. By specifying the value of the attribute `D`, we can specify different initial sizes for the different plant parts. Note that the cylindrical stem only needs 2 values specified (radius and length), while the cuboid leaves need 3 values (length, width and thickness)."
 
 # ╔═╡ 9af27c17-8f21-4f22-a5bb-e9c95cfdf2f9
-	plant_graph = Stem() +
-		(Leaf([5.0, 3.0, 0.05]), Leaf([4.0, 2.5, 0.05]));
+plant_graph = Stem() + Stem() +
+	(Leaf([5.0, 3.0, 0.05]), Leaf([4.0, 2.5, 0.05]));
 
 # ╔═╡ d660118d-2994-4f81-9557-60e4081745b1
 draw(plant_graph)
@@ -151,7 +151,7 @@ The full structural connection information can then be acquired by bundling the 
 """
 
 # ╔═╡ caab574a-05c5-4c0d-9ae4-19fd514a6c6c
-struct_connections = PlantStructure(graphs, intergraph_connections);
+plantstructure = PlantStructure(graphs, intergraph_connections);
 
 # ╔═╡ f03a61ce-a0ff-43ff-abdd-2342f76e8c93
 md"""
@@ -166,7 +166,7 @@ md"""
 
 # ╔═╡ a6552c16-b013-43af-9483-639a79944749
 md"""
-Now that we have an idea of the plant's structural modules, we need to assign them some kind of functionality. `PlantModules` expresses these as sets of differential equations, implemented in [ModelingToolkit](https://docs.sciml.ai/ModelingToolkit/stable/). Assigning functionality then comes down to writing out the desired functional processes as `ModelingToolkit` models (or choosing them out from the prebuilt ones) and specifying the initial- and parameter values for the different components of the system.
+Now that we have an idea of the plant's structural modules, we need to assign them some kind of functionality. `PlantModules` expresses these as sets of differential equations, implemented in [ModelingToolkit.jl](https://docs.sciml.ai/ModelingToolkit/stable/). Assigning functionality then comes down to writing out the desired functional processes as `ModelingToolkit` models (or choosing them out from the prebuilt ones), mapping them to the structural modules, and finally specifying the initial- and parameter values for the different components of the system.
 """
 
 # ╔═╡ 52bb8235-abea-45c5-929c-5824bc8681c4
@@ -174,7 +174,12 @@ md"### Defining functional modules"
 
 # ╔═╡ c04564c4-4fb5-47bf-bc14-77aaebdece15
 md"""
-`PlantModules.jl` comes with a number of functional modules already implemented to provide a basis of functionality, which we list below according to their function.
+There are two types of functional module: next to the typical functional modules describing the function of a structural module, there are also the connection modules that describe how different structural modules are connected. Both are defined as `ModelingToolkit.jl` models. For this tutorial, we will limit ourselves to using functional modules already implemented in `PlantModules.jl`; implementation of new processes will be discussed in the second tutorial.
+"""
+
+# ╔═╡ 790b01e0-2736-4aec-8516-d22c04a22131
+md"""
+We list the pre-implemented functional modules here with a short description of each.
 - Hydraulics
     - `hydraulic_module`: describes the hydraulics-driven growth of a compartment.
     - `environmental_module`: describes a compartment that is subject to hydraulic laws but does therefor not change in size.
@@ -187,11 +192,15 @@ md"""
 - Hydraulic conductivity
     - `K_module`: describes hydraulic conductivity as proportional to the cross area of the compartment. 
     - `constant_K_module`: describes a constant hydraulic conductivity.
+- Connection modules
+    - `hydraulic_connection`: describes a water flow between two compartments based on the hydraulic conductivities of those compartments.
+    - `evaporation_connection`: describes a water flow between two compartments based on the hydraulic conductivities of those compartments that decreases during night.
+    - `constant_hydraulic_connection`: describes a water flow between two compartments and specifies its own hydraulic conductivity.
 """
 
 # ╔═╡ 1e2eaa86-d6e0-4749-bc92-04c64fe9f47d
 md"""
-Please note that the carbon dynamics modules are very simplistic and only exist so users can make a model that works out of the box. Users that want to create a realistic model are expected to implement some functional modules of their own in accordance with their own use for the package, as will be discussed next tutorial. For now, we will stick to the pre-implemented functional modules.
+Please note that the carbon dynamics modules are very simplistic and only exist so users can make a model that works out of the box. Users that want to create a realistic model are expected to implement some functional modules of their own in accordance with their own use for the package, as will be discussed next tutorial.
 """
 
 # ╔═╡ 930e7ed8-0bfe-4e5a-8890-a1d1ce155881
@@ -201,16 +210,27 @@ md"""
 
 # ╔═╡ 4cedbd9d-84ed-46f3-9a10-6cb993643f87
 md"""
-Our model needs to know which structural modules make use of which functional modules. As perhaps the simplest part of our modeling workflow, we can define this using a `Vector` of `Pairs`.
+When the functional modules have been defined, we can assign them to the different types of structural module and the connections between them. We can do this for both with a simple `Dictionary`. Note that, for now, while structural modules can be assigned multiple functional modules, their connections can only be assigned one connection module.
 """
 
 # ╔═╡ d54705b3-d8f4-4cc2-a780-369343749113
 module_coupling = Dict(
 	:Stem => [hydraulic_module, constant_carbon_module, K_module],
-	:Leaf => [hydraulic_module, daynight_carbon_module, K_module],
+	:Leaf => [hydraulic_module, simple_photosynthesis_module, K_module],
 	:Soil => [environmental_module, Ψ_soil_module, constant_K_module],
 	:Air => [environmental_module, Ψ_air_module, constant_K_module]
 );
+
+# ╔═╡ 611289e9-e22c-4e6e-beec-ccea90eb48c9
+connecting_modules = Dict(
+	(:Soil, :Stem) => hydraulic_connection,
+	(:Stem, :Stem) => hydraulic_connection,
+	(:Stem, :Leaf) => hydraulic_connection,
+	(:Leaf, :Air) => evaporation_connection,
+);
+
+# ╔═╡ b8709a33-301c-41e6-bb24-1035c68a7612
+plantcoupling = PlantCoupling(; module_coupling, connecting_modules);
 
 # ╔═╡ 4d17b269-06b8-4293-b2cb-b6bd9fa0ccc8
 md"""
@@ -242,7 +262,7 @@ Now imagine we have some information on our plant in question and it calls for d
 """
 
 # ╔═╡ 271d48a7-7022-4766-83d9-a70fab92515e
-default_changes = Dict(:Ψ => -0.5);
+default_changes = Dict(:Ψ => -0.1);
 
 # ╔═╡ 3c13c600-5135-44ea-8fc2-a1e11f72d0c5
 md"""
@@ -251,52 +271,40 @@ Next to changing functional values over the entire model, some of the informatio
 
 # ╔═╡ 5f21a4b0-f663-4777-94f3-d00acba109b3
 module_defaults = Dict(
-	:Stem => Dict(:D => [0.5, 10.0]),
-	:Leaf => Dict(:shape => Cuboid(), :M => 350e-6, :M_c => 0.05),
-	:Soil => Dict(:W_max => 1e3, :K => 0.1),
-	:Air => Dict(:W_r => 0.7, :K => 1e-5)
+	:Stem => Dict(:D => [0.5, 10.0], :M => 200e-6),
+	:Leaf => Dict(:shape => Cuboid()),
+	:Soil => Dict(:W_max => 1e3, :K => 1.0),
+	:Air => Dict(:K => 1e-3)
 );
 
 # ╔═╡ e0e5e7f7-d2f5-404b-a6c6-6848c318eccb
 md"""
-As you can see, we changed the default $shape$ between the root, stem and leaf modules, as well as their initial dimensions $D$ and metabolite concentration $M$. For our soil module, we changed the maximum water content and temperature. For a detailed explanation of the parameters and initial values here, we again refer to the [theoretical overview](nothinghere).
+As you can see, we changed the default $shape$ for the leaf modules, as well as the initial dimensions $D$ and metabolite concentration $M$ of the stem. For both environmental compartments, we changed the hydraulic conductivity, and additionally the maximum water content for the soil comparment. For a detailed explanation of the parameters and initial values here, we again refer to the [theoretical overview](nothinghere).
 """
 
-# ╔═╡ ac6e098d-98ff-4940-8386-dc76c75eb2c3
+# ╔═╡ 53b79b18-524a-40b4-98e8-5900d7124305
 md"""
-### The connections
-
-The next step is to define how nodes interact with eachother, which is again implemented as sets of ODEs. Defining a new functional connection module is discussed in the following tutorial. The pre-implemented modules are:
-- `hydraulic_connection`: describes a water flow between two compartments based on the hydraulic conductivities of those compartments.
-- `evaporation_connection`: describes a water flow between two compartments based on the hydraulic conductivities of those compartments that decreases during night.
-- `constant_hydraulic_connection`: describes a water flow between two compartments and specifies its own hydraulic conductivity.
+Values for the connection modules can be modified in a similar way:
 """
 
-# ╔═╡ 611289e9-e22c-4e6e-beec-ccea90eb48c9
-connecting_modules = [
-	(:Soil, :Stem) => (hydraulic_connection, Dict()),
-	(:Stem, :Stem) => (hydraulic_connection, Dict()),
-	(:Stem, :Leaf) => (hydraulic_connection, Dict()),
-	(:Leaf, :Air) => (evaporation_connection, Dict()),
-];
+# ╔═╡ 7d8a8a86-e40c-46fa-8cdd-8e15524f305f
+connection_values = Dict(
+	(:Leaf, :Air) => Dict(:t_sunrise => 6, :t_sunset => 22),
+);
 
-# ╔═╡ a8a725d4-d876-4867-acbc-26bbadc4b462
+# ╔═╡ fb72735b-3d45-438d-ad83-3e36f42f5bb8
 md"""
-These connecting modules define the functional information of the graph edges. In this case: the flow of water between nodes based on some hydraulic conductivity parameter and a difference in water potentials.
+!!! note
+	In contrast to the nodes, PlantModules currently does not support edges of the same type (that is, between the same structural modules) to specify different parameter - or initial values in the graph definition.
 """
 
 # ╔═╡ 113c0bdc-53e4-4a19-a47c-f4afba237eeb
 md"""
-The functional connections are then defined as follows.
+Finally, all parameter changes are wrapped in the `PlantParameters` struct.
 """
 
 # ╔═╡ ebf46963-bb9d-4604-924c-2b051189debc
-func_connections = PlantFunctionality(; default_changes, module_defaults, connecting_modules);
-
-# ╔═╡ fb72735b-3d45-438d-ad83-3e36f42f5bb8
-md"""
-> ⚠ In contrast to the nodes, PlantModules currently does not support edges of the same type (that is, between the same structural modules) to specify different parameter - or initial values in the graph definition.
-"""
+plantparams = PlantParameters(; default_changes, module_defaults, connection_values);
 
 # ╔═╡ 210d81ef-153e-4744-8266-80af4099770c
 md"""
@@ -309,7 +317,7 @@ Now that we have all parts of our model defined, all that's left to do is puttin
 """
 
 # ╔═╡ a3c5dba8-8acc-424a-87bc-d1c6a263578c
-system = generate_system(struct_connections, func_connections, module_coupling);
+system = generate_system(plantstructure, plantcoupling, plantparams);
 
 # ╔═╡ d51795b2-32d3-455c-b785-5e501cfbdd08
 md"""
@@ -335,54 +343,46 @@ prob = ODEProblem(system, [], time_span, warn_initialize_determined = false);
 # ╔═╡ c38b1a71-c5e9-4bfa-a210-bcbf9068f7ed
 sol = solve(prob);
 
-# ╔═╡ a6608eff-9399-443c-a33a-c62341f7b14c
-md"""
-## Answering the toy problem
-
-Finding the answer to our toy problem now comes down to plotting out the soil water content and visually inspecting when it gets too low:
-"""
-
-# ╔═╡ 042fec92-2ab0-4f21-8214-e574b2deb963
-[plotgraph(sol, graphs[i], varname = :W) for i in 1:2] |>
-	x -> Plots.plot(x..., layout = (2, 1))
-
-# ╔═╡ 2d131155-f62b-4f4a-92d8-9e7443202434
-md"""
-We see the plant is readily taking up the soil's water until around 100h, at which point the soil water content remains about constant. Taking a look at the water potentials, we see this is because the soil water potential takes a dive when it gets this dry:
-"""
-
-# ╔═╡ cf30d4f4-a5de-4def-8674-48088eabf17b
-plotgraph(sol, graphs[1:2], varname = :Ψ)
+# ╔═╡ a399ea81-5392-4a54-8a40-953faf5b234a
+md"Re-simulate with higher transpiration."
 
 # ╔═╡ 6a6de4fe-88b2-46f9-affe-abdd693e03dc
 begin
 	module_defaults2 = deepcopy(module_defaults)
-	module_defaults2[:Leaf][:A_max] = 3e-6
-	func_connections2 = PlantFunctionality(; default_changes, module_defaults = module_defaults2, connecting_modules);
-	sys2 = generate_system(struct_connections, func_connections2, module_coupling)
-	sol2 = ODEProblem(sys2, [], time_span) |> solve
+	module_defaults2[:Air][:W_r] =  0.3
+	plantparams2 = PlantParameters(; default_changes, module_defaults = module_defaults2);
+	sys2 = generate_system(plantstructure, plantcoupling, plantparams2)
+	sol2 = ODEProblem(sys2, [], time_span, warn_initialize_determined = false) |> solve
 end;
 
-# ╔═╡ ae5742a1-ea82-40b3-a34c-7926b196eb64
-plotgraph(sol2, graphs[1:2], varname = :Ψ)
-
-# ╔═╡ 45db790e-7c61-4242-bc14-0132545ae13f
+# ╔═╡ a6608eff-9399-443c-a33a-c62341f7b14c
 md"""
-And so we may conclude that we should water the plant again shortly after the 100h point if we don't want it to experience too much drought stress.
+## Answering the problem
 """
 
-# ╔═╡ ad371259-cdf3-4c71-8dcf-92858104b284
-md"""
-The plant water dynamics in this tutorials were an oversimplification making these results are very iffy at best. Next tutorial we'll see how we can create our own functional processes to make the model more realistic.
-"""
+# ╔═╡ a84c1948-26ac-497d-b2f5-8310e5341b52
+md"Verify higher transpiration"
 
-# ╔═╡ be5401cb-6c88-4852-b121-a18943d7e2be
-plotgraph(sol, graphs[1], varname = :M)
+# ╔═╡ f66ca207-98a2-40ee-bf95-ab6e191cc60f
+Plots.plot(
+	plotgraph(sol, graphs, varname = :ΣF, structmod = :Air, title = "Low transpiration"),
+	plotgraph(sol2, graphs, varname = :ΣF, structmod = :Air, title = "High transpiration"), ylims = (0.0, 0.4)
+)
+
+# ╔═╡ b523a45d-21b4-4bc1-9e47-70ebdb0c45f5
+md"Water potential over time."
+
+# ╔═╡ cf30d4f4-a5de-4def-8674-48088eabf17b
+Plots.plot(
+	plotgraph(sol, graphs, varname = :Ψ, structmod = :Leaf, title = "Low transpiration"),
+	plotgraph(sol2, graphs, varname = :Ψ, structmod = :Leaf, title = "High transpiration"),
+	ylims = (-0.5, 0.0)
+)
 
 # ╔═╡ Cell order:
 # ╟─56c3527f-d8df-4f5c-9075-77c34d5c7204
 # ╟─6ab177fd-ed5b-4ae4-a2b5-f7f4eb8e4d0d
-# ╠═1144887a-a4c7-46f6-9cf8-cba50cf873d0
+# ╟─1144887a-a4c7-46f6-9cf8-cba50cf873d0
 # ╟─bc44fae7-6c4a-4f27-be51-dbabf4037601
 # ╠═57b8dcb8-9baa-4ddf-9368-431b1be5850e
 # ╠═662c0476-70aa-4a60-a81c-d7db2248b728
@@ -414,10 +414,13 @@ plotgraph(sol, graphs[1], varname = :M)
 # ╟─a6552c16-b013-43af-9483-639a79944749
 # ╟─52bb8235-abea-45c5-929c-5824bc8681c4
 # ╟─c04564c4-4fb5-47bf-bc14-77aaebdece15
+# ╟─790b01e0-2736-4aec-8516-d22c04a22131
 # ╟─1e2eaa86-d6e0-4749-bc92-04c64fe9f47d
 # ╟─930e7ed8-0bfe-4e5a-8890-a1d1ce155881
 # ╟─4cedbd9d-84ed-46f3-9a10-6cb993643f87
 # ╠═d54705b3-d8f4-4cc2-a780-369343749113
+# ╠═611289e9-e22c-4e6e-beec-ccea90eb48c9
+# ╠═b8709a33-301c-41e6-bb24-1035c68a7612
 # ╟─4d17b269-06b8-4293-b2cb-b6bd9fa0ccc8
 # ╟─3035b6d0-bca0-4803-b32a-da1459bdd880
 # ╟─df4cd3de-d2b2-4f11-b755-a36e640fd2d5
@@ -427,12 +430,11 @@ plotgraph(sol, graphs[1], varname = :M)
 # ╟─3c13c600-5135-44ea-8fc2-a1e11f72d0c5
 # ╠═5f21a4b0-f663-4777-94f3-d00acba109b3
 # ╟─e0e5e7f7-d2f5-404b-a6c6-6848c318eccb
-# ╟─ac6e098d-98ff-4940-8386-dc76c75eb2c3
-# ╠═611289e9-e22c-4e6e-beec-ccea90eb48c9
-# ╟─a8a725d4-d876-4867-acbc-26bbadc4b462
+# ╟─53b79b18-524a-40b4-98e8-5900d7124305
+# ╠═7d8a8a86-e40c-46fa-8cdd-8e15524f305f
+# ╟─fb72735b-3d45-438d-ad83-3e36f42f5bb8
 # ╟─113c0bdc-53e4-4a19-a47c-f4afba237eeb
 # ╠═ebf46963-bb9d-4604-924c-2b051189debc
-# ╟─fb72735b-3d45-438d-ad83-3e36f42f5bb8
 # ╟─210d81ef-153e-4744-8266-80af4099770c
 # ╟─bc7573e7-bcd6-4347-9b0c-9111a824c9b5
 # ╠═a3c5dba8-8acc-424a-87bc-d1c6a263578c
@@ -442,12 +444,10 @@ plotgraph(sol, graphs[1], varname = :M)
 # ╠═bf114636-1e35-49f1-9407-f472b443a9ea
 # ╠═50d6fc31-80f5-4db7-b716-b26765008a0d
 # ╠═c38b1a71-c5e9-4bfa-a210-bcbf9068f7ed
-# ╟─a6608eff-9399-443c-a33a-c62341f7b14c
-# ╠═042fec92-2ab0-4f21-8214-e574b2deb963
-# ╟─2d131155-f62b-4f4a-92d8-9e7443202434
-# ╠═cf30d4f4-a5de-4def-8674-48088eabf17b
+# ╟─a399ea81-5392-4a54-8a40-953faf5b234a
 # ╠═6a6de4fe-88b2-46f9-affe-abdd693e03dc
-# ╠═ae5742a1-ea82-40b3-a34c-7926b196eb64
-# ╟─45db790e-7c61-4242-bc14-0132545ae13f
-# ╟─ad371259-cdf3-4c71-8dcf-92858104b284
-# ╠═be5401cb-6c88-4852-b121-a18943d7e2be
+# ╟─a6608eff-9399-443c-a33a-c62341f7b14c
+# ╟─a84c1948-26ac-497d-b2f5-8310e5341b52
+# ╠═f66ca207-98a2-40ee-bf95-ab6e191cc60f
+# ╟─b523a45d-21b4-4bc1-9e47-70ebdb0c45f5
+# ╠═cf30d4f4-a5de-4def-8674-48088eabf17b
