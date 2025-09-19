@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.20.16
+# v0.20.14
 
 using Markdown
 using InteractiveUtils
@@ -295,7 +295,7 @@ connection_values = Dict(
 # ╔═╡ fb72735b-3d45-438d-ad83-3e36f42f5bb8
 md"""
 !!! note
-	In contrast to the nodes, PlantModules currently does not support edges of the same type (that is, between the same structural modules) to specify different parameter - or initial values in the graph definition.
+	In contrast to the nodes, PlantModules currently does not support edges of the same type (that is, between the same type of structural module) to specify different parameter - or initial values in the graph definition.
 """
 
 # ╔═╡ 113c0bdc-53e4-4a19-a47c-f4afba237eeb
@@ -366,7 +366,7 @@ md"Verify higher transpiration"
 # ╔═╡ f66ca207-98a2-40ee-bf95-ab6e191cc60f
 Plots.plot(
 	plotgraph(sol, graphs, varname = :ΣF, structmod = :Air, title = "Low transpiration"),
-	plotgraph(sol2, graphs, varname = :ΣF, structmod = :Air, title = "High transpiration"), ylims = (0.0, 0.4)
+	plotgraph(sol2, graphs, varname = :ΣF, structmod = :Air, title = "High transpiration"), ylims = (0.0, 0.4), yaxis = "ΣF"
 )
 
 # ╔═╡ b523a45d-21b4-4bc1-9e47-70ebdb0c45f5
@@ -376,7 +376,7 @@ md"Water potential over time."
 Plots.plot(
 	plotgraph(sol, graphs, varname = :Ψ, structmod = :Leaf, title = "Low transpiration"),
 	plotgraph(sol2, graphs, varname = :Ψ, structmod = :Leaf, title = "High transpiration"),
-	ylims = (-0.5, 0.0)
+	ylims = (-0.5, 0.0), yaxis = "Ψ"
 )
 
 # ╔═╡ Cell order:
