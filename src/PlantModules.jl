@@ -1,6 +1,7 @@
 module PlantModules
 
 # # Exports
+# ## Own functions
 export generate_system, PlantStructure, PlantCoupling, PlantParameters # generate system
 export Shape, Sphere, Cylinder, Cuboid # shapes
 export getnodes, getroot # graph functions
@@ -9,19 +10,25 @@ export logsumexp, smooth_daynight # smooth functions
 export hydraulic_module, environmental_module, constant_carbon_module, simple_photosynthesis_module, Ψ_soil_module, Ψ_air_module, K_module, constant_K_module # node modules
 export hydraulic_connection, constant_hydraulic_connection, evaporation_connection # edge modules
 export readXEG, convert_to_MTG, convert_to_PG # graph reading and converting
-export plotgraph, plotnode # plotting
+export plotstructure, plotgraph, plotnode # plotting
+
+# ## Re-exports
+export graphplot # so users can view helppage
 
 # # Imports
+using Graphs # used to define plant structure
+import Graphs: edges, edgetype, has_edge, has_vertex, ne, nv, neighbors,
+    inneighbors, outneighbors, vertices, is_directed, src, dst # To define own Graphs.jl `AbstractGraph`
 using SciMLBase # interface with ODE solver packages
 using ModelingToolkit, Unitful # simulation
 import ModelingToolkit: get_eqs, get_unknowns, get_ps, get_parameter_dependencies, get_observed,
     get_continuous_events, get_discrete_events, get_defaults, get_systems, get_name, get_iv,
     get_gui_metadata, get_parent, get_systems # MTK internals
 using PlantGraphs, MultiScaleTreeGraph # graphs
-using RecipesBase # visualisation
+using RecipesBase, GraphRecipes # visualisation
 
 # # Include src files
-include("graph_nodetypes.jl")
+include("graph_types.jl")
 include("graph_functions.jl")
 include("graph_reading.jl")
 include("graph_conversion.jl")

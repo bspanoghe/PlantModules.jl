@@ -110,8 +110,8 @@ node1, node2, node3, node4 = collect(values(graph.nodes))
 ## getnodes
 @test issetequal(PlantModules.getnodes(graph), [node1, node2, node3, node4])
 
-## getneighbours
-@test issetequal(PlantModules.getneighbours(node2, graph), [node1, node3, node4])
+## getneighbors
+@test issetequal(PlantModules.getneighbors(node2, graph), [node1, node3, node4])
 
 ## getattributes
 @test issetequal(PlantModules.getattributes(node4), [:P => 0, :N => 5, :δ => 2.3])

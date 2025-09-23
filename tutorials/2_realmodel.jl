@@ -61,7 +61,8 @@ air_graph = Air()
 
 graphs = [mtg, soil_graph, air_graph]
 intergraph_connections = [[1, 2] => (mtg, :Soil), [1, 3] => (:Leaf, :Air)]
-struct_connections = PlantStructure(graphs, intergraph_connections)
+plantstructure = PlantStructure(graphs, intergraph_connections)
+plotstructure(plantstructure)
 
 # ## Function
 
@@ -133,6 +134,28 @@ function photosynthesis_module(; name, T, M, shape)
     return System(eqs, t; name, checks = false)
 end
 
+# ## Coupling
+
+module_coupling = Dict(
+	:Internode => [hydraulic_module, constant_carbon_module, K_module],
+	:Shoot => [hydraulic_module, constant_carbon_module, K_module],
+	:Leaf => [hydraulic_module, photosynthesis_module, K_module],
+	:Soil => [environmental_module, Ψ_soil_module],
+	:Air => [environmental_module, Ψ_air_module, constant_K_module],
+)
+
+connecting_modules = [
+	(:Soil, :Internode) => constant_hydraulic_connection,
+    (:Internode, :Internode) => hydraulic_connection,
+	(:Internode, :Shoot) => hydraulic_connection,
+	(:Shoot, :Shoot) => hydraulic_connection,
+	(:Shoot, :Leaf) => constant_hydraulic_connection,
+	(:Internode, :Leaf) => constant_hydraulic_connection,
+    (:Leaf, :Air) => evaporation_connection
+] |> Dict
+
+plantcoupling = PlantCoupling(; module_coupling, connecting_modules)
+
 # This part is the same as in the first tutorial, except that we'll also make use of the non-constant `hydraulic_connection`.
 # For this connection, the hydraulic conductance is related to the cross-area of the plant part.
 # The way we defined the leaf shape, its hydraulic conductance will be proportional to its surface area.
@@ -146,48 +169,16 @@ module_defaults = Dict(
 	:Air => Dict(:K => 1e-3)
 )
 
-connecting_modules = [
-	(:Soil, :Internode) => (const_hydraulic_connection, Dict(:K => 1_000)),
-    (:Internode, :Internode) => (hydraulic_connection, Dict()),
-	(:Internode, :Shoot) => (hydraulic_connection, Dict()),
-	(:Shoot, :Shoot) => (hydraulic_connection, Dict()),
-	(:Shoot, :Leaf) => (const_hydraulic_connection, Dict(:K => 1.0)),
-	(:Internode, :Leaf) => (const_hydraulic_connection, Dict()),
-    (:Leaf, :Air) => (evaporation_connection, Dict())
-]
-
-func_connections = PlantFunctionality(; module_defaults, connecting_modules)
-
-# ## Coupling
-
-module_coupling = Dict(
-	:Internode => [hydraulic_module, constant_carbon_module, K_module],
-	:Shoot => [hydraulic_module, constant_carbon_module, K_module],
-	:Leaf => [hydraulic_module, photosynthesis_module, K_module],
-	:Soil => [environmental_module, Ψ_soil_module],
-	:Air => [environmental_module, Ψ_air_module, constant_K_module],
-)
+plantparams = PlantParameters(; module_defaults)
 
 # ## Generate and run system
 
-system = generate_system(struct_connections, func_connections, module_coupling, checkunits = false)
+system = generate_system(plantstructure, plantcoupling, plantparams, checkunits = false)
 prob = ODEProblem(system, [], (0.0, 5*24), sparse = true)
 @time sol = solve(prob);
 
 # ## Plotting
 
-plotgraph(sol, graphs[1], varname = :W)
-plotgraph(sol, graphs[2], varname = :W)
-
-plotgraph(sol, graphs[1], varname = :P)
-
-plotgraph(sol, graphs[1], varname = :ΣF)
-
-plotgraph(sol, graphs[1], varname = :M)
-plotgraph(sol, graphs[1], varname = :K)
-
-plotgraph(sol, graphs[1:2], varname = :Ψ)
-plotgraph(sol, graphs[3], varname = :Ψ)
-
-plotgraph(sol, graphs[1], varname = :D)
-plotgraph(sol, graphs[3], varname = :ΣF)
+plotgraph(sol, plantstructure, varname = :W, structmod = [:Leaf, :Internode])
+plotgraph(sol, plantstructure, varname = :W, structmod = :Soil)
+plotgraph(sol, plantstructure, varname = :Ψ, structmod = [:Internode, :Leaf, :Shoot, :Soil])

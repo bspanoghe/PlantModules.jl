@@ -12,5 +12,5 @@ coolnode = testgraph[coolnode_id]
 @test PlantModules.getattributes(coolnode) == Dict(:angle => -19.989698)
 @test PlantModules.getstructmod(coolnode) == :RU
 
-coolnode_nbs = PlantModules.getneighbours(coolnode, testgraph)
+coolnode_nbs = PlantModules.getneighbors(coolnode, testgraph)
 @test issetequal(PlantModules.getid.(coolnode_nbs), [5069718, 5069720, 5069722])

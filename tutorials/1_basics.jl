@@ -7,7 +7,7 @@ using Plots
 using Revise, Infiltrator
 using Pkg; Pkg.activate("./tutorials")
 using PlantModules
-using PlantGraphs, ModelingToolkit, OrdinaryDiffEq
+using PlantGraphs, OrdinaryDiffEq
 
 # ## Structure
 
@@ -44,7 +44,7 @@ intergraph_connections = [[1, 2] => (PlantModules.getroot(plant_graph), :Soil), 
 
 # Finally we can combine all structural information in one variable:
 plantstructure = PlantStructure(graphs, intergraph_connections)
-
+plotstructure(plantstructure)
 
 # ## Function
 
@@ -85,7 +85,7 @@ plantcoupling = PlantCoupling(; module_coupling, connecting_modules)
 # > **Model-wide default values / module-specific default values / node-specific values**
 
 # For __every node__:
-default_changes = Dict(:Γ => 0.4, :Ψ => -0.05, :T => 293.15) 
+default_changes = Dict(:Γ => 0.4, :T => 293.15) 
 
 # For every node of a given __structural module__:
 module_defaults = Dict(
@@ -119,16 +119,17 @@ prob = ODEProblem(system, [], (0.0, 5*24))
 # ## Plotting
 # Finally, we can use PlantModules' `plotgraph` function to more easily plot the desired results.
 # Based on the water content `W` of the soil (which was the second graph), and growth of the leaves, we can plan when to water next!
-plotgraph(sol, graphs[2], varname = :W)
+plotgraph(sol, plantstructure, varname = :W, structmod = :Soil)
 
-plotgraph(sol, graphs[1], varname = :D, structmod = :Leaf)
+plotgraph(sol, plantstructure, varname = :D, structmod = :Leaf)
 
 # Some other variables we may be interested in, to showcase the plotting functionality:
 # the water potentials of the plant parts and the soil
-plotgraph(sol, graphs[1:2], varname = :Ψ)
+plotgraph(sol, plantstructure, varname = :Ψ, structmod = [:Leaf, :Stem, :Soil])
 # and the net water flux in all components of the system
-plotgraph(sol, graphs, varname = :ΣF)
+plotgraph(sol, plantstructure, varname = :ΣF)
 
-plotgraph(sol, graphs[1], varname = :P)
+plotgraph(sol, plantstructure, varname = :P, structmod = [:Leaf, :Stem])
 
-plotgraph(sol, graphs[1], varname = :M)
+plotgraph(sol, plantstructure, varname = :M, structmod = [:Leaf, :Stem])
+plotgraph(sol, plantstructure, varname = :M, structmod = [:Leaf, :Stem])

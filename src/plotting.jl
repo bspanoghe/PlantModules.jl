@@ -1,9 +1,24 @@
-# Plot MTK solutions #
+# # Plot plant structure
+
+"""
+    plotstructure(structure::PlantStructure)
+
+Plot the structure of a plant.
+"""
+function plotstructure(structure::PlantStructure; kwargs...)
+    names = getstructmod.(getnodes(structure))
+    colordict = [name => idx for (idx, name) in enumerate(unique(names))] |> Dict
+    markercolor = [colordict[name] for name in names]
+    
+    graphplot(structure; names, markercolor, kwargs...)
+end
+
+# # Plot MTK solutions
 
 """
     plotgraph(sol::ODESolution, graph; structmod, varname, kwargs...)
 
-Returns a plot for every functional variable for every node of the given graph for the given solution `sol`.
+Return a plot for every functional variable for every node of the given graph for the given solution `sol`.
 Optionally, the user can give the name of a functional variable to only return a plot of this variable,
 give the name of a structural module to limit considered nodes to those of this type, or both.
 """
@@ -11,7 +26,7 @@ function plotgraph(sol::ODESolution, graph; structmod = missing, varname = missi
     indep_values = copy(sol[get_iv(sol.prob.f.sys)]) # values of indepedent variable
     append!(indep_values, NaN) # NaN used to cause linebreaks in plot
     
-    graphnodes = get_graphnodes(graph)
+    graphnodes = getnodes(graph)
     node_structmods = PlantModules.getstructmod.(graphnodes)
     if !ismissing(structmod)
         node_structmods, graphnodes = filter_structmods(structmod, node_structmods, graphnodes)
@@ -31,6 +46,9 @@ function plotgraph(sol::ODESolution, graph; structmod = missing, varname = missi
     plots = AbstractPlot[]
     
     for _varname in unique(vcat(values(varname_dict)...))
+        for _structmod in keys(varlocs)
+            @assert _varname in keys(varlocs[_structmod]) "$(_structmod) does not have the variable $(_varname) defined."
+        end
         curr_varlocs = [varlocs[_structmod][_varname] for _structmod in keys(varlocs)] # vector per structmod with indexes of var values
         
         ys = varvalues[vcat(curr_varlocs...), :]' |> x -> vcat(x...)
@@ -77,10 +95,6 @@ function plotnode(sol::ODESolution, node; varname = missing, kwargs...)
     return length(plots) == 1 ? only(plots) : plots
 end
 
-# get all nodes of one or more graphs
-get_graphnodes(graph) = PlantModules.getnodes(graph)
-get_graphnodes(graph::Vector) = reduce(vcat, get_graphnodes.(graph))
-
 # filter nodes of graph according to the structural module specified by the user
 function filter_structmods(structmod::Symbol, node_structmods, graphnodes)
     chosen_structmods = node_structmods .== structmod
@@ -90,6 +104,7 @@ function filter_structmods(structmod::Symbol, node_structmods, graphnodes)
 
     return node_structmods[chosen_structmods], graphnodes[chosen_structmods]
 end
+
 function filter_structmods(structmod::Vector{Symbol}, node_structmods, graphnodes)
     chosen_structmods = [node_structmod in structmod for node_structmod in node_structmods]
     if !any(chosen_structmods)
