@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.20.14
+# v0.20.16
 
 using Markdown
 using InteractiveUtils
@@ -11,7 +11,7 @@ using Pkg; Pkg.activate("../..")
 using PlantModules
 
 # ╔═╡ 65f88593-1180-447a-900f-49aef4647cd1
-using PlantGraphs, ModelingToolkit, OrdinaryDiffEq, GLMakie, Plots
+using PlantGraphs, ModelingToolkit, OrdinaryDiffEq, Plots
 
 # ╔═╡ 56c3527f-d8df-4f5c-9075-77c34d5c7204
 md"""
@@ -105,9 +105,6 @@ md"We now define the plant structure using a graph. By specifying the value of t
 plant_graph = Stem() + Stem() +
 	(Leaf([5.0, 3.0, 0.05]), Leaf([4.0, 2.5, 0.05]));
 
-# ╔═╡ d660118d-2994-4f81-9557-60e4081745b1
-draw(plant_graph)
-
 # ╔═╡ 98eac4c4-b39a-4e11-917a-90b03d7385d1
 md"""
 ### The environment
@@ -152,6 +149,9 @@ The full structural connection information can then be acquired by bundling the 
 
 # ╔═╡ caab574a-05c5-4c0d-9ae4-19fd514a6c6c
 plantstructure = PlantStructure(graphs, intergraph_connections);
+
+# ╔═╡ 579c41a8-e054-474a-985e-314c9a7657ce
+plotstructure(plantstructure)
 
 # ╔═╡ f03a61ce-a0ff-43ff-abdd-2342f76e8c93
 md"""
@@ -262,7 +262,7 @@ Now imagine we have some information on our plant in question and it calls for d
 """
 
 # ╔═╡ 271d48a7-7022-4766-83d9-a70fab92515e
-default_changes = Dict(:Ψ => -0.1);
+default_changes = Dict(:Ψ => -0.2);
 
 # ╔═╡ 3c13c600-5135-44ea-8fc2-a1e11f72d0c5
 md"""
@@ -274,7 +274,7 @@ module_defaults = Dict(
 	:Stem => Dict(:D => [0.5, 10.0], :M => 200e-6),
 	:Leaf => Dict(:shape => Cuboid()),
 	:Soil => Dict(:W_max => 1e3, :K => 1.0),
-	:Air => Dict(:K => 1e-3)
+	:Air => Dict(:W_r => 0.7, :K => 1e-3)
 );
 
 # ╔═╡ e0e5e7f7-d2f5-404b-a6c6-6848c318eccb
@@ -331,28 +331,33 @@ md"""
 
 # ╔═╡ 6b46bf1d-b54e-48e3-b4eb-364b4e2b1dfd
 md"""
-The rest of the modeling workflow is mostly taken care of by ModelingToolkit.jl and DifferentialEquations.jl, with some syntactic sugar added by PlantModules. For users that are unfamiliar with the package, it is recommended to take a brief look at [the ModelingToolkit docs](https://docs.sciml.ai/ModelingToolkit/stable/) before proceeding.
+Running the model is taken care of DifferentialEquations.jl. Users that are unfamiliar with the package may want to take a brief look at [the DifferentialEquations.jl docs](https://docs.sciml.ai/DiffEqDocs/stable/).
 """
 
 # ╔═╡ bf114636-1e35-49f1-9407-f472b443a9ea
 time_span = (0, 48.0); # We'll simulate our problem for a timespan of one week
 
 # ╔═╡ 50d6fc31-80f5-4db7-b716-b26765008a0d
-prob = ODEProblem(system, [], time_span, warn_initialize_determined = false);
+prob = ODEProblem(system, [], time_span, sparse = true, warn_initialize_determined = false);
 
 # ╔═╡ c38b1a71-c5e9-4bfa-a210-bcbf9068f7ed
 sol = solve(prob);
 
 # ╔═╡ a399ea81-5392-4a54-8a40-953faf5b234a
-md"Re-simulate with higher transpiration."
+md"In order to compare the results of higher transpiration, we remake the problem with lower relative air humidity and solve it in the exact same way."
 
 # ╔═╡ 6a6de4fe-88b2-46f9-affe-abdd693e03dc
 begin
-	module_defaults2 = deepcopy(module_defaults)
-	module_defaults2[:Air][:W_r] =  0.3
+	module_defaults2 = Dict(
+		:Stem => Dict(:D => [0.5, 10.0], :M => 200e-6),
+		:Leaf => Dict(:shape => Cuboid()),
+		:Soil => Dict(:W_max => 1e3, :K => 1.0),
+		:Air => Dict(:W_r => 0.5, :K => 1e-3)
+	);
 	plantparams2 = PlantParameters(; default_changes, module_defaults = module_defaults2);
 	sys2 = generate_system(plantstructure, plantcoupling, plantparams2)
-	sol2 = ODEProblem(sys2, [], time_span, warn_initialize_determined = false) |> solve
+	prob2 = ODEProblem(sys2, [], time_span, sparse = true, warn_initialize_determined = false)
+	sol2 = prob2 |> solve
 end;
 
 # ╔═╡ a6608eff-9399-443c-a33a-c62341f7b14c
@@ -361,23 +366,28 @@ md"""
 """
 
 # ╔═╡ a84c1948-26ac-497d-b2f5-8310e5341b52
-md"Verify higher transpiration"
+md"First we verify that there is indeed a higher transpiration in our second simulation by plotting the total incoming water influx of the air."
 
 # ╔═╡ f66ca207-98a2-40ee-bf95-ab6e191cc60f
 Plots.plot(
-	plotgraph(sol, graphs, varname = :ΣF, structmod = :Air, title = "Low transpiration"),
-	plotgraph(sol2, graphs, varname = :ΣF, structmod = :Air, title = "High transpiration"), ylims = (0.0, 0.4), yaxis = "ΣF"
+	plotgraph(sol, plantstructure, varname = :ΣF, structmod = :Air, title = "Low transpiration"),
+	plotgraph(sol2, plantstructure, varname = :ΣF, structmod = :Air, title = "High transpiration"), ylims = (0.0, 0.25), yaxis = "ΣF"
 )
 
 # ╔═╡ b523a45d-21b4-4bc1-9e47-70ebdb0c45f5
-md"Water potential over time."
+md"Finally, we can inspect whether the effect on the water potential of the stem is as expected."
 
 # ╔═╡ cf30d4f4-a5de-4def-8674-48088eabf17b
 Plots.plot(
-	plotgraph(sol, graphs, varname = :Ψ, structmod = :Leaf, title = "Low transpiration"),
-	plotgraph(sol2, graphs, varname = :Ψ, structmod = :Leaf, title = "High transpiration"),
-	ylims = (-0.5, 0.0), yaxis = "Ψ"
+	plotgraph(sol, plantstructure, varname = :Ψ, structmod = :Stem, title = "Low transpiration"),
+	plotgraph(sol2, plantstructure, varname = :Ψ, structmod = :Stem, title = "High transpiration"),
+	ylims = (-0.3, -0.1), yaxis = "Ψ"
 )
+
+# ╔═╡ 79d012fd-4afd-4f3b-ad7c-8ca581bad1e5
+md"""
+Indeed it is! And with that you now know all basic functionality of the package.
+"""
 
 # ╔═╡ Cell order:
 # ╟─56c3527f-d8df-4f5c-9075-77c34d5c7204
@@ -397,7 +407,6 @@ Plots.plot(
 # ╠═d57718c2-c77d-42a8-924f-ebdfcd51d919
 # ╟─c4dc4961-ba2b-4b23-b80e-7d4eb8d9a9f4
 # ╠═9af27c17-8f21-4f22-a5bb-e9c95cfdf2f9
-# ╠═d660118d-2994-4f81-9557-60e4081745b1
 # ╟─98eac4c4-b39a-4e11-917a-90b03d7385d1
 # ╠═e00c5135-1d66-4dec-8283-40ebe06a8038
 # ╠═dac02191-b640-40f5-a7d6-e6b06b946c23
@@ -409,6 +418,7 @@ Plots.plot(
 # ╟─20049311-d6e6-41d3-a0d8-8bad88c174f9
 # ╟─668e02ee-ac78-4b3d-983d-402ec04584ef
 # ╠═caab574a-05c5-4c0d-9ae4-19fd514a6c6c
+# ╠═579c41a8-e054-474a-985e-314c9a7657ce
 # ╟─f03a61ce-a0ff-43ff-abdd-2342f76e8c93
 # ╟─43211f69-6bfe-4fd1-b474-65d0601558de
 # ╟─a6552c16-b013-43af-9483-639a79944749
@@ -451,3 +461,4 @@ Plots.plot(
 # ╠═f66ca207-98a2-40ee-bf95-ab6e191cc60f
 # ╟─b523a45d-21b4-4bc1-9e47-70ebdb0c45f5
 # ╠═cf30d4f4-a5de-4def-8674-48088eabf17b
+# ╟─79d012fd-4afd-4f3b-ad7c-8ca581bad1e5
