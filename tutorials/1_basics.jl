@@ -44,7 +44,15 @@ intergraph_connections = [[1, 2] => (PlantModules.getroot(plant_graph), :Soil), 
 
 # Finally we can combine all structural information in one variable:
 plantstructure = PlantStructure(graphs, intergraph_connections)
-plotstructure(plantstructure)
+
+weightsmat = ones(length(plantstructure.vertices), length(plantstructure.vertices))
+weightsmat[:, end] .= 0.1
+weightsmat[end, :] .= 0.1
+
+plotstructure(plantstructure, 
+	method = :spectral, 
+	layout_kw = Dict(:nodeweights => [fill(0.1, 74); [0.0]], :dim => 2)
+)
 
 # ## Function
 
@@ -113,7 +121,7 @@ plantparams = PlantParameters(; module_defaults, default_changes, connection_val
 system = generate_system(plantstructure, plantcoupling, plantparams)
 
 # ...and solving it.
-prob = ODEProblem(system, [], (0.0, 5*24))
+prob = ODEProblem(system, [], (0.0, 5*24), sparse = true)
 @time sol = solve(prob);
 
 # ## Plotting
@@ -130,6 +138,4 @@ plotgraph(sol, plantstructure, varname = :Ψ, structmod = [:Leaf, :Stem, :Soil])
 plotgraph(sol, plantstructure, varname = :ΣF)
 
 plotgraph(sol, plantstructure, varname = :P, structmod = [:Leaf, :Stem])
-
-plotgraph(sol, plantstructure, varname = :M, structmod = [:Leaf, :Stem])
 plotgraph(sol, plantstructure, varname = :M, structmod = [:Leaf, :Stem])
