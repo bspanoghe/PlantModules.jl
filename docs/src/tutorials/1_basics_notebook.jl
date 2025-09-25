@@ -370,23 +370,23 @@ md"First we verify that there is indeed a higher transpiration in our second sim
 
 # ╔═╡ f66ca207-98a2-40ee-bf95-ab6e191cc60f
 Plots.plot(
-	plotgraph(sol, plantstructure, varname = :ΣF, structmod = :Air, title = "Low transpiration"),
-	plotgraph(sol2, plantstructure, varname = :ΣF, structmod = :Air, title = "High transpiration"), ylims = (0.0, 0.25), yaxis = "ΣF"
+	plotgraph(sol, plantstructure, varname = :ΣF, structmod = :Air, title = "Low transpiration", xaxis = "t (hr)"),
+	plotgraph(sol2, plantstructure, varname = :ΣF, structmod = :Air, title = "High transpiration", xaxis = "t (hr)"), ylims = (0.0, 0.25), yaxis = "ΣF"
 )
 
 # ╔═╡ b523a45d-21b4-4bc1-9e47-70ebdb0c45f5
-md"Finally, we can inspect whether the effect on the water potential of the stem is as expected."
+md"Finally, we can inspect whether the effect on the water potential of the stem is as expected. We plot the water potential of the leaves along with it to see if they follow the same pattern."
 
 # ╔═╡ cf30d4f4-a5de-4def-8674-48088eabf17b
 Plots.plot(
-	plotgraph(sol, plantstructure, varname = :Ψ, structmod = :Stem, title = "Low transpiration"),
-	plotgraph(sol2, plantstructure, varname = :Ψ, structmod = :Stem, title = "High transpiration"),
+	plotgraph(sol, plantstructure, varname = :Ψ, structmod = [:Stem, :Leaf], title = "Low transpiration"),
+	plotgraph(sol2, plantstructure, varname = :Ψ, structmod = [:Stem, :Leaf], title = "High transpiration"),
 	ylims = (-0.3, -0.1), yaxis = "Ψ"
 )
 
 # ╔═╡ 79d012fd-4afd-4f3b-ad7c-8ca581bad1e5
 md"""
-Indeed it is! And with that you now know all basic functionality of the package.
+The plot shows us the expected pattern for both plant parts! And with that you now know all basic functionality of the package.
 """
 
 # ╔═╡ Cell order:

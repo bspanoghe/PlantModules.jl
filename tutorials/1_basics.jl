@@ -45,10 +45,6 @@ intergraph_connections = [[1, 2] => (PlantModules.getroot(plant_graph), :Soil), 
 # Finally we can combine all structural information in one variable:
 plantstructure = PlantStructure(graphs, intergraph_connections)
 
-weightsmat = ones(length(plantstructure.vertices), length(plantstructure.vertices))
-weightsmat[:, end] .= 0.1
-weightsmat[end, :] .= 0.1
-
 plotstructure(plantstructure, 
 	method = :spectral, 
 	layout_kw = Dict(:nodeweights => [fill(0.1, 74); [0.0]], :dim => 2)
