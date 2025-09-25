@@ -7,7 +7,7 @@ using Revise
 using Plots
 using Pkg; Pkg.activate("./tutorials")
 using PlantModules
-using PlantGraphs, MultiScaleTreeGraph
+using PlantGraphs
 using ModelingToolkit, OrdinaryDiffEq, Unitful
 
 # ## Structure
@@ -129,7 +129,7 @@ function photosynthesis_module(; name, T, M, shape)
     eqs = [
 		PF ~ get_PAR_flux(t)
 		A ~ get_assimilation_rate(PF, T, LAI, k)
-        d(M) ~ uc1 * A * cross_area(shape, D) / volume(shape, D) - carbon_decay_rate*M
+        d(M) ~ uc1 * A * surface_area(shape, D) / volume(shape, D) - carbon_decay_rate*M
     ]
     return System(eqs, t; name, checks = false)
 end
