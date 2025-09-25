@@ -60,7 +60,7 @@ getneighbors(node::PlantGraphs.GraphNode, graph::PlantGraphs.StaticGraph) =
 	[
 		graph[nb_id]
 	for nb_id in (ismissing(node.parent_id) ? node.children_id :
-		vcat(node.children_id.dict.keys, node.parent_id))
+		vcat(collect(node.children_id), node.parent_id))
 ]
 function getattributes(node::PlantGraphs.GraphNode)
 	fields = fieldnames(typeof(node.data))
