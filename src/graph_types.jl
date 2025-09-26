@@ -110,6 +110,8 @@ function PlantStructure(graphs::Vector, intergraph_connections::Vector; return_i
 	return PlantStructure(vertices, edges, pmvertexdict)
 end
 
+PlantStructure(graph; return_id_conversions::Bool = false) = PlantStructure([graph], []; return_id_conversions)
+
 # get neighbouring nodes of a node both from the same graph and all connected graphs
 function get_nb_nodes(node, graphnr, graphs, intergraph_connections)
 	graph = graphs[graphnr]

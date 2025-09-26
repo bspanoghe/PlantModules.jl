@@ -16,6 +16,8 @@ function plotstructure(structure::PlantStructure; kwargs...)
     graphplot(structure; names, markercolor, curves, kwargs...)
 end
 
+plotstructure(graph; kwargs...) = plotstructure(PlantStructure(graph); kwargs...)
+
 # # Plot MTK solutions
 
 """

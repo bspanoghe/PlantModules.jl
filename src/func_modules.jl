@@ -115,7 +115,7 @@ function simple_photosynthesis_module(; name, M, shape, t_sunrise, t_sunset, A_m
 
     eqs = [
 		A ~ smooth_daynight(t/t_unit, t_sunrise/t_unit, t_sunset/t_unit, zero(A_max), A_max, smoothing = 1.0)
-        d(M) ~ A * cross_area(shape, D) / volume(shape, D) - M_c * M
+        d(M) ~ A * surface_area(shape, D) / volume(shape, D) - M_c * M
     ]
     return System(eqs, t; name)
 end
@@ -191,9 +191,9 @@ soilfunc(W_r) = -(1/W_r) * exp(-30*W_r) # empirical equation for soil water pote
     K_module(; name, K_s, shape::Shape)
 
 Return a ModelingToolkit System describing the hydraulic conductance of a 
-compartment as the product of its specific hydraulic conductance and its cross area.
+compartment as the product of its specific hydraulic conductance and an area of the compartment.
 """
-function K_module(; name, K_s, shape::Shape)
+function K_module(; name, K_s, shape::Shape, area_func::Function)
     num_D = getdimensionality(shape)
 
     @parameters (
@@ -205,7 +205,7 @@ function K_module(; name, K_s, shape::Shape)
     )
 
     eqs = [
-		K ~ K_s * cross_area(shape, D)
+		K ~ K_s * area_func(shape, D)
     ]
 
     return System(eqs, t; name)
@@ -351,5 +351,6 @@ multi_connection_eqs(node_MTK, connection_MTKs) = [
 default_values = Dict(
     :shape => Cylinder(), :ϕ_D => 0.02, :ϵ_D => 50.0, :Γ => 0.3,
     :T => 298.15, :D => [0.5, 5.0], :Ψ => 0.0, :M => 300e-6, :W_max => 1e6, :W_r => 0.5, 
-    :K_s => 10.0, :K => 1e3, :t_sunrise => 8, :t_sunset => 20, :η_night => 0.1, :A_max => 2e-6, :M_c => 0.05
+    :K_s => 10.0, :K => 1e3, :t_sunrise => 8, :t_sunset => 20, :η_night => 0.1, :A_max => 2e-6, 
+    :M_c => 0.05, :area_func => cross_area
 )
