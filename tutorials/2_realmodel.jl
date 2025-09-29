@@ -108,16 +108,20 @@ end
 import PlantModules: t, d
 
 # Finally we define the actual photosynthesis module. The one defined here is very simple for illustration purposes.
-function photosynthesis_module(; name, T, M, shape)
+function photosynthesis_module(; name, T, M, shape, t_sunrise, t_sunset, A_max, M_c)
 	@constants (
-		uc1 = (10^-6 * 10^-4 * 60^2), [description = "Unit conversion from (µmol / m^2 / s) to (mol / cm^2 / hr)", unit = u"(mol/cm^2/hr) / (µmol/m^2/s)"],
-		# the output from PlantBiophysics.jl is in different units than we use for our ODEs, so we need to change this
+		uc = (10^-6 * 10^-4 * 60^2), [description = "Unit conversion from (µmol / m^2 / s) to (mol / cm^2 / hr)", unit = u"(mol/cm^2/hr) / (µmol/m^2/s)"],
+		    # the output from PlantBiophysics.jl is in different units than we use for our ODEs, so we need to change this
+        t_unit = 1, [description = "Dummy constant for correcting units", unit = u"hr"],
 	)
 	@parameters (
 		T = T, [description = "Temperature", unit = u"K"],
-		LAI = 1.0, [description = "Leaf Area Index", unit = u"cm^2 / cm^2"],
+		LAI = 8.0, [description = "Leaf Area Index", unit = u"cm^2 / cm^2"],
 		k = 0.5, [description = "Light extinction coefficient", unit = u"N/N"],
-		carbon_decay_rate = 0.2, [description = "Rate at which carbon is consumed for growth", unit = u"hr^-1"],
+        t_sunrise = t_sunrise, [description = "Time of sunrise (hours past midnight)", unit = u"hr"],
+        t_sunset = t_sunset, [description = "Time of sunset (hours past midnight)", unit = u"hr"],
+        A_max = A_max, [description = "Maximum carbon assimilation rate", unit = u"mol / cm^2 / hr"],
+        M_c = M_c, [description = "Rate of carbon consumption", unit = u"hr^-1"],
 	)
 	@variables (
         M(t) = M, [description = "Osmotically active metabolite content", unit = u"mol / cm^3"],
@@ -127,9 +131,9 @@ function photosynthesis_module(; name, T, M, shape)
     )
 
     eqs = [
-		PF ~ get_PAR_flux(t)
+		PF ~ smooth_daynight(t/t_unit, t_sunrise/t_unit, t_sunset/t_unit, zero(A_max), A_max, smoothing = 0.1)
 		A ~ get_assimilation_rate(PF, T, LAI, k)
-        d(M) ~ uc1 * A * surface_area(shape, D) / volume(shape, D) - carbon_decay_rate*M
+        d(M) ~ uc * A * surface_area(shape, D) / volume(shape, D) - M_c*M
     ]
     return System(eqs, t; name, checks = false)
 end

@@ -4,6 +4,7 @@ using Pkg; Pkg.activate("./tutorials")
 using PlantModules
 using PlantGraphs
 using ModelingToolkit, OrdinaryDiffEq, Unitful
+using DataInterpolations
 
 # # Structure definition
 
@@ -134,56 +135,109 @@ plotstructure(plantstructure)
 
 # ## New functional modules
 
-using PlantBiophysics, PlantBiophysics.PlantMeteo, PlantSimEngine
-using Memoization
+transpiration_data = readlines("./tutorials/transpiration_data.csv") .|> x -> split(x, ", ") .|> x -> parse(Float64, x)
+transpiration_rate = LinearInterpolation(last.(transpiration_data), first.(transpiration_data))
+plot(transpiration_rate) # in mg / s / m^2
 
-@memoize function get_assimilation_rate(PAR_flux, T, LAI, k)
-	Kelvin_to_C = -273.15
-	meteo = Atmosphere(T = T + Kelvin_to_C, Wind = 1.0, P = 101.3, Rh = 0.65, Ri_PAR_f = PAR_flux)
-	m = ModelList(
-		Fvcb(), # calculate CO2 assimilation rate
-		Medlyn(0.03, 0.92), # calculate stomatal conductance, see https://onlinelibrary.wiley.com/doi/epdf/10.1111/j.1365-2486.2010.02375.x
-		Beer(k), # calculate amount of light intercepted
-		status = (Tₗ = meteo[:T], LAI = LAI, Cₛ = meteo[:Cₐ], Dₗ = meteo[:VPD], RI_PAR_f = meteo[:Ri_PAR_f])
-	)
-	run!(m, meteo)
-	return only(m[:A]) |> x -> max(x, 0) # extract result of the first (and only) timestep
-end
+function steered_waterpotential_module(; name, shape, ϕ_D, ϵ_D, Γ, T, D, Ψ, M)
+    D, ϕ_D, ϵ_D = [PlantModules.correctdimensionality(shape, var) for var in [D, ϕ_D, ϵ_D]] 
+        # turns scalar values into vectors of correct length
 
-# Most (complex) functions need to be registered using `@register_symbolic` before we can use them in ModelingToolkit.
-@register_symbolic get_assimilation_rate(PAR_flux, T, LAI, k)
+    num_D = getdimensionality(shape)
+    R = 8.314
+    P = Ψ + M*R*T
 
-import PlantModules: t, d
-
-# Finally we define the actual photosynthesis module. The one defined here is very simple for illustration purposes.
-function photosynthesis_module(; name, T, M, shape, t_sunrise, t_sunset, A_max, M_c)
-	@constants (
-		uc1 = (10^-6 * 10^-4 * 60^2), [description = "Unit conversion from (µmol / m^2 / s) to (mol / cm^2 / hr)", unit = u"(mol/cm^2/hr) / (µmol/m^2/s)"],
-		    # the output from PlantBiophysics.jl is in different units than we use for our ODEs, so we need to change this
-        t_unit = 1, [description = "Dummy constant for correcting units", unit = u"hr"],
-	)
-	@parameters (
-		T = T, [description = "Temperature", unit = u"K"],
-		LAI = 8.0, [description = "Leaf Area Index", unit = u"cm^2 / cm^2"],
-		k = 0.5, [description = "Light extinction coefficient", unit = u"N/N"],
-        t_sunrise = t_sunrise, [description = "Time of sunrise (hours past midnight)", unit = u"hr"],
-        t_sunset = t_sunset, [description = "Time of sunset (hours past midnight)", unit = u"hr"],
-        A_max = A_max, [description = "Maximum carbon assimilation rate", unit = u"mol / cm^2 / hr"],
-        M_c = M_c, [description = "Rate of carbon consumption", unit = u"hr^-1"],
-	)
-	@variables (
-        M(t) = M, [description = "Osmotically active metabolite content", unit = u"mol / cm^3"],
-		PF(t), [description = "Incoming PAR flux", unit = u"J / s / m^2"],
-		A(t), [description = "Carbon assimilation rate", unit = u"µmol / m^2 / s"],
-		D(t)[1:getdimensionality(shape)], [description = "Dimensions of compartment", unit = u"cm"],
+    @constants (
+        R = R, [description = "Ideal gas constant", unit = u"MPa * cm^3 / K / mol"], # Pa = J/m^3 => J = Pa * m^3 = MPa * cm^3
+        P_unit = 1.0, [description = "Dummy constant for correcting units", unit = u"MPa"],
+        ρ_w = 1.0, [description = "Density of water", unit = u"g / cm^3"],
+    )
+    @parameters (
+        T = T, [description = "Temperature", unit = u"K"],
+        ϕ_D[1:num_D] = ϕ_D, [description = "Dimensional extensibility", unit = u"MPa^-1 * hr^-1"],
+        ϵ_D[1:num_D] = ϵ_D, [description = "Dimensional elastic modulus", unit = u"MPa"],
+        Γ = Γ, [description = "Yield turgor pressure", unit = u"MPa"],
+    )
+    @variables (
+        Ψ(t), [description = "Total water potential", unit = u"MPa"],
+        Π(t), [description = "Osmotic water potential", unit = u"MPa"],
+        P(t), [description = "Hydrostatic potential", unit = u"MPa", guess = 0.0], #! initial value
+        M(t), [description = "Osmotically active metabolite content", unit = u"mol / cm^3", guess = 0.0], # m^3 so units match in second equation ()
+        W(t) = volume(shape, D) / ρ_w, [description = "Water content", unit = u"g"],
+        D(t)[1:num_D] = D, [description = "Dimensions of compartment", unit = u"cm"],
+        V(t), [description = "Volume of compartment", unit = u"cm^3"],
+        ΣF(t), [description = "Net incoming water flux", unit = u"g / hr"],
+        
+        ΔM(t), [description = "Change in metabolite content", unit = u"mol / cm^3 / hr"],
+        ΔP(t), [description = "Change in hydrostatic potential", unit = u"MPa / hr", guess = 0.0], #!
+        ΔW(t), [description = "Change in water content", unit = u"g / hr"],
+        ΔD(t)[1:num_D], [description = "Change in dimensions of compartment", unit = u"cm / hr"],
     )
 
     eqs = [
-		PF ~ smooth_daynight(t/t_unit, t_sunrise/t_unit, t_sunset/t_unit, zero(A_max), A_max, smoothing = 0.1)
-		A ~ get_assimilation_rate(PF, T, LAI, k)
-        d(M) ~ uc1 * A * surface_area(shape, D) / volume(shape, D) - M_c*M
+        Ψ ~ P + Π, # Water potential consists of a solute- and a pressure component
+        Π ~ -R*T*M, # Solute component is determined by concentration of dissolved metabolites
+        ΔW ~ ΣF, # Water content changes due to flux (depending on water potentials as defined in connections)
+        V ~ W / ρ_w, # Volume is directly related to water content  
+        V ~ volume(shape, D), # Volume is also directly related to compartment dimensions
+        [ΔD[i] ~ D[i]*ϕ_D[i]*P_unit*logsumexp((P - Γ)/P_unit, α = 100) + D[i]*ΔP/ϵ_D[i] for i in eachindex(D)]..., # Compartment dimensions can only change due to a change in pressure
+
+        d(M) ~ ΔM,
+        d(P) ~ ΔP,
+        d(W) ~ ΔW,
+        [d(D[i]) ~ ΔD[i] for i in eachindex(D)]...,
     ]
-    return System(eqs, t; name, checks = false)
+    return System(eqs, t; name)
+end
+
+function unknown_Ψ_module(; name)
+    @variables begin
+        Ψ(t), [description = "Total water potential", unit = u"MPa"]
+    end
+    eqs = [Ψ ~ Ψ]
+    return System(eqs, t; name)
+end
+
+function fixed_transpiration_connection(; name, shape, K)
+    num_D = getdimensionality(shape)
+
+    @constants begin
+        t_unit = 1, [description = "Dummy constant for correcting units", unit = u"hr"]
+        uc = 1e-3 * 3600 * (1e-2)^2, [description = "Unit conversion from (mg / s / m^2) to (g / hr / cm^2)", unit = u"g / hr / cm^2"]
+    end
+    @parameters begin
+        K(t) = K, [description = "Hydraulic conductivity of connection", unit = u"g / hr / MPa"]
+    end
+    @variables begin
+        F_s(t), [description = "Specific water flux from compartment 2 to compartment 1", unit = u"g / hr / cm^2"]
+        F(t), [description = "Water flux from compartment 2 to compartment 1", unit = u"g / hr"]
+        D(t)[1:num_D], [description = "Dimensions of compartment", unit = u"cm"]
+        Ψ_1(t), [description = "Total water potential of compartment 1", unit = u"MPa"]
+        Ψ_2(t), [description = "Total water potential of compartment 2", unit = u"MPa"]
+    end
+
+    eqs = [
+        F_s ~ uc * transpiration_rate(t / t_unit),
+        F ~ F_s * surface_area(shape, D) / 2,
+        F ~ K * (Ψ_2 - Ψ_1)
+    ]
+
+    get_connection_eqset(node_MTK, nb_node_MTK, connection_MTK, correct_order) = (
+        correct_order ? 
+        [
+            connection_MTK.Ψ_1 ~ node_MTK.Ψ,
+            connection_MTK.Ψ_2 ~ nb_node_MTK.Ψ,
+
+            connection_MTK.D ~ node_MTK.D,
+        ] : [
+            connection_MTK.Ψ_1 ~ node_MTK.Ψ,
+            connection_MTK.Ψ_2 ~ nb_node_MTK.Ψ,
+
+            connection_MTK.D ~ nb_node_MTK.D,
+        ]
+    )
+
+    return System(eqs, t; name), get_connection_eqset
 end
 
 
@@ -193,9 +247,9 @@ module_coupling = Dict(
 	:Roots => [hydraulic_module, constant_carbon_module, K_module],
 	:Stem => [hydraulic_module, constant_carbon_module, K_module],
     :Branch => [hydraulic_module, constant_carbon_module, K_module],
-	:Needles => [hydraulic_module, constant_carbon_module, K_module],
+	:Needles => [steered_waterpotential_module],
 	:Soil => [environmental_module, Ψ_soil_module, constant_K_module],
-	:Air => [environmental_module, Ψ_air_module, constant_K_module],
+	:Air => [environmental_module, Ψ_air_module],
 )
 
 connecting_modules = Dict(
@@ -205,42 +259,44 @@ connecting_modules = Dict(
 	(:Stem, :Branch) => hydraulic_connection,
     (:Branch, :Branch) => hydraulic_connection,
 	(:Branch, :Needles) => constant_hydraulic_connection,
-	(:Needles, :Air) => evaporation_connection,
+	(:Needles, :Air) => fixed_transpiration_connection,
 )
 
 plantcoupling = PlantCoupling(; module_coupling, connecting_modules)
 
 # # Parameters
-default_changes = Dict{Symbol, Any}(:ϕ_D => 0.0)
+begin
+    default_changes = Dict{Symbol, Any}(:ϕ_D => 0.0)
 
-permeability = 2e-12 * 1e4 # cm^2 (from m^2)
-η = 1.0 * 1e-9 * (1/3600) # MPa hr (from mPa s)
-l = segment_length # cm
-ρ_w = 1.0 # g / cm^3
-K_s_stem = ρ_w * permeability / η / l # g / hr / MPa / cm^2
+    permeability = 2e-12 * 1e4 # cm^2 (from m^2)
+    η = 1.0 * 1e-9 * (1/3600) # MPa hr (from mPa s)
+    l = segment_length # cm
+    ρ_w = 1.0 # g / cm^3
+    K_s_stem = ρ_w * permeability / η / l # g / hr / MPa / cm^2
 
-module_defaults = Dict(
-    :Stem => Dict(:ϵ_D => [0.1 * 1e3, 17.5 * 0.1 * 1e3], :K_s => K_s_stem),
-	:Needles => Dict(:M => 450e-6, :area_func => surface_area, :M_c => 0.4, :A_max => 1500, :t_sunrise => 6.0, :t_sunset => 20.0),
-	:Soil => Dict(:W_max => 1e8, :T => 288.15, :W_r => 0.5),
-	:Air => Dict(:K => 3e-1),
-)
+    module_defaults = Dict(
+        :Stem => Dict(:ϵ_D => [0.1 * 1e3, 17.5 * 0.1 * 1e3], :K_s => K_s_stem),
+        :Needles => Dict(:M => 450e-6, :area_func => surface_area, :M_c => 0.4, :A_max => 1500, :t_sunrise => 6.0, :t_sunset => 20.0),
+        :Soil => Dict(:W_max => 1e8, :T => 288.15, :W_r => 0.5),
+    )
 
-L_p = 3.2e-8 * 1e2 * 3600 # cm / hr / MPa (from m / s / MPa)
-K_roots = ρ_w * L_p * rootarea # g / hr / MPa
+    L_p = 3.2e-8 * 1e2 * 3600 # cm / hr / MPa (from m / s / MPa)
+    K_roots = ρ_w * L_p * rootarea # g / hr / MPa
 
-connection_values = Dict(
-    (:Soil, :Roots) => Dict(:K => K_roots),
-    (:Roots, :Stem) => Dict(:K => 1e9), # roots => stem not modelled in original system
-    (:Branch, :Needles) => Dict(:K => 1e5),
-)
+    connection_values = Dict(
+        (:Soil, :Roots) => Dict(:K => K_roots),
+        (:Roots, :Stem) => Dict(:K => 1e9), # roots => stem not modelled in original system
+        (:Branch, :Needles) => Dict(:K => 1e5),
+        (:Needles, :Air) => Dict(:K => 1e-3),
+    )
 
-plantparams = PlantParameters(; default_changes, module_defaults, connection_values)
+    plantparams = PlantParameters(; default_changes, module_defaults, connection_values)
+end
 
 # # Run it
 
 system = generate_system(plantstructure, plantcoupling, plantparams, checkunits = false)
-prob = ODEProblem(system, [], (0.0, 20*24.0), sparse = true)
+prob = ODEProblem(system, [], (0.0, 24.0), sparse = true)
 @time sol = solve(prob);
 
 # # Show it
@@ -249,7 +305,7 @@ plotgraph(sol, plantstructure, structmod = [:Soil, :Roots, :Stem, :Branch, :Need
 plotgraph(sol, plantstructure, structmod = :Stem, varname = :D)
 plotgraph(sol, plantstructure, structmod = :Stem, varname = :ΣF)
 plotnode(sol, getnodes(plantstructure)[10], varname = :D, xlims = (10*24.0, 11*24.0), ylims = (10.39, 10.4))
-plotgraph(sol, plantstructure, structmod = [:Soil, :Roots, :Stem, :Branch, :Needles], varname = :W)
+plotgraph(sol, plantstructure, structmod = [:Roots, :Stem, :Branch, :Needles], varname = :W)
 
 plotgraph(sol, plantstructure, structmod = :Needles, varname = :W)
 plotgraph(sol, plantstructure, structmod = :Needles, varname = :M)
@@ -259,4 +315,4 @@ plotgraph(sol, plantstructure, structmod = :Soil, varname = :W)
 plotgraph(sol, plantstructure, structmod = :Soil, varname = :Ψ)
 
 plotgraph(sol, plantstructure, structmod = :Needles, varname = :ΣF)
-plotgraph(sol, plantstructure, structmod = :Air, varname = :W)
+plotgraph(sol, plantstructure, structmod = :Air, varname = :ΣF)
