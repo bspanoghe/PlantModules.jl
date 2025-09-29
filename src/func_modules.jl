@@ -115,7 +115,7 @@ function simple_photosynthesis_module(; name, M, shape, t_sunrise, t_sunset, A_m
 
     eqs = [
 		A ~ smooth_daynight(t/t_unit, t_sunrise/t_unit, t_sunset/t_unit, zero(A_max), A_max, smoothing = 1.0)
-        d(M) ~ A * surface_area(shape, D) / volume(shape, D) - M_c * M
+        d(M) ~ A * surface_area(shape, D)/2 / volume(shape, D) - M_c * M
     ]
     return System(eqs, t; name)
 end
