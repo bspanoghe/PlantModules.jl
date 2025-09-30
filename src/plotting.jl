@@ -27,24 +27,12 @@ Return a plot for every functional variable for every node of the given graph fo
 Optionally, the user can give the name of a functional variable to only return a plot of this variable,
 give the name of a structural module to limit considered nodes to those of this type, or both.
 """
-function plotgraph(sol::ODESolution, graph; structmod = missing, varname = missing, kwargs...)
+function plotgraph(sol::ODESolution, graph; varname = missing,  structmod = missing, kwargs...)
     indep_values = copy(sol[get_iv(sol.prob.f.sys)]) # values of indepedent variable
     append!(indep_values, NaN) # NaN used to cause linebreaks in plot
     
-    graphnodes = getnodes(graph)
-    node_structmods = PlantModules.getstructmod.(graphnodes)
-    if !ismissing(structmod)
-        node_structmods, graphnodes = filter_structmods(structmod, node_structmods, graphnodes)
-    end
+    varlist, node_structmods, varname_dict = _getvariables(sol, graph, varname, structmod)
 
-    nodesystems = getnodesystem.([sol], graphnodes)
-    varname_dict = get_varname_dict(node_structmods, nodesystems, varname)
-    varlist = [
-        getproperty(nodesystems[nidx], _varname)
-        for nidx in eachindex(nodesystems) for _varname in varname_dict[node_structmods[nidx]]
-    ] # actual MTK variable names
-    isempty(varlist) && error("Variable $varname not found in graph.")
-    
     varlocs = getvarlocs(node_structmods, varname_dict, varlist)
     varvalues = sol[reduce(vcat, varlist)] |> x -> reduce(hcat, x) |> x -> [x fill(NaN, size(x, 1))]
     
@@ -69,19 +57,15 @@ end
 """
     plotnode(sol::ODESolution, node; varname::Symbol)
 
-Returns a plot for every functional variable of the given node for the given solution `sol`.
+Return a plot for every functional variable of the given node for the given solution `sol`.
 Optionally, the user can give the name of a functional variable to only return a plot of this variable.
 """
 function plotnode(sol::ODESolution, node; varname = missing, kwargs...)
     indep_values = copy(sol[get_iv(sol.prob.f.sys)]) # values of indepedent variable
     append!(indep_values, NaN) # NaN used to cause linebreaks in plot
 
-    structmod = PlantModules.getstructmod(node)
-    nodesystem = getnodesystem(sol, node)
-
-    varname_dict = get_varname_dict([structmod], [nodesystem], varname)
-    varlist = [getproperty(nodesystem, _varname) for _varname in varname_dict[structmod]] # actual MTK variable names
-    isempty(varlist) && error("Variable $varname not found in graph.")
+    varlist, node_structmods, varname_dict = _getnodevariables(sol, [node], varname, missing)
+    structmod = only(node_structmods)
 
     varlocs = getvarlocs([structmod], varname_dict, varlist)
     varvalues = sol[reduce(vcat, varlist)] |> x -> reduce(hcat, x) |> x -> [x fill(NaN, size(x, 1))]
@@ -98,6 +82,41 @@ function plotnode(sol::ODESolution, node; varname = missing, kwargs...)
     end
   
     return length(plots) == 1 ? only(plots) : plots
+end
+
+"""
+    getvariables(sol::ODESolution, graph; varname = missing, structmod = missing)
+
+Return the Numeric representation of one or more variables from a graph, optionally filtered by structural module.
+"""
+function getvariables(sol::ODESolution, graph; varname = missing, structmod = missing)
+    varlist, _, _ = _getvariables(sol, graph, varname, structmod)
+    return varlist
+end
+
+# internal version with more outputs than users need
+function _getvariables(sol::ODESolution, graph, varname, structmod)
+    graphnodes = getnodes(graph)
+    varlist, node_structmods, varname_dict = _getnodevariables(sol, graphnodes, varname, structmod)
+    return varlist, node_structmods, varname_dict
+end
+
+function _getnodevariables(sol::ODESolution, graphnodes::Vector, varname, structmod)
+    node_structmods = PlantModules.getstructmod.(graphnodes)
+
+    if !ismissing(structmod)
+        node_structmods, graphnodes = filter_structmods(structmod, node_structmods, graphnodes)
+    end
+
+    nodesystems = getnodesystem.([sol], graphnodes)
+    varname_dict = get_varname_dict(node_structmods, nodesystems, varname)
+    varlist = [
+        getproperty(nodesystems[nidx], _varname)
+        for nidx in eachindex(nodesystems) for _varname in varname_dict[node_structmods[nidx]]
+    ]
+    isempty(varlist) && error("Variable $varname not found in graph.")
+
+    return varlist, node_structmods, varname_dict
 end
 
 # filter nodes of graph according to the structural module specified by the user
