@@ -193,7 +193,7 @@ soilfunc(W_r) = -(1/W_r) * exp(-30*W_r) # empirical equation for soil water pote
 Return a ModelingToolkit System describing the hydraulic conductance of a 
 compartment as the product of its specific hydraulic conductance and an area of the compartment.
 """
-function K_module(; name, K_s, shape::Shape, area_func::Function)
+function K_module(; name, K_s, shape::Shape, K_area_func::Function)
     num_D = getdimensionality(shape)
 
     @parameters (
@@ -205,7 +205,7 @@ function K_module(; name, K_s, shape::Shape, area_func::Function)
     )
 
     eqs = [
-		K ~ K_s * area_func(shape, D)
+		K ~ K_s * K_area_func(shape, D)
     ]
 
     return System(eqs, t; name)
@@ -352,5 +352,5 @@ default_values = Dict(
     :shape => Cylinder(), :ϕ_D => 0.02, :ϵ_D => 50.0, :Γ => 0.3,
     :T => 298.15, :D => [0.5, 5.0], :Ψ => 0.0, :M => 300e-6, :W_max => 1e6, :W_r => 0.5, 
     :K_s => 10.0, :K => 1e3, :t_sunrise => 8, :t_sunset => 20, :η_night => 0.1, :A_max => 2e-6, 
-    :M_c => 0.05, :area_func => cross_area
+    :M_c => 0.05, :K_area_func => cross_area
 )
