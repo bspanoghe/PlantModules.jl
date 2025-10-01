@@ -1,188 +1,297 @@
-# # Tutorial 2: A real model
-
-# ## Introduction
-
-# In this tutorial, we'll cover more advanced functionality of the package with the goal of making a more practically usable plant model.
 using Revise
 using Plots
 using Pkg; Pkg.activate("./tutorials")
 using PlantModules
 using PlantGraphs
 using ModelingToolkit, OrdinaryDiffEq, Unitful
+using DataInterpolations
 
-# ## Structure
+# # Preparatory calculations
 
-# ### The plant
-# For this model, we'll assume we have a **file** containing the plant's structure, which we may have gotten from some other plant modeling program.
-# Currently, the package only has a function for reading XEG files. However, any file format can be used provided the user is able to convert it to a graph.
+begin
+    # ## dimensions of compartments
 
-plant_graph = readXEG("./tutorials/temp/structures/beech3.xeg")
+    # ### stem segments and change in radius
+    segment_length = 20 # cm input
+    tree_length = 1200 # cm input
+    stem_r0 = 12.0 # cm input
+    branching_frequency = 3 # dealer's choice
 
-# The graph still requires some processing to make it suitable for modeling with PlantModules.
-# Luckily, the [MultiScaleTreeGraph.jl](https://github.com/VEZY/MultiScaleTreeGraph.jl) package has some excellent functionality for processing graphs.
-# We can use the `convert_to_MTG` function to change our graph into this package's format allowing us to use all its functions.
-mtg = convert_to_MTG(plant_graph)
+    n_segments = tree_length ÷ segment_length
+    Δr = stem_r0/n_segments
 
-# Currently the nodes have their dimensions defined in separate variables. The hydraulic module we intend to use expects a vector `D` instead, so we need to change this.
-DataFrame(mtg, [:diameter, :length, :width])
+    # ### crown
+    crown_length = tree_length - 600 # cm input
+    n_crown_segments = crown_length ÷ segment_length
+    segments_before_crown = (n_segments - n_crown_segments)
 
-function combine_dimensions(l, d, w)
-	if all(isnothing.([l, d, w]))
-		return nothing
-	elseif isnothing(w) # no width defined => shape is a cylinder
-		return 1e2*[d/2, l] # 1e2 to go from m to cm
-	else # otherwise we're dealing with a cuboid
-		return 1e2*[l, w, 5e-4] # leaf thickness assumed to be 0.5 mm
-	end
+    # ### branch radius
+    function branch_radius(r, Δr)
+        area_0 = r^2*pi
+        area_new = (r - Δr)^2*pi
+        area_branch = area_0 - area_new  # from da vinci's rule (total cross area remains constant)
+        return sqrt(area_branch / pi)
+    end
+
+    # ### total needle length
+    get_cylinder_length(area, radius) = (area - 2*radius^2*pi) / (2*radius*pi)
+        # A = 2 * (D[1]^2 * pi) + (2 * D[1] * pi) * D[2]
+        # D[2] = (A - 2 * (D[1]^2 * pi)) /  (2 * D[1] * pi)
+
+    needle_area = 51 * 100^2 # cm^2 input
+    needle_radius = 0.06 # cm based on https://nph.onlinelibrary.wiley.com/doi/10.1111/nph.13465
+    total_needle_length = get_cylinder_length(needle_area, needle_radius)
+
+    # ### sanity check: estimate number of needles in tree assuming 10 cm needles
+    num_needles = needle_area / (needle_radius^2 * pi * 10)
+
+    # ### needles
+    n_needle_segments = n_crown_segments ÷ 3
+    needle_lengths = [i * total_needle_length / sum(1:n_needle_segments) for i in n_needle_segments:-1:1]
+
+    # ### root dimensions
+    rootarea = 96.1 * 100^2 # cm^2 input
+    rootradius = 0.015 # cm based on https://cdnsciencepub.com/doi/abs/10.1139/x98-206
+    total_root_length = get_cylinder_length(rootarea, rootradius) #! hm.
+
+    # ## conversion from energy-based PAR to photon-based PAR
+
+    h_planck = 6.626 * 1e-34 # J / s
+    c_light = 2.998 * 1e8 # m / s
+    λ_photon = 550 * 1e-9 # m (average of 400 nm to 700 nm PAR range)
+    N_A = 6.022 * 1e23 # photons per mole
+    E_per_mol = h_planck * c_light * N_A / λ_photon # J / mol
+    η_photon = 1 / (E_per_mol * 1e-6) # μmol / J
+
+    # ## parameters
+
+    # ### hydraulic conductivities
+    permeability = 2e-12 * 1e4 # cm^2 (from m^2)
+    η = 1.0 * 1e-9 * (1/3600) # MPa hr (from mPa s)
+    l = segment_length # cm
+    ρ_w = 1.0 # g / cm^3
+    K_s_stem = ρ_w * permeability / η / l # g / hr / MPa / cm^2
+
+    L_p = 3.2e-8 * 1e2 * 3600 # cm / hr / MPa (from m / s / MPa)
+    K_roots = ρ_w * L_p * rootarea # g / hr / MPa
+
+    # ### elastic modulus
+    ϵ_D_stem = [0.1 * 1e3, 17.5 * 0.1 * 1e3] #!
 end
 
-transform!(mtg, [:length, :diameter, :width] => combine_dimensions => :D)
-DataFrame(mtg, [:D]) # inspect the results
+# # Structure definition
 
-# Rename the "ShortShoot" nodes to "Shoot" for brevity's sake
-traverse!(mtg, node -> symbol!(node, "Shoot"), symbol = "ShortShoot")
-# Delete nodes without any dimensions defined. These are for graph visualisation purposes but are not actual physical structures.
-mtg = delete_nodes!(mtg, filter_fun = node -> isnothing(node.D))
+# ## Structural module types
 
-if length(mtg) > 100
-	toomuch = [node for node in PlantModules.nodes(mtg[1][1][1])]
-	mtg = delete_nodes!(mtg, filter_fun = node -> node in toomuch)
+Base.@kwdef mutable struct StemTip <: Node
+    tsb::Integer = 1 # time since branching
+    nd::Integer = 1 # number of divisions / branchings
+    D::Vector = [stem_r0, segment_length]
 end
-DataFrame(mtg)
 
-# ### Environment
-# This part is the same as in previous tutorial.
+Base.@kwdef mutable struct Stem <: Node
+    D::Vector
+end
 
-struct Soil <: PlantGraphs.Node end
-struct Air <: PlantGraphs.Node end
+Base.@kwdef mutable struct Branch <: Node
+    D::Vector
+    age::Integer = 1
+end
 
-soil_graph = Soil()
-air_graph = Air()
+Base.@kwdef mutable struct Needles <: Node
+    D::Vector
+end
 
-graphs = [mtg, soil_graph, air_graph]
-intergraph_connections = [[1, 2] => (mtg, :Soil), [1, 3] => (:Leaf, :Air)]
+Base.@kwdef mutable struct Roots <: Node
+    D::Vector = [rootradius, total_root_length] 
+end
+
+struct Soil <: Node end
+struct Air <: Node end
+
+# ## Growing rules
+
+stop_rule = Rule(
+    StemTip,
+    lhs = gt -> data(gt).D[1] < Δr
+)
+
+vertical_growth_rule = Rule(
+    StemTip,
+    lhs = gt -> data(gt).tsb < (segments_before_crown+branching_frequency) && data(gt).D[1] > Δr,
+    rhs = gt -> Stem(data(gt).D) + StemTip(data(gt).tsb + 1, data(gt).nd, data(gt).D - [Δr, 0.0])
+)
+
+branching_rule = Rule(
+    StemTip,
+    lhs = gt -> data(gt).tsb == (segments_before_crown+branching_frequency),
+    rhs = gt -> Stem(data(gt).D) + (
+        Branch([branch_radius(data(gt).D[1], Δr), segment_length], 0) + Needles([needle_radius, needle_lengths[data(gt).nd]]),
+        StemTip(segments_before_crown+1, data(gt).nd + 1, data(gt).D - [Δr, 0.0])
+    )
+)
+
+branchgrowth_rule = Rule(
+    Branch,
+    lhs = br -> (data(br).age == 1 && length(children(br)) == 1),
+    rhs = br -> Branch(data(br).D, data(br).age + 1) + Branch(data(br).D, 0)
+)
+
+# ## Instantiation
+
+axiom = Roots() + StemTip()
+plant = Graph(axiom = axiom, rules = (stop_rule, vertical_growth_rule, branching_rule, branchgrowth_rule))
+for _ in 1:(n_segments+10)
+    rewrite!(plant)
+end
+
+graphs = [plant, Soil(), Air()]
+intergraph_connections = [(1, 2) => (:Roots, :Soil), (1, 3) => (:Needles, :Air)]
 plantstructure = PlantStructure(graphs, intergraph_connections)
+
+plotstructure(plant)
 plotstructure(plantstructure)
 
-# ## Function
+# # Function
 
-# ### Defining new functional modules
-
-# Previous tutorial, we simply made use of the pre-implemented functional modules. Now, let's take a look at how we can define our own. 
-# We'll start by making a simple model for carbon dynamics.
-
-# First thing we need is to define how much photosynthetically active radiation (PAR) our leaves receive. 
-# We'd like to define this as a general Julia function rather than a differential equation so that we have more freedom in our definition.
-# This allows you to, for example, write a function which interpolates between observed PAR values. 
-# We'll just use a sine function bound to the positive values to simulate a simple day-night cycle:
-
-get_PAR_flux(t) = logsumexp(40 * sin(t/24*2*pi - 8))
-plot(get_PAR_flux, xlims = (0, 48))
-
-# We also need the actual photosynthesis model.
-# We could define this ourselves using differential equations, or simply use the existing implementation from [PlantBiophysics.jl](https://github.com/VEZY/PlantBiophysics.jl).
-# All we have to do is wrap this model in a julia function with the desired inputs and outputs and we're done.
-
-using PlantBiophysics, PlantBiophysics.PlantMeteo, PlantSimEngine
-using Memoization
-
-# PlantBiophysics models are fast, but using memoization will still speed up the final model up significantly.
-# Memoization essentially makes the function remember what the outputs are for inputs it has seen before, rather than having to compute them again.
-
-@memoize function get_assimilation_rate(PAR_flux, T, LAI, k)
-	Kelvin_to_C = -273.15
-	meteo = Atmosphere(T = T + Kelvin_to_C, Wind = 1.0, P = 101.3, Rh = 0.65, Ri_PAR_f = PAR_flux)
-	m = ModelList(
-		Fvcb(), # calculate CO2 assimilation rate
-		Medlyn(0.03, 0.92), # calculate stomatal conductance, see https://onlinelibrary.wiley.com/doi/epdf/10.1111/j.1365-2486.2010.02375.x
-		Beer(k), # calculate amount of light intercepted
-		status = (Tₗ = meteo[:T], LAI = LAI, Cₛ = meteo[:Cₐ], Dₗ = meteo[:VPD], RI_PAR_f = meteo[:Ri_PAR_f])
-	)
-	run!(m, meteo)
-	return only(m[:A]) |> x -> max(x, 0) # extract result of the first (and only) timestep
-end
-
-# Most (complex) functions need to be registered using `@register_symbolic` before we can use them in ModelingToolkit.
-@register_symbolic get_assimilation_rate(PAR_flux, T, LAI, k)
+# ## New functional modules
 
 import PlantModules: t, d
+readcsv(filepath) = readlines(filepath) .|> x -> split(x, ", ") .|> x -> parse(Float64, x)
 
-# Finally we define the actual photosynthesis module. The one defined here is very simple for illustration purposes.
-function photosynthesis_module(; name, T, M, shape, t_sunrise, t_sunset, A_max, M_c)
-	@constants (
-		uc = (10^-6 * 10^-4 * 60^2), [description = "Unit conversion from (µmol / m^2 / s) to (mol / cm^2 / hr)", unit = u"(mol/cm^2/hr) / (µmol/m^2/s)"],
-		    # the output from PlantBiophysics.jl is in different units than we use for our ODEs, so we need to change this
-        t_unit = 1, [description = "Dummy constant for correcting units", unit = u"hr"],
-	)
-	@parameters (
-		T = T, [description = "Temperature", unit = u"K"],
-		LAI = 8.0, [description = "Leaf Area Index", unit = u"cm^2 / cm^2"],
-		k = 0.5, [description = "Light extinction coefficient", unit = u"N/N"],
-        t_sunrise = t_sunrise, [description = "Time of sunrise (hours past midnight)", unit = u"hr"],
-        t_sunset = t_sunset, [description = "Time of sunset (hours past midnight)", unit = u"hr"],
-        A_max = A_max, [description = "Maximum carbon assimilation rate", unit = u"mol / cm^2 / hr"],
-        M_c = M_c, [description = "Rate of carbon consumption", unit = u"hr^-1"],
-	)
-	@variables (
-        M(t) = M, [description = "Osmotically active metabolite content", unit = u"mol / cm^3"],
-		PF(t), [description = "Incoming PAR flux", unit = u"J / s / m^2"],
-		A(t), [description = "Carbon assimilation rate", unit = u"µmol / m^2 / s"],
-		D(t)[1:getdimensionality(shape)], [description = "Dimensions of compartment", unit = u"cm"],
-    )
+# ### Fixed transpiration
+
+# #### transpiration rate from data
+transpiration_data = readcsv("./tutorials/clouddata/transpiration_data.csv")
+transpiration_rate = LinearInterpolation(last.(transpiration_data), first.(transpiration_data))
+plot(transpiration_rate) # in mg / s / m^2
+
+# #### module
+function fixed_transpiration_connection(; name, shape, K)
+    num_D = getdimensionality(shape)
+
+    @constants begin
+        t_unit = 1, [description = "Dummy constant for correcting units", unit = u"hr"]
+        uc = 1e-3 * 3600 * (1e-2)^2, [description = "Unit conversion from (mg / s / m^2) to (g / hr / cm^2)", unit = u"g / hr / cm^2"]
+    end
+    @parameters begin
+        K = K, [description = "Hydraulic conductivity of connection", unit = u"g / hr / MPa"]
+    end
+    @variables begin
+        F_s(t), [description = "Specific water flux from compartment 2 to compartment 1", unit = u"g / hr / cm^2"]
+        F(t), [description = "Water flux from compartment 2 to compartment 1", unit = u"g / hr"]
+        D(t)[1:num_D], [description = "Dimensions of compartment", unit = u"cm"]
+    end
+
+    polarity = occursin("Air", split(string(name), "_")[1]) ? 1 : -1 #! ugly :( => use `correct_order` as input of function?
 
     eqs = [
-		PF ~ smooth_daynight(t/t_unit, t_sunrise/t_unit, t_sunset/t_unit, zero(A_max), A_max, smoothing = 0.1)
-		A ~ get_assimilation_rate(PF, T, LAI, k)
-        d(M) ~ uc * A * surface_area(shape, D) / volume(shape, D) - M_c*M
+        F_s ~ uc * transpiration_rate(t / t_unit),
+        F ~ polarity * F_s * surface_area(shape, D) / 2,
     ]
-    return System(eqs, t; name, checks = false)
+
+    get_connection_eqset(node_MTK, nb_node_MTK, connection_MTK, correct_order) = (
+        correct_order ? [connection_MTK.D ~ node_MTK.D] : [connection_MTK.D ~ nb_node_MTK.D]
+    )
+
+    return System(eqs, t; name), get_connection_eqset
 end
+
 
 # ## Coupling
 
 module_coupling = Dict(
-	:Internode => [hydraulic_module, constant_carbon_module, K_module],
-	:Shoot => [hydraulic_module, constant_carbon_module, K_module],
-	:Leaf => [hydraulic_module, photosynthesis_module, K_module],
-	:Soil => [environmental_module, Ψ_soil_module],
-	:Air => [environmental_module, Ψ_air_module, constant_K_module],
+	:Roots => [hydraulic_module, constant_carbon_module, K_module],
+	:Stem => [hydraulic_module, constant_carbon_module, K_module],
+    :Branch => [hydraulic_module, constant_carbon_module, K_module],
+	:Needles => [hydraulic_module, constant_carbon_module, K_module], #! photosynthesis
+	:Soil => [environmental_module, Ψ_soil_module, constant_K_module],
+	:Air => [environmental_module],
 )
 
-connecting_modules = [
-	(:Soil, :Internode) => constant_hydraulic_connection,
-    (:Internode, :Internode) => hydraulic_connection,
-	(:Internode, :Shoot) => hydraulic_connection,
-	(:Shoot, :Shoot) => hydraulic_connection,
-	(:Shoot, :Leaf) => constant_hydraulic_connection,
-	(:Internode, :Leaf) => constant_hydraulic_connection,
-    (:Leaf, :Air) => evaporation_connection
-] |> Dict
+connecting_modules = Dict(
+	(:Soil, :Roots) => constant_hydraulic_connection,
+	(:Roots, :Stem) => constant_hydraulic_connection,
+	(:Stem, :Stem) => hydraulic_connection,
+	(:Stem, :Branch) => hydraulic_connection,
+    (:Branch, :Branch) => hydraulic_connection,
+	(:Branch, :Needles) => constant_hydraulic_connection,
+	(:Needles, :Air) => fixed_transpiration_connection,
+)
 
 plantcoupling = PlantCoupling(; module_coupling, connecting_modules)
 
-# This part is the same as in the first tutorial, except that we'll also make use of the non-constant `hydraulic_connection`.
-# For this connection, the hydraulic conductance is related to the cross-area of the plant part.
-# The way we defined the leaf shape, its hydraulic conductance will be proportional to its surface area.
-# This is why this hydraulic conductance should only be used for a connection with the air, and connections with plant parts need to use a constant hydraulic connection.
+# # Parameters
+begin
+    default_changes = Dict{Symbol, Any}(:ϕ_D => 0.0)
 
-module_defaults = Dict(
-	:Internode => Dict(:shape => Cylinder(), :M => 300e-6, :K_s => 200, :ϕ_D => 0.005),
-	:Shoot => Dict(:shape => Cylinder(), :M => 350e-6, :K_s => 50, :ϵ_D => 100.0),
-	:Leaf => Dict(:shape => Cuboid(), :M => 400e-6, :K_s => 5e-3),
-	:Soil => Dict(:W_max => 1e4, :T => 293.15),
-	:Air => Dict(:K => 1e-3)
-)
+    module_defaults = Dict(
+        :Stem => Dict(:ϵ_D => ϵ_D_stem, :K_s => K_s_stem),
+        :Soil => Dict(:W_max => 1e5, :T => 288.15, :W_r => 0.5),
+    )
 
-plantparams = PlantParameters(; module_defaults)
+    connection_values = Dict(
+        (:Soil, :Roots) => Dict(:K => K_roots),
+        (:Roots, :Stem) => Dict(:K => 1e9), # roots => stem not modelled in original system
+        (:Branch, :Needles) => Dict(:K => 1e9),
+    )
 
-# ## Generate and run system
+    plantparams = PlantParameters(; default_changes, module_defaults, connection_values)
+end
+
+# # Run it
 
 system = generate_system(plantstructure, plantcoupling, plantparams, checkunits = false)
-prob = ODEProblem(system, [], (0.0, 5*24), sparse = true)
+prob = ODEProblem(system, [], (0.0, 24.0), sparse = true)
 @time sol = solve(prob);
 
-# ## Plotting
+ϕ_vars = [par for par in getfield(system, :ps) if occursin("ϕ_D", string(par))]
+newprob = remake(prob, p = Pair.(ϕ_vars, [[2e-5, 2e-5]])) #! that's against all the rules
+sol = solve(newprob)
 
-plotgraph(sol, plantstructure, varname = :W, structmod = [:Leaf, :Internode])
-plotgraph(sol, plantstructure, varname = :W, structmod = :Soil)
-plotgraph(sol, plantstructure, varname = :Ψ, structmod = [:Internode, :Leaf, :Shoot, :Soil])
+# # Show it
+
+# plotgraph(sol, plantstructure, structmod = [:Stem], varname = :Ψ)
+
+begin
+    dimension_variables = PlantModules.getvariables(sol, plantstructure, varname = :D, structmod = :Stem) #! export function
+
+    diameter_change_mm(var, sol) = 10*(var - sol[var][1])
+    high_segment_nr = ceil(Int64, 12 / 0.2)
+    low_segment_nr = ceil(Int64, 2.5 / 0.2)
+
+    low_diameter_data = readcsv("./tutorials/clouddata/diameter_data_d.csv")
+    high_diameter_data = readcsv("./tutorials/clouddata/diameter_data_a.csv")
+    begin
+        p_high = plot(sol, idxs = [diameter_change_mm(dimension_variables[high_segment_nr][1], sol)], label = "Simulated", ylims = (-0.07, 0.01), yticks = -0.07:0.01:0.01)
+        plot!(p_high, first.(high_diameter_data), last.(high_diameter_data), label = "Data")
+
+        p_low = plot(sol, idxs = [diameter_change_mm(dimension_variables[low_segment_nr][1], sol)], label = "Simulated", ylims = (-0.07, 0.01), yticks = -0.07:0.01:0.01)
+        plot!(p_low, first.(low_diameter_data), last.(low_diameter_data), label = "Data")
+
+        plot(p_high, p_low, layout = (2, 1), ylabel = "Diameter change (mm)", size = (800, 600), margins = 5*Plots.mm)
+    end
+end
+
+plotgraph(sol, plantstructure, structmod = [:Soil], varname = :Ψ)
+
+plotgraph(sol, plantstructure, structmod = :Stem, varname = :D)
+plotgraph(sol, plantstructure, structmod = :Stem, varname = :ΣF)
+plotnode(sol, getnodes(plantstructure)[10], varname = :D, ylims = (10.39, 10.41))
+
+plotgraph(sol, plantstructure, structmod = [:Roots, :Stem, :Branch, :Needles], varname = :W)
+
+plotgraph(sol, plantstructure, structmod = :Needles, varname = :W)
+plotgraph(sol, plantstructure, structmod = :Needles, varname = :M)
+plotgraph(sol, plantstructure, structmod = :Needles, varname = :Ψ)
+
+plotgraph(sol, plantstructure, structmod = :Soil, varname = :W)
+plotgraph(sol, plantstructure, structmod = :Soil, varname = :Ψ)
+
+plotgraph(sol, plantstructure, structmod = :Needles, varname = :ΣF)
+plotgraph(sol, plantstructure, structmod = :Air, varname = :ΣF)
+
+plotgraph(sol, plantstructure, structmod = :Air, varname = :W)
+
+
+plot(sol, idxs = [diameter_change_mm(a[high_segment_nr][1], sol)], label = false)
