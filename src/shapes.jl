@@ -97,19 +97,19 @@ cross_area(s::Shape, ::AbstractArray) = error("Function not yet defined for shap
 
 Calculate the cross-sectional area of a sphere, defined as the area of a circle with the same radius.
 """
-cross_area(s::Sphere, D::AbstractArray) = D[1]^2 * pi # Write dimensions in the order: radius
+cross_area(::Sphere, D::AbstractArray) = D[1]^2 * pi # Write dimensions in the order: radius
 """
     cross_area(::Cylinder, D::AbstractArray)
 
 Calculate the cross-sectional area of a cylinder, defined as its base area. Dimensions are assumed to be in the order: radius, length.
 """
-cross_area(s::Cylinder, D::AbstractArray) = D[1]^2 * pi # Write dimensions in the order: radius - length
+cross_area(::Cylinder, D::AbstractArray) = D[1]^2 * pi # Write dimensions in the order: radius - length
 """
     cross_area(::Cuboid, D::AbstractArray)
 
 Calculate the cross-sectional area of a cuboid, defined as the product of its first two dimensions.
 """
-cross_area(s::Cuboid, D::AbstractArray) = D[1] * D[2] # Write dimensions in the order: length - width - thickness
+cross_area(::Cuboid, D::AbstractArray) = D[1] * D[2] # Write dimensions in the order: length - width - thickness
 
 """
     surface_area(s::Shape, ::AbstractArray)
