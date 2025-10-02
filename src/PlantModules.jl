@@ -9,6 +9,8 @@ using ModelingToolkit, Unitful # simulation
 import ModelingToolkit: get_eqs, get_unknowns, get_ps, get_parameter_dependencies, get_observed,
     get_continuous_events, get_discrete_events, get_defaults, get_systems, get_name, get_iv,
     get_gui_metadata, get_parent, get_systems # MTK internals
+import ModelingToolkit: parameter_values, setp # MTK internals for problem remaking
+import ModelingToolkit.SciMLBase.AbstractSciMLProblem
 using PlantGraphs, MultiScaleTreeGraph # graphs
 using RecipesBase, GraphRecipes # visualisation
 
@@ -22,6 +24,7 @@ export logsumexp, smooth_daynight # smooth functions
 export hydraulic_module, environmental_module, constant_carbon_module, simple_photosynthesis_module, Ψ_soil_module, Ψ_air_module, K_module, constant_K_module # node modules
 export hydraulic_connection, constant_hydraulic_connection, evaporation_connection # edge modules
 export readXEG, convert_to_MTG, convert_to_PG # graph reading and converting
+export remake_graphsystem, remake_graphsystem!, get_subsystem_variables # system remaking
 export plotstructure, plotgraph, plotnode # plotting
 
 # ## Re-exports
@@ -36,6 +39,7 @@ include("generate_system.jl")
 include("shapes.jl")
 include("smoothfuncs.jl")
 include("func_modules.jl")
+include("system_remaking.jl")
 include("plotting.jl")
 
 end # module

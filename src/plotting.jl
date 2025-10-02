@@ -33,7 +33,7 @@ function plotgraph(sol::ODESolution, graph; varname = missing,  structmod = miss
     
     varlist, node_structmods, varname_dict = _getvariables(sol, graph, varname, structmod)
 
-    varlocs = getvarlocs(node_structmods, varname_dict, varlist)
+    varlocs = getvarlocs(node_structmods, varname_dict, varlist) # e.g.: varlocs[:Stem][:W] => [10, 15, 16]
     varvalues = sol[reduce(vcat, varlist)] |> x -> reduce(hcat, x) |> x -> [x fill(NaN, size(x, 1))]
     
     plots = AbstractPlot[]
