@@ -18,7 +18,7 @@ using RecipesBase, GraphRecipes # visualisation
 # ## Own functions
 export generate_system, PlantStructure, PlantCoupling, PlantParameters # generate system
 export Shape, Sphere, Cylinder, Cuboid # shapes
-export getnodes, getroot # graph functions
+export getnodes, getneighbors, getattributes, getstructmod, getid # graph functions
 export getdimensionality, volume, cross_area, surface_area # shape functions
 export logsumexp, smooth_daynight # smooth functions
 export hydraulic_module, environmental_module, constant_carbon_module, simple_photosynthesis_module, Ψ_soil_module, Ψ_air_module, K_module, constant_K_module # node modules
@@ -31,7 +31,7 @@ export plotstructure, plotgraph, plotnode # plotting
 export graphplot
 
 # # Include src files
-include("graph_types.jl")
+include("plantstructure.jl")
 include("graph_functions.jl")
 include("graph_reading.jl")
 include("graph_conversion.jl")

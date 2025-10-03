@@ -59,10 +59,9 @@ function PlantStructure(vertices::Vector{T}, edges::Vector{PMEdge{T}}, pmvertexd
     for e in edges
         v1, v2 = src(e), dst(e)
         v1_nbs = get(neighbordict, v1, T[])
-        v2 in v1_nbs && continue
         v2_nbs = get(neighbordict, v2, T[])
-        neighbordict[v1] = [v1_nbs; v2]
-        neighbordict[v2] = [v2_nbs; v1]
+        v2 in v1_nbs || (neighbordict[v1] = [v1_nbs; v2])
+        v1 in v2_nbs || (neighbordict[v2] = [v2_nbs; v1])
     end
     PlantStructure(vertices, edges, pmvertexdict, neighbordict)
 end
@@ -120,7 +119,7 @@ function get_nb_nodes(node, graphnr, graphs, intergraph_connections)
 	inter_nb_nodes = get_intergraph_neighbours(node, graphnr, graphs, intergraph_connections)
 
 	nb_nodes = vcat(intra_nb_nodes, inter_nb_nodes)
-	isempty(nb_nodes) && error("No neighbours found for node $node.")
+	# isempty(nb_nodes) && error("No neighbours found for node $node.") #!
 
 	return nb_nodes
 end
@@ -168,6 +167,7 @@ connection_check(node, connection::Vector) = node in connection # connection is 
 
 ## For a connection with a user-defined filter function
 function _get_intergraph_neighbours(node, nb_graph, connection_func::Function, nb_first::Bool)
+	# Main.@infiltrate getstructmod(node) == :Air
 	if nb_first
 		nb_nodes = [nb_node for nb_node in getnodes(nb_graph) if connection_func(nb_node, node)]
 	else
