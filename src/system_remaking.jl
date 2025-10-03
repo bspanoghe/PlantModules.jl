@@ -68,7 +68,7 @@ end
 
 function getsysnames(nodes, connection::Tuple, structure)
     is_valid_node = [
-        [connection_check(node, connection[i]) for node in nodes] # see `graph_types.jl` for `connection_check`
+        [connection_check(node, connection[i]) for node in nodes] # see `plantstructure.jl` for `connection_check`
         for i in eachindex(connection)
     ]
     if !any(Iterators.flatten(is_valid_node))
