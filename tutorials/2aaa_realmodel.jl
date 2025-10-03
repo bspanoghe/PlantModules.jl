@@ -23,12 +23,12 @@ begin
     branching_frequency = 3 # dealer's choice
 
     n_segments = tree_length ÷ segment_length
-    Δr = sapwood_r0/(n_segments/branching_frequency+1)
+    Δr = sapwood_r0/(n_segments+1)
 
     # ### crown
     crown_length = tree_length - 600 # cm input
     n_crown_segments = crown_length ÷ segment_length
-    crown_start_age = (n_segments - n_crown_segments)
+    segments_before_crown = (n_segments - n_crown_segments)
 
     # ### branch radius
     function branch_radius(r, Δr)
@@ -48,17 +48,16 @@ begin
     total_needle_length = get_cylinder_length(needle_area, needle_radius)
 
     # ### sanity check: estimate number of needles in tree assuming 10 cm needles
-    total_num_needles = needle_area / (needle_radius^2 * pi * 10) # seems fair for a big tree
+    num_needles = needle_area / (needle_radius^2 * pi * 10) # seems fair for a big tree
 
     # ### needle lengths per segment
     n_needle_segments = n_crown_segments ÷ 3
     needle_lengths = [i * total_needle_length / sum(1:n_needle_segments) for i in n_needle_segments:-1:1]
 
-    # ### branchgrowth frequency
-    branchgrowth_frequency = 3 # guesstimation #!
-
     # ### root dimensions
-    total_root_area = 96.1 * 100^2 # cm^2 input
+    rootarea = 96.1 * 100^2 # cm^2 input
+    # rootradius = 0.015 # cm based on https://cdnsciencepub.com/doi/abs/10.1139/x98-206
+    # total_root_length = get_cylinder_length(rootarea, rootradius) #! hm.
 
     # ## conversion from energy-based PAR to photon-based PAR
 
@@ -79,7 +78,7 @@ begin
     K_s_stem = ρ_w * permeability / η / l # g / hr / MPa / cm^2
 
     L_p = 3.2e-8 * 1e2 * 3600 # cm / hr / MPa (from m / s / MPa)
-    K_roots = ρ_w * L_p * total_root_area # g / hr / MPa
+    K_roots = ρ_w * L_p * rootarea # g / hr / MPa
 
     # ### elastic modulus
     ϵ_D_stem = [0.1 * 1e3, 17.5 * 0.1 * 1e3] # MPa (from GPa)
@@ -89,76 +88,74 @@ end
 
 # ## Structural module types
 
-mutable struct Stem <: Node
-    D::Vector
-    branch_nr
-    age
-    istip::Bool
+Base.@kwdef mutable struct StemTip <: Node
+    tsb::Integer = 1 # time since branching
+    nd::Integer = 1 # number of divisions / branchings
+    D::Vector = [sapwood_r0, segment_length]
 end
 
-mutable struct Branch <: Node
-    D::Vector
-    age
-    istip::Bool
-end
-
-mutable struct Needles <: Node
+Base.@kwdef mutable struct Stem <: Node
     D::Vector
 end
 
+Base.@kwdef mutable struct Branch <: Node
+    D::Vector
+    age::Integer = 1
+end
+
+Base.@kwdef mutable struct Needles <: Node
+    D::Vector
+end
+
+# Base.@kwdef mutable struct Roots <: Node
+#     D::Vector = [rootradius, total_root_length] 
+# end
+
+struct Soil <: Node end
+struct Air <: Node end
 
 # ## Growing rules
 
-branching_rule = Rule( # top stem segment grows another thinner stem segment and a branch every `branching_frequency` steps, if stem is old enough to form crown
-    Stem,
-    lhs = st -> data(st).istip && data(st).age >= crown_start_age && data(st).age % branching_frequency == 0,
-    rhs = st -> Stem(data(st).D, data(st).branch_nr, data(st).age + 1, false) + (
-        Branch([branch_radius(data(st).D[1], Δr), segment_length], 0, true) + Needles([needle_radius, needle_lengths[data(st).branch_nr]]),
-        Stem(data(st).D - [Δr, 0.0], data(st).branch_nr + 1, data(st).age + 1, true)
+stop_rule = Rule(
+    StemTip,
+    lhs = gt -> data(gt).D[1] <= Δr
+)
+
+vertical_growth_rule = Rule(
+    StemTip,
+    lhs = gt -> data(gt).tsb < (segments_before_crown+branching_frequency) && data(gt).D[1] > Δr,
+    rhs = gt -> Stem(data(gt).D) + StemTip(data(gt).tsb + 1, data(gt).nd, data(gt).D - [Δr, 0.0])
+)
+
+branching_rule = Rule(
+    StemTip,
+    lhs = gt -> data(gt).tsb == (segments_before_crown+branching_frequency) && data(gt).D[1] > Δr,
+    rhs = gt -> Stem(data(gt).D) + (
+        Branch([branch_radius(data(gt).D[1], Δr), segment_length], 0) + Needles([needle_radius, needle_lengths[data(gt).nd]]),
+        StemTip(segments_before_crown+1, data(gt).nd + 1, data(gt).D - [Δr, 0.0])
     )
 )
 
-vertical_growth_rule = Rule( # top stem segment grows only another stem segment if not branching
-    Stem,
-    lhs = st -> data(st).istip && !(data(st).age >= crown_start_age && data(st).age % branching_frequency == 0),
-    rhs = st -> Stem(data(st).D, data(st).branch_nr, data(st).age + 1, false) + 
-        Stem(data(st).D, data(st).branch_nr, data(st).age + 1, true)
-)
-
-branchgrowth_rule = Rule( # top branch segments grown another branch segment every `branchgrowth_frequency` steps
+branchgrowth_rule = Rule(
     Branch,
-    lhs = br -> data(br).istip && data(br).age % branchgrowth_frequency == 0,
-    rhs = br -> Branch(data(br).D, data(br).age + 1, false) +
-        Branch(data(br).D, data(br).age + 1, true)
-)
-
-branchage_rule = Rule( # branch tips also age if not growing
-    Branch,
-    lhs = br -> data(br).istip && !(data(br).age % branchgrowth_frequency == 0),
-    rhs = br -> Branch(data(br).D, data(br).age + 1, data(br).istip)
+    lhs = br -> (data(br).age == 1 && length(children(br)) == 1),
+    rhs = br -> Branch(data(br).D, data(br).age + 1) + Branch(data(br).D, 0)
 )
 
 # ## Instantiation
 
-axiom = Stem([sapwood_r0, segment_length], 1, 0, true)
-plant = Graph(axiom = axiom, rules = 
-    (vertical_growth_rule, branching_rule, branchage_rule, branchgrowth_rule)
-)
-for _ in 1:(n_segments-1)
+axiom = StemTip()
+plant = Graph(axiom = axiom, rules = (stop_rule, vertical_growth_rule, branching_rule, branchgrowth_rule))
+for _ in 1:(n_segments + 10)
     rewrite!(plant)
 end
-
-plotstructure(plant)
-
-
-struct Soil <: Node end
-struct Air <: Node end
 
 graphs = [plant, Soil(), Air()]
 intergraph_connections = [(1, 2) => (getnodes(plant)[1], :Soil), (1, 3) => (:Needles, :Air)]
 plantstructure = PlantStructure(graphs, intergraph_connections)
 
-plotstructure(plantstructure, names = "")
+plotstructure(plant)
+plotstructure(plantstructure)
 
 # # Function
 
@@ -167,70 +164,15 @@ plotstructure(plantstructure, names = "")
 import PlantModules: t, d
 readcsv(filepath) = readlines(filepath) .|> x -> split(x, ", ") .|> x -> parse(Float64, x)
 
-# ### hydraulic_module with gravity effects
-
-function hydraulic_module(; name, shape::Shape, ϕ_D, ϵ_D, Γ, T, D, Ψ, M, h)
-    D, ϕ_D, ϵ_D = [correctdimensionality(shape, var) for var in [D, ϕ_D, ϵ_D]] 
-        # turns scalar values into vectors of correct length
-
-    num_D = getdimensionality(shape)
-    R = 8.314
-    P = Ψ + M*R*T
-
-    @constants (
-        R = R, [description = "Ideal gas constant", unit = u"MPa * cm^3 / K / mol"], # Pa = J/m^3 => J = Pa * m^3 = MPa * cm^3
-        P_unit = 1.0, [description = "Dummy constant for correcting units", unit = u"MPa"],
-        ρ_w = 1.0, [description = "Density of water", unit = u"g / cm^3"],
-        g = 9.8 * 1e-3, [description = "Gravitational acceleration", unit = u"N / g"] # 
-    )
-    @parameters (
-        T = T, [description = "Temperature", unit = u"K"],
-        ϕ_D[1:num_D] = ϕ_D, [description = "Dimensional extensibility", unit = u"MPa^-1 * hr^-1"],
-        ϵ_D[1:num_D] = ϵ_D, [description = "Dimensional elastic modulus", unit = u"MPa"],
-        Γ = Γ, [description = "Yield turgor pressure", unit = u"MPa"],
-        h = h, [description = "Height above ground level", unit = u"cm"],
-    )
-    @variables (
-        Ψ(t), [description = "Total water potential", unit = u"MPa"],
-        Π(t), [description = "Osmotic water potential", unit = u"MPa"],
-        P(t) = P, [description = "Hydrostatic potential", unit = u"MPa"],
-        Pₕ(t), [description = "Gravitational water potential", unit = u"MPa"],
-        M(t), [description = "Osmotically active metabolite content", unit = u"mol / cm^3"], # m^3 so units match in second equation ()
-        W(t) = volume(shape, D) / ρ_w, [description = "Water content", unit = u"g"],
-        D(t)[1:num_D] = D, [description = "Dimensions of compartment", unit = u"cm"],
-        V(t), [description = "Volume of compartment", unit = u"cm^3"],
-        ΣF(t), [description = "Net incoming water flux", unit = u"g / hr"],
-        
-        ΔP(t), [description = "Change in hydrostatic potential", unit = u"MPa / hr", guess = 0.0], #!
-        ΔW(t), [description = "Change in water content", unit = u"g / hr"],
-        ΔD(t)[1:num_D], [description = "Change in dimensions of compartment", unit = u"cm / hr"],
-    )
-
-    eqs = [
-        Ψ ~ P + Π + Pₕ,
-        Π ~ -R*T*M,
-        Pₕ ~ -ρ_w * g * h,
-        ΔW ~ ΣF,
-        V ~ W / ρ_w,
-        V ~ volume(shape, D),
-        [ΔD[i] ~ D[i]*ϕ_D[i]*P_unit*logsumexp((P - Γ)/P_unit, α = 100) + D[i]*ΔP/ϵ_D[i] for i in eachindex(D)]...,
-
-        d(P) ~ ΔP,
-        d(W) ~ ΔW,
-        [d(D[i]) ~ ΔD[i] for i in eachindex(D)]...,
-    ]
-    return System(eqs, t; name)
-end
-
 # ### Fixed transpiration
 
 # #### transpiration rate from data
-_transpiration_data = readcsv("./tutorials/clouddata/transpiration_data.csv")
+transpiration_data = readcsv("./tutorials/clouddata/transpiration_data.csv")
 transpiration_rate = LinearInterpolation(last.(transpiration_data), first.(transpiration_data))
 plot(transpiration_rate) # in mg / s / m^2
 
 # #### module
-function fixed_transpiration_connection(; name, shape)
+function fixed_transpiration_connection(; name, shape, K)
     num_D = getdimensionality(shape)
 
     @constants begin
@@ -281,18 +223,18 @@ plantcoupling = PlantCoupling(; module_coupling, connecting_modules)
 
 # # Parameters
 begin
+    default_changes = Dict{Symbol, Any}(:ϕ_D => 0.0)
+
     module_defaults = Dict(
         :Stem => Dict(:ϵ_D => ϵ_D_stem, :K_s => K_s_stem),
-        :Branch => Dict(:ϵ_D => ϵ_D_stem, :K_s => K_s_stem),
+        :Branch => Dict(:ϵ_D => ϵ_D_stem),
         :Needles => Dict(:ϵ_D => 1e3),
         :Soil => Dict(:W_max => 1e6, :T => 288.15, :W_r => 0.5),
     )
 
-    default_changes = Dict(:ϕ_D => 0.0, :Ψ => PlantModules.soilfunc(0.5))
-
     connection_values = Dict(
         (:Soil, :Stem) => Dict(:K => K_roots),
-        (:Branch, :Needles) => Dict(:K => 100.0), #! cheat here?
+        (:Branch, :Needles) => Dict(:K => 250.0), #! is this cheating?
     )
 
     plantparams = PlantParameters(; default_changes, module_defaults, connection_values)
@@ -305,12 +247,12 @@ end
     prob = ODEProblem(system, [], (0.0, 24.0), sparse = true)
 end
 
-@time remake_graphsystem!(prob, system, plantstructure, :K, (:Branch, :Needles), 150.0)
-@time sol = solve(prob, Rodas4())
+@time remake_graphsystem!(prob, system, plantstructure, :K, (:Branch, :Needles), 1e6)
+sol = solve(prob)
 
 # # Show it
 
-plotgraph(sol, plantstructure, structmod = [:Soil, :Stem, :Branch, :Needles], varname = :Ψ)
+plotgraph(sol, plantstructure, structmod = [:Soil, :Roots, :Stem, :Branch, :Needles], varname = :Ψ)
 
 # needlenodes = [node for node in getnodes(plantstructure) if PlantModules.getstructmod(node) == :Needles]
 # plotnode(sol, needlenodes[10], varname = :Ψ)
@@ -336,8 +278,11 @@ plotgraph(sol, plantstructure, structmod = :Stem, varname = :D)
 plotgraph(sol, plantstructure, structmod = :Stem, varname = :ΣF)
 plotnode(sol, getnodes(plantstructure)[10], varname = :D, ylims = (10.39, 10.41))
 
-plotgraph(sol, plantstructure, structmod = :Branch, varname = :W)
-plotgraph(sol, plantstructure, structmod = :Branch, varname = :ΣF)
+plotgraph(sol, plantstructure, structmod = [:Roots, :Stem, :Branch, :Needles], varname = :W)
+
+plotgraph(sol, plantstructure, structmod = :Needles, varname = :W)
+plotgraph(sol, plantstructure, structmod = :Needles, varname = :M)
+plotgraph(sol, plantstructure, structmod = :Needles, varname = :Ψ)
 
 plotgraph(sol, plantstructure, structmod = :Soil, varname = :W)
 plotgraph(sol, plantstructure, structmod = :Soil, varname = :Ψ)
@@ -347,4 +292,4 @@ plotgraph(sol, plantstructure, structmod = :Air, varname = :ΣF)
 
 # check transpiration
 transp_max_paper = 8.0 # mg / m^2 / s
-transp_max_expected = transp_max_paper * 1e-3 * (total_needle_area * (1e-2)^2) * 3600 # g / hr
+transp_max_expected = transp_max_paper * 1e-3 * (needle_area * (1e-2)^2) * 3600 # g / hr
