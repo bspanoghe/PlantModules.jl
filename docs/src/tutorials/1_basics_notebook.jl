@@ -13,6 +13,9 @@ using PlantModules
 # ╔═╡ 65f88593-1180-447a-900f-49aef4647cd1
 using PlantGraphs, ModelingToolkit, OrdinaryDiffEq, Plots
 
+# ╔═╡ 7ff01837-8d59-4df7-ad50-08157224e166
+using PlutoUI; TableOfContents()
+
 # ╔═╡ 56c3527f-d8df-4f5c-9075-77c34d5c7204
 md"""
 # Tutorial 1: Package basics
@@ -20,35 +23,28 @@ md"""
 
 # ╔═╡ 6ab177fd-ed5b-4ae4-a2b5-f7f4eb8e4d0d
 md"""
-## Introduction 👋
-
-In this tutorial, we'll cover the basics of using the PlantModules package. Here's a brief overview:
-- Toy problem: when to water your pepper seedlings
+In this tutorial, we'll cover the basics of this package. The main topics are:
+- Introduction: the concept of the package.
+- Modeling context
 - Creating a modular plant model
   - Defining structural and functional plant modules
   - Specifying model parameters
-  - Describing how the modules interact
+  - Coupling structure and function
 - Running the model
-- Answering the toy question
+- Visualizing the results
 """
 
-# ╔═╡ 1144887a-a4c7-46f6-9cf8-cba50cf873d0
-md"""
-### Context
-
-For the first tutorial, we will model the response of a hypothetical tomato plant to different transpiration rates.
-"""
+# ╔═╡ 06004b15-17d4-4f43-a6f4-b67f5610ebac
+md"## Setup"
 
 # ╔═╡ bc44fae7-6c4a-4f27-be51-dbabf4037601
 md"""
-### Loading the necessary packages
-
 Before we can get started, we need to do some basic setup: activating our project and loading in the required packages.
 """
 
 # ╔═╡ aa3b75e4-1868-4c84-8dc8-f9b54d560b3a
 md"""
-## Modeling with PlantModules
+## Introduction: modeling with PlantModules.jl
 """
 
 # ╔═╡ 6ef5c63a-b753-43ae-baee-f6c24313a385
@@ -64,17 +60,27 @@ On the functional level, on the other hand:
 - Most structural modules of a tree (branches, leaves, root segments, etc.) contain water which will flow between them as dictated by hydraulic laws, which plays an important role in plant growth. All these structural modules share this same functional module. 
 - One or more of the plant's structural modules will assimilate carbon through photosynthesis, while the others do not. On the cellular level, only cells containing chloroplasts should share this functional module.
 
-As such, the workflow to create a model in PlantModules boils down to defining these modules and how they interact. Let's jump right in!
+As such, the workflow to create a model in PlantModules boils down to defining these modules and how they interact.
 """
+
+# ╔═╡ 1144887a-a4c7-46f6-9cf8-cba50cf873d0
+md"""
+## Example problem definition
+
+For the first tutorial, we will model the response of a hypothetical tomato plant to different transpiration rates. In higher plants, an increase in transpiration rate causes a reduction in the water potential of the stem. This phenomenon can be explained by the cohesion-tension theory, which states that the water in plant vessels forms a continuous network through its strong cohesive forces, and pressure reductions caused by leaf transpiration cause pressure gradients throughout the entire network. We will verify here that our basic functional modules can capture this phenomenon.
+"""
+
+# ╔═╡ d131a541-9357-4d1a-b6a6-539bf5c9d884
+md"## Defining the model"
 
 # ╔═╡ b6eb66b5-a2d7-4baf-b6a6-87e819309a2d
 md"""
-## The structure
+### Structure
 """
 
 # ╔═╡ aec7bcd6-6f27-4cf5-a955-f4d59e778fd3
 md"""
-### The plant
+#### The plant
 
 The first step in modeling our plant's growth is defining its structure.
 For the first tutorial, we'll consider a very simple example: a tine tomato plant with a small stem and two leaves.
@@ -107,7 +113,7 @@ plant_graph = Stem() + Stem() +
 
 # ╔═╡ 98eac4c4-b39a-4e11-917a-90b03d7385d1
 md"""
-### The environment
+#### The environment
 
 Plants need an environment to grow in. For most plants, the most basic environmental compartments that need defining are the soil, from which the plant gets water and nutrients, and the air, with which the plant exchanges gasses. We can make these compartments as complex as we want, such as different soil compartments for different layers, but we will stick to one graph node for each for now.
 """
@@ -161,7 +167,7 @@ md"""
 
 # ╔═╡ 43211f69-6bfe-4fd1-b474-65d0601558de
 md"""
-## The function
+### Function
 """
 
 # ╔═╡ a6552c16-b013-43af-9483-639a79944749
@@ -170,7 +176,7 @@ Now that we have an idea of the plant's structural modules, we need to assign th
 """
 
 # ╔═╡ 52bb8235-abea-45c5-929c-5824bc8681c4
-md"### Defining functional modules"
+md"#### Defining functional modules"
 
 # ╔═╡ c04564c4-4fb5-47bf-bc14-77aaebdece15
 md"""
@@ -205,7 +211,7 @@ Please note that the carbon dynamics modules are very simplistic and only exist 
 
 # ╔═╡ 930e7ed8-0bfe-4e5a-8890-a1d1ce155881
 md"""
-### Coupling functional and structural modules
+#### Mapping function to structure
 """
 
 # ╔═╡ 4cedbd9d-84ed-46f3-9a10-6cb993643f87
@@ -234,7 +240,7 @@ plantcoupling = PlantCoupling(; module_coupling, connecting_modules);
 
 # ╔═╡ 4d17b269-06b8-4293-b2cb-b6bd9fa0ccc8
 md"""
-### Defining parameter and initial values 
+#### Defining parameter and initial values 
 """
 
 # ╔═╡ 3035b6d0-bca0-4803-b32a-da1459bdd880
@@ -326,7 +332,7 @@ This function will generate the `ODESystem` describing the model. It is possible
 
 # ╔═╡ d3d7b52b-016b-4c17-a4cc-18ec4ad8d686
 md"""
-## Running the model 🏃‍♂️
+## Running the model
 """
 
 # ╔═╡ 6b46bf1d-b54e-48e3-b4eb-364b4e2b1dfd
@@ -335,7 +341,7 @@ Running the model is taken care of DifferentialEquations.jl. Users that are unfa
 """
 
 # ╔═╡ bf114636-1e35-49f1-9407-f472b443a9ea
-time_span = (0, 48.0); # We'll simulate our problem for a timespan of one week
+time_span = (0, 48.0);
 
 # ╔═╡ 50d6fc31-80f5-4db7-b716-b26765008a0d
 prob = ODEProblem(system, [], time_span, sparse = true, warn_initialize_determined = false);
@@ -357,12 +363,12 @@ begin
 	plantparams2 = PlantParameters(; default_changes, module_defaults = module_defaults2);
 	sys2 = generate_system(plantstructure, plantcoupling, plantparams2)
 	prob2 = ODEProblem(sys2, [], time_span, sparse = true, warn_initialize_determined = false)
-	sol2 = prob2 |> solve
+	sol2 = solve(prob2)
 end;
 
 # ╔═╡ a6608eff-9399-443c-a33a-c62341f7b14c
 md"""
-## Answering the problem
+## Showing the results
 """
 
 # ╔═╡ a84c1948-26ac-497d-b2f5-8310e5341b52
@@ -386,19 +392,22 @@ Plots.plot(
 
 # ╔═╡ 79d012fd-4afd-4f3b-ad7c-8ca581bad1e5
 md"""
-The plot shows us the expected pattern for both plant parts! And with that you now know all basic functionality of the package.
+The plot shows us the expected pattern for both plant parts, verifying that the pre-built functionality can capture this basic hydraulic phenomenon. For more interesting applications and more advanced functionality, we refer to the subsequent tutorials.
 """
 
 # ╔═╡ Cell order:
 # ╟─56c3527f-d8df-4f5c-9075-77c34d5c7204
 # ╟─6ab177fd-ed5b-4ae4-a2b5-f7f4eb8e4d0d
-# ╟─1144887a-a4c7-46f6-9cf8-cba50cf873d0
+# ╟─06004b15-17d4-4f43-a6f4-b67f5610ebac
 # ╟─bc44fae7-6c4a-4f27-be51-dbabf4037601
 # ╠═57b8dcb8-9baa-4ddf-9368-431b1be5850e
 # ╠═662c0476-70aa-4a60-a81c-d7db2248b728
 # ╠═65f88593-1180-447a-900f-49aef4647cd1
+# ╠═7ff01837-8d59-4df7-ad50-08157224e166
 # ╟─aa3b75e4-1868-4c84-8dc8-f9b54d560b3a
 # ╟─6ef5c63a-b753-43ae-baee-f6c24313a385
+# ╟─1144887a-a4c7-46f6-9cf8-cba50cf873d0
+# ╟─d131a541-9357-4d1a-b6a6-539bf5c9d884
 # ╟─b6eb66b5-a2d7-4baf-b6a6-87e819309a2d
 # ╟─aec7bcd6-6f27-4cf5-a955-f4d59e778fd3
 # ╟─659e911c-8af2-4a66-855a-e333c41120c1
@@ -458,7 +467,7 @@ The plot shows us the expected pattern for both plant parts! And with that you n
 # ╠═6a6de4fe-88b2-46f9-affe-abdd693e03dc
 # ╟─a6608eff-9399-443c-a33a-c62341f7b14c
 # ╟─a84c1948-26ac-497d-b2f5-8310e5341b52
-# ╠═f66ca207-98a2-40ee-bf95-ab6e191cc60f
+# ╟─f66ca207-98a2-40ee-bf95-ab6e191cc60f
 # ╟─b523a45d-21b4-4bc1-9e47-70ebdb0c45f5
 # ╠═cf30d4f4-a5de-4def-8674-48088eabf17b
 # ╟─79d012fd-4afd-4f3b-ad7c-8ca581bad1e5
