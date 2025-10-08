@@ -39,6 +39,14 @@ end
 		connecting_eqs::Function = PlantModules.multi_connection_eqs)
 
 Constructor function for `PlantCoupling` variables.
+
+Has the following default `connecting_eqs` function, which connects a node with all its edges:
+```
+multi_connection_eqs(node_MTK, connection_MTKs) = [
+	node_MTK.ΣF ~ sum([connection_MTK.F for connection_MTK in connection_MTKs])
+]
+```
+This function simply states that a node's net incoming water flux equals the sum of all connected water flows.
 """
 function PlantCoupling(; module_coupling::Dict, connecting_modules::Dict,
 	connecting_eqs::Function = PlantModules.multi_connection_eqs)
@@ -91,9 +99,9 @@ function generate_system(plantstructure, plantcoupling::PlantCoupling, plantpara
 		current_connection_MTKs = Vector{System}(undef, length(nb_nodes)) # MTKs of current node's connections
 
 		for (nb_idx, nb_node) in enumerate(nb_nodes) # go over all neighbours of the node
-			connecting_module, correct_order = get_connecting_module(node, nb_node, plantcoupling)
+			connecting_module, original_order = get_connecting_module(node, nb_node, plantcoupling)
 			connection_MTK, connection_eqset = get_connection_info( 
-				node, nb_node, connecting_module, correct_order, plantparams, MTK_system_dict
+				node, nb_node, connecting_module, original_order, plantparams, MTK_system_dict
 			)
 			current_connection_MTKs[nb_idx] = connection_MTK
 			append!(connection_eqsets, connection_eqset)
@@ -147,7 +155,6 @@ end
 
 # get correct parameter/initial values for node between those defined in the model defaults, module defaults and node values
 function getnodevalues(node, structmodule, func_module, plantparams)
-
 	node_defaults = get_func_defaults(plantparams.default_values, func_module)
 	node_module_defaults = get(plantparams.module_defaults, structmodule, Dict())
 	node_attributes = PlantModules.getattributes(node)
@@ -226,30 +233,33 @@ function get_connecting_module(node, nb_node, plantcoupling)
 
 	if haskey(plantcoupling.connecting_modules, (structmodule, nb_structmodule))
 		connecting_module = plantcoupling.connecting_modules[(structmodule, nb_structmodule)]
-		correct_order = true
+		original_order = true
 	elseif haskey(plantcoupling.connecting_modules, (nb_structmodule, structmodule))
 		connecting_module = plantcoupling.connecting_modules[(nb_structmodule, structmodule)]
-		correct_order = false
+		original_order = false
 	else
 		error("No connection module found for edges between nodes of types $structmodule and $nb_structmodule.")
 	end
 
-	return connecting_module, correct_order
+	return connecting_module, original_order
 end
 
 # get MTK system of connection between a node and its neighbour node AND the equations connecting the edge with the nodes
 function get_connection_info(node, nb_node, connecting_module,
-		correct_order, plantparams, MTK_system_dict)
+		original_order, plantparams, MTK_system_dict)
 
 	structmodule = PlantModules.getstructmod(node)
 	nb_structmodule = PlantModules.getstructmod(nb_node)
 
-	connection_specific_values = correct_order ?
+	connection_specific_values = original_order ?
 		get(plantparams.connection_values, (structmodule, nb_structmodule), Dict()) :
 		get(plantparams.connection_values, (nb_structmodule, structmodule), Dict())
 	
 	default_values_conn = get_func_defaults(plantparams.default_values, connecting_module)
-	conn_info = merge(default_values_conn, connection_specific_values)
+	order_info = :original_order in (connecting_module |> methods |> only |> Base.kwarg_decl) ?
+		Dict{Symbol, Any}(:original_order => original_order) : Dict()
+
+	conn_info = merge(default_values_conn, connection_specific_values, order_info)
 
 	connection_MTK, get_connection_eqset = connecting_module(;
 		name = Symbol(string(structmodule) * string(PlantModules.getid(node)) * "_" *
@@ -261,10 +271,10 @@ function get_connection_info(node, nb_node, connecting_module,
 	nb_node_MTK = MTK_system_dict[PlantModules.getid(nb_node)]
 
 	if applicable(get_connection_eqset, node_MTK, nb_node_MTK, connection_MTK) 
-		# check if `correct_order` is specified by user (needed for asymmetrical connections)
+		# check if `original_order` is specified by user (needed for asymmetrical connections)
 		connection_eqset = get_connection_eqset(node_MTK, nb_node_MTK, connection_MTK)
 	else
-		connection_eqset = get_connection_eqset(node_MTK, nb_node_MTK, connection_MTK, correct_order)
+		connection_eqset = get_connection_eqset(node_MTK, nb_node_MTK, connection_MTK, original_order)
 	end
 
 	return connection_MTK, connection_eqset
