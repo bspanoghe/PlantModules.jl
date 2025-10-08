@@ -4,6 +4,14 @@
     Shape
 
 An abstract type representing the physical shape of a compartment, used by the hydraulic functional module.
+
+# Functions
+The functional modules implemented in this package expect the following functions to be defined
+for the shape `MyShape` with dimensions the vector `D`:
+- [`getdimensionality`](@ref)`(m::MyShape)`: Return how many dimensions define the shape.
+- [`volume`](@ref)`(m::MyShape, D)`: Calculate the volume of the shape.
+- [`cross_area`](@ref)`(m::MyShape, D)`: Calculate the cross-sectional area of the shape.
+- [`surface_area`](@ref)`(m::MyShape, D)`: Calculate the surface area of the shape.
 """
 abstract type Shape end
 
