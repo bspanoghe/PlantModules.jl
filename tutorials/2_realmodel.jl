@@ -1,3 +1,4 @@
+using Infiltrator
 using Revise
 using Plots
 using Pkg; Pkg.activate("./tutorials")
@@ -247,7 +248,7 @@ transpiration_rate = LinearInterpolation(last.(transpiration_data), first.(trans
 plot(transpiration_rate) # in mg / s / m^2
 
 # #### module
-function fixed_transpiration_connection(; name)
+function fixed_transpiration_connection(; name, original_order)
     @constants begin
         t_unit = 1, [description = "Dummy constant for correcting units", unit = u"hr"]
         uc = 1e-3 * 3600 * (1e-2)^2, [description = "Unit conversion from (mg / s / m^2) to (g / hr / cm^2)", unit = u"g / hr / cm^2"]
@@ -258,15 +259,15 @@ function fixed_transpiration_connection(; name)
         needle_area(t), [description = "Total needle area on branch", unit = u"cm^2"]
     end
 
-    polarity = occursin("Air", split(string(name), "_")[1]) ? 1 : -1 #! ugly :( => use `correct_order` as input of function?
+    polarity = original_order ? -1 : 1
 
     eqs = [
         F_s ~ uc * transpiration_rate(t / t_unit),
         F ~ polarity * F_s * needle_area,
     ]
 
-    get_connection_eqset(node_MTK, nb_node_MTK, connection_MTK, correct_order) = (
-        correct_order ? [connection_MTK.needle_area ~ node_MTK.needle_area] : [connection_MTK.needle_area ~ nb_node_MTK.needle_area]
+    get_connection_eqset(node_MTK, nb_node_MTK, connection_MTK, original_order) = (
+        original_order ? [connection_MTK.needle_area ~ node_MTK.needle_area] : [connection_MTK.needle_area ~ nb_node_MTK.needle_area]
     )
 
     return System(eqs, t; name), get_connection_eqset
