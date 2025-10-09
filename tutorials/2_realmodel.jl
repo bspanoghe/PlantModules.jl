@@ -5,7 +5,7 @@ using Pkg; Pkg.activate("./tutorials")
 using PlantModules
 using PlantGraphs
 using ModelingToolkit, OrdinaryDiffEq, Unitful
-using DataInterpolations
+using DataInterpolations, Measurements
 
 # # Preparatory calculations
 

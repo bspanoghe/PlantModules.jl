@@ -14,7 +14,7 @@ using PlantModules
 using PlantGraphs, ModelingToolkit, OrdinaryDiffEq, Unitful, Plots
 
 # ╔═╡ 8adf74c7-7fe0-42fd-bde5-9942f30fea36
-using DataInterpolations
+using DataInterpolations, Measurements
 
 # ╔═╡ df79e96c-a021-4a24-ae8c-4090d014c1f8
 using PlutoUI; TableOfContents()
@@ -41,7 +41,7 @@ md"## Problem definition"
 
 # ╔═╡ ac068794-a6cc-4563-899a-4b5ca1b2c22b
 md"""
-In this tutorial, we recreate [the dynamic sap flow model by Perämäki et al. (2001)](https://doi.org/10.1093/treephys/21.12-13.889) in PlantModules.jl. The model simulates stem diameter variation in Scots pine trees caused by transpiration-driven changes in water tension and wood elasticity. The tree is modelled as a series of cylindrical stem and branch segments with a constant length and a radius that decreases as they move farther from the base of the tree. Water flow is modelled as a linear function of the water pressure difference between segments, including the effects of gravity, and the cross-sectional area connecting two segments. For boundary conditions, the outermost branch segments have a set transpiration rate based on measurements, and the base stem segment has a water inflow based on the water potential difference with the soil, of which the water potential is also based on measurements.
+In this tutorial, we recreate [the dynamic sap flow model by Perämäki et al. (2001)](https://doi.org/10.1093/treephys/21.12-13.889) in `PlantModules.jl`. The model simulates stem diameter variation in Scots pine trees caused by transpiration-driven changes in water tension and wood elasticity. The tree is modelled as a series of cylindrical stem and branch segments with a constant length and a radius that decreases as they move farther from the base of the tree. Water flow is modelled as a linear function of the water pressure difference between segments, including the effects of gravity, and the cross-sectional area connecting two segments. For boundary conditions, the outermost branch segments have a set transpiration rate per unit needle area based on measurements, and the base stem segment has a water inflow based on the water potential difference with the soil, of which the water potential is also based on measurements.
 
 This model is an interesting case study for a few reasons:
 - It is also based on hydraulics-based plant growth, so we can use the hydraulics-based core functionality from the package.
@@ -151,8 +151,13 @@ In order to define a new shape, we define a new composite type as a subtype of t
 """
 
 # ╔═╡ 2a4b2b06-a057-4fef-b8fe-30700b39b564
+"""
+    HollowCylinder <: Shape
+
+A compartment shape representing a hollow cylinder. It is defined by two dimensions: the radius and the length, and the attribute `frac_sapwood`, denoting the fraction of the radius that is conducting sapwood.
+"""
 struct HollowCylinder <: PlantModules.Shape
-    frac_sapwood # fraction of radius that is conducting sapwood
+    frac_sapwood
 end
 
 # ╔═╡ 6d1a8b68-e8d3-43d9-84a3-8b3fdd600913
@@ -163,6 +168,9 @@ PlantModules.cross_area(hc::HollowCylinder, D::AbstractArray) = D[1]^2 * pi * (2
 
 # ╔═╡ c0ce423e-ddec-4a2f-b724-8d55d3d05073
 PlantModules.volume(hc::HollowCylinder, D::AbstractArray) = cross_area(hc, D) * D[2]
+
+# ╔═╡ 17a090c0-f673-4c2d-b1e4-8f9f8a360179
+PlantModules.surface_area(hc::HollowCylinder, D::AbstractArray) = (D[1]/frac_sapwood)^2 * pi * D[2]
 
 # ╔═╡ d59a64b2-9fdf-4723-b764-b27330a050fc
 md"### Plant structural module types"
@@ -672,6 +680,15 @@ let
 		 yticks = -0.07:0.01:0.01, xticks = 0:3:24, xlabel = "Time of day (h)")
 end
 
+# ╔═╡ 70df3d1e-82ad-4365-97ab-0e31283058c2
+md"## Uncertainty analysis"
+
+# ╔═╡ e3eeaa10-de6f-4eb6-bf7a-cd5c7f39a45b
+# prob2 = remake_graphsystem(prob, system, plantstructure, :ϵ_D, :Stem, ϵ_D_stem .± 0.1*ϵ_D_stem)
+
+# ╔═╡ ffe01ff5-69eb-4812-9715-aa371045fcc3
+
+
 # ╔═╡ Cell order:
 # ╟─e04d4d44-3795-49d0-91d3-645ff3c8265e
 # ╟─61d4d897-e1ad-4f04-b0be-1df409c4e69f
@@ -694,6 +711,7 @@ end
 # ╠═6d1a8b68-e8d3-43d9-84a3-8b3fdd600913
 # ╠═1ca717b5-7c67-4727-a984-7fd6914a3257
 # ╠═c0ce423e-ddec-4a2f-b724-8d55d3d05073
+# ╠═17a090c0-f673-4c2d-b1e4-8f9f8a360179
 # ╟─d59a64b2-9fdf-4723-b764-b27330a050fc
 # ╟─c7150b44-966b-4c61-b66d-b8080cd51acd
 # ╠═d7ea529f-4fe2-4daf-9c18-bb4621f0c86d
@@ -751,7 +769,7 @@ end
 # ╠═d81913d7-657d-4b81-a83c-e7185d6164bc
 # ╠═a411768f-fb22-4575-9666-b42cc0473d4c
 # ╟─d26b79a0-5331-4714-8110-2e2574f1ef35
-# ╠═e4a0ca52-3679-4d76-b63a-2d9aeaf31e41
+# ╟─e4a0ca52-3679-4d76-b63a-2d9aeaf31e41
 # ╠═2ed83b9f-820a-4c0e-9ce4-42fcb35daade
 # ╟─c7f8bc7f-2fcd-4400-a681-699dce7541df
 # ╟─5025d163-dfc3-4a3f-b1eb-3d902f1d2c98
@@ -772,3 +790,6 @@ end
 # ╟─28184995-7163-40ee-a773-eb414ecf2f28
 # ╟─59c6e1f7-ce34-4fcb-aa7b-7a650dc0a4d1
 # ╠═6b2ad036-b6f1-4753-a3f0-4a6d4dc6b7fd
+# ╟─70df3d1e-82ad-4365-97ab-0e31283058c2
+# ╠═e3eeaa10-de6f-4eb6-bf7a-cd5c7f39a45b
+# ╠═ffe01ff5-69eb-4812-9715-aa371045fcc3
