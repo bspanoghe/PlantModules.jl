@@ -298,15 +298,13 @@ plantcoupling = PlantCoupling(; module_coupling, connecting_modules)
 # # Parameters
 begin
     module_defaults = Dict(
-        :Stem => Dict(:ϵ_D => ϵ_D_stem, :K_s => K_s_stem),
-        :Branch => Dict(:ϵ_D => ϵ_D_stem, :K_s => K_s_stem),
-        :BranchTip => Dict(:ϵ_D => ϵ_D_stem, :K_s => K_s_stem),
-        :Soil => Dict(:W_max => 1e6, :W_r => 0.5),
+        :Soil => Dict(:W_max => 1e6, :W_r => 0.5)
     )
 
     default_changes = Dict(
         :needle_area => 0.0, :height => 0.0, :ϕ_D => 0.0, :M => 0.0, :P_0 => PlantModules.soilfunc(0.5),
-        :shape => HollowCylinder(radial_fraction_sapwood))
+        :shape => HollowCylinder(radial_fraction_sapwood), :ϵ_D => ϵ_D_stem, :K_s => K_s_stem
+    )
 
     connection_values = Dict(
         (:Soil, :Stem) => Dict(:K => K_roots),
@@ -320,7 +318,6 @@ end
 system = generate_system(plantstructure, plantcoupling, plantparams, checkunits = false)
 prob = ODEProblem(system, [], (0.0, 24.0), sparse = true)
 
-# @time remake_graphsystem!(prob, system, plantstructure, :ϕ_D, :Stem, [10.0, 10.0])
 @time sol = solve(prob, FBDF())
 
 # # Show it
@@ -354,3 +351,48 @@ plotgraph(sol, plantstructure, structmod = :Air, varname = :ΣF)
 # check transpiration
 transp_max_paper = 8.0 # mg / m^2 / s
 transp_max_expected = transp_max_paper * 1e-3 * (total_needle_area * (1e-2)^2) * 3600 # g / hr
+
+# Uncertainty analysis
+
+ϵ_D_r_range = [0.03 * 1e3, 0.27 * 1e3]
+sample_range(a, b) = (b-a) * rand() + a
+
+uncertainty_plot = plot()
+for _ in 1:20
+    ϵ_D_r_sample = sample_range(ϵ_D_r_range...)
+    ϵ_D_sample = [ϵ_D_r_sample, 17.5 * ϵ_D_r_sample]
+
+    prob2 = remake_graphsystem(prob, system, plantstructure, :ϵ_D, [:Stem, :Branch, :BranchTip], ϵ_D_sample)
+    @time sol2 = solve(prob2, FBDF(), reltol = 1e-1)
+    plot!(uncertainty_plot, sol2, idxs = [diameter_change_mm(dimension_variables[low_segment_nr][1], sol)], label = false, line_z = ϵ_D_r_sample)
+end
+uncertainty_plot
+
+plot(rand(10, 3), zcolor = [0.1 1.0 2.0])
+
+
+value = [1.0, 1.0] .± 0.1
+
+import ModelingToolkit: parameter_values, setp
+import ModelingToolkit.SciMLStructures: Tunable, canonicalize, replace
+import PreallocationTools: DiffCache, get_tmp
+
+remakevars = [
+    get_subsystem_variables(sys, structure, varname, subsystem_type) 
+    for varname in varnames for subsystem_type in subsystem_types
+] |> x -> reduce(vcat, x)
+
+ps = copy(parameter_values(prob))
+diffcache = DiffCache(copy(canonicalize(Tunable(), parameter_values(prob))[1]))
+buffer = get_tmp(diffcache, fill(value, length(remakevars))) |> x -> x .± 0.0
+copyto!(buffer, canonicalize(Tunable(), ps)[1])
+ps = ModelingToolkit.SciMLStructures.replace(Tunable(), ps, buffer)
+
+setter = setp(prob, remakevars)
+setter(ps, fill(value, length(remakevars)))
+
+newprob = remake(prob, p = ps)
+
+solve(newprob, FBDF()) |>
+    x -> plot(x, idxs = [diameter_change_mm(dimension_variables[low_segment_nr][1], sol)], label = false, line_z = ϵ_D_r_sample, color = :bluesreds)
+
