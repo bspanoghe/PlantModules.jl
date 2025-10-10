@@ -8,19 +8,26 @@ Only variables of a given name and subsystem type are changed.
 - `prob::AbstractSciMLProblem`: A SciML problem.
 - `sys::System`: The ModelingToolkit.jl system corresponding to the given problem.
 - `structure`: A graph representing the subsystem structure of the system. PlantModules' graph functions must be extended for the graph type. See also [`PlantStructure`](@ref).
-- `varname`: The name of the desired variable.
-- `subsystem_type`: The desired type of subsystem. For node modules, this corresponds to a node or structural module. For edge modules (or connection modules), this corresponds to a connection, being a 2-tuple of node(s) and structural module(s).
+- `varnames`: The name(s) of the desired variable.
+- `subsystem_types`: The desired type(s) of subsystem. For node modules, this corresponds to a node or structural module. For edge modules (or connection modules), this corresponds to a connection, being a 2-tuple of node(s) and structural module(s).
 - `value`: The new variable value.
 """
-function remake_graphsystem(prob::AbstractSciMLProblem, sys::System, structure, varname::Symbol, subsystem_type, value)
+function remake_graphsystem(prob::AbstractSciMLProblem, sys::System, structure, varnames::Vector, subsystem_types::Vector, value)
         # can get even more efficient: https://docs.sciml.ai/ModelingToolkit/dev/examples/remake/
-    remakevars = get_subsystem_variables(sys, structure, varname, subsystem_type)
+    remakevars = [
+        get_subsystem_variables(sys, structure, varname, subsystem_type) 
+        for varname in varnames for subsystem_type in subsystem_types
+    ] |> x -> reduce(vcat, x)
     ps = copy(parameter_values(prob))
     setter = setp(prob, remakevars)
     setter(ps, fill(value, length(remakevars)))
     newprob = remake(prob, p = ps)
     return newprob
 end
+
+remake_graphsystem(prob, sys, structure, varnames::Vector, subsystem_type, value) = remake_graphsystem(prob, sys, structure, varnames, [subsystem_type], value)
+remake_graphsystem(prob, sys, structure, varname, subsystem_types::Vector, value) = remake_graphsystem(prob, sys, structure, [varname], subsystem_types, value)
+remake_graphsystem(prob, sys, structure, varname, subsystem_type, value) = remake_graphsystem(prob, sys, structure, [varname], [subsystem_type], value)
 
 """
 remake_graphsystem!(prob::AbstractSciMLProblem, sys::System, structure, varname::Symbol, subsystem_type, value)
