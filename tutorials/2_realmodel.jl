@@ -248,7 +248,7 @@ transpiration_rate = LinearInterpolation(last.(transpiration_data), first.(trans
 plot(transpiration_rate) # in mg / s / m^2
 
 # #### module
-function fixed_transpiration_connection(; name, original_order)
+function fixed_daynight_hydraulic_connection(; name, original_order)
     @constants begin
         t_unit = 1, [description = "Dummy constant for correcting units", unit = u"hr"]
         uc = 1e-3 * 3600 * (1e-2)^2, [description = "Unit conversion from (mg / s / m^2) to (g / hr / cm^2)", unit = u"g / hr / cm^2"]
@@ -290,7 +290,7 @@ connecting_modules = Dict(
 	(:Stem, :Branch) => hydraulic_connection,
     (:Branch, :Branch) => hydraulic_connection,
 	(:Branch, :BranchTip) => hydraulic_connection,
-	(:BranchTip, :Air) => fixed_transpiration_connection,
+	(:BranchTip, :Air) => fixed_daynight_hydraulic_connection,
 )
 
 plantcoupling = PlantCoupling(; module_coupling, connecting_modules)
@@ -303,7 +303,7 @@ begin
 
     default_changes = Dict(
         :needle_area => 0.0, :height => 0.0, :ϕ_D => 0.0, :M => 0.0, :P_0 => PlantModules.soilfunc(0.5),
-        :shape => HollowCylinder(radial_fraction_sapwood), :ϵ_D => ϵ_D_stem, :K_s => K_s_stem
+        :shape => HollowCylinder(radial_fraction_sapwood), :ϵ_D => ϵ_D_stem .± ϵ_D_stem ./ 10, :K_s => K_s_stem
     )
 
     connection_values = Dict(
@@ -368,14 +368,19 @@ for _ in 1:20
 end
 uncertainty_plot
 
-plot(rand(10, 3), zcolor = [0.1 1.0 2.0])
 
 
-value = [1.0, 1.0] .± 0.1
+
 
 import ModelingToolkit: parameter_values, setp
 import ModelingToolkit.SciMLStructures: Tunable, canonicalize, replace
 import PreallocationTools: DiffCache, get_tmp
+
+varnames = [:ϵ_D]
+subsystem_types = [:Stem, :Branch]
+sys = system
+structure = plantstructure
+value = ϵ_D_stem .± ϵ_D_stem ./ 10
 
 remakevars = [
     get_subsystem_variables(sys, structure, varname, subsystem_type) 
@@ -384,7 +389,7 @@ remakevars = [
 
 ps = copy(parameter_values(prob))
 diffcache = DiffCache(copy(canonicalize(Tunable(), parameter_values(prob))[1]))
-buffer = get_tmp(diffcache, fill(value, length(remakevars))) |> x -> x .± 0.0
+buffer = get_tmp(diffcache, fill(value, length(remakevars))) # |> x -> convert(Vector{Measurement{Float64}}, x)
 copyto!(buffer, canonicalize(Tunable(), ps)[1])
 ps = ModelingToolkit.SciMLStructures.replace(Tunable(), ps, buffer)
 
@@ -393,6 +398,7 @@ setter(ps, fill(value, length(remakevars)))
 
 newprob = remake(prob, p = ps)
 
-solve(newprob, FBDF()) |>
-    x -> plot(x, idxs = [diameter_change_mm(dimension_variables[low_segment_nr][1], sol)], label = false, line_z = ϵ_D_r_sample, color = :bluesreds)
+sssol = solve(newprob, FBDF())
+
+plot(sssol, idxs = [diameter_change_mm(dimension_variables[low_segment_nr][1], sol)], label = false, line_z = ϵ_D_r_sample, color = :bluesreds)
 

@@ -181,7 +181,7 @@ graphs = [plant_graph, soil_graph, air_graph]
 The following syntax means: "connect all Root nodes from `graphs[1]` to all Soil nodes from `graphs[2]`", and so on. Note that the order matters! For example, `[1, 2] => (:Root, :Soil)` is not the same as `[2, 1] => (:Root, :Soil)`.
 
 ````@example tutorial1
-intergraph_connections = [[1, 2] => (:Root, :Soil), [1, 3] => (:Leaf, :Air), [2, 3] => (:Soil, :Air)] # Let's also add a connection between the soil and the air to simulate direct evaporation
+intergraph_connections = [[1, 2] => (:Root, :Soil), [1, 3] => (:Leaf, :Air), [2, 3] => (:Soil, :Air)] # Let's also add a connection between the soil and the air to simulate direct transpiration
 ````
 
 The full structural connection information can then be acquired by putting them together in a vector.

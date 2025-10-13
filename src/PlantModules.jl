@@ -22,7 +22,7 @@ export getnodes, getneighbors, getattributes, getstructmod, getid # graph functi
 export getdimensionality, volume, cross_area, surface_area # shape functions
 export logsumexp, smooth_daynight # smooth functions
 export hydraulic_module, environmental_module, constant_carbon_module, simple_photosynthesis_module, Ψ_soil_module, Ψ_air_module, K_module, constant_K_module # node modules
-export hydraulic_connection, constant_hydraulic_connection, evaporation_connection # edge modules
+export hydraulic_connection, constant_hydraulic_connection, daynight_hydraulic_connection # edge modules
 export readXEG, convert_to_MTG, convert_to_PG # graph reading and converting
 export remake_graphsystem, remake_graphsystem!, get_subsystem_variables # system remaking
 export plotstructure, plotgraph, plotnode # plotting

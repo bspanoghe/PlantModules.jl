@@ -128,7 +128,7 @@ extensibility ϕ (drastically different simulation results)
     - 3e-2: 166ms
     - 3e-1: 196ms (soilwater halved)
 
-evaporation change:
+transpiration change:
 - smooth: 110-120ms
 - abrupt: 150-170ms
 =#

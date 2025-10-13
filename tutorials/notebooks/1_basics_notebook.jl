@@ -152,7 +152,7 @@ air_graph = Air()
 graphs = [plant_graph, soil_graph, air_graph]
 
 # ╔═╡ 61bf737a-2226-42dc-b93a-a8f578048268
-intergraph_connections = [[1, 2] => (:Root, :Soil), [1, 3] => (:Leaf, :Air), [2, 3] => (:Soil, :Air)] # Let's also add a connection between the soil and the air to simulate direct evaporation
+intergraph_connections = [[1, 2] => (:Root, :Soil), [1, 3] => (:Leaf, :Air), [2, 3] => (:Soil, :Air)] # Let's also add a connection between the soil and the air to simulate direct transpiration
 
 # ╔═╡ 20049311-d6e6-41d3-a0d8-8bad88c174f9
 md"""

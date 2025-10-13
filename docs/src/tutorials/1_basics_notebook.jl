@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.20.16
+# v0.20.14
 
 using Markdown
 using InteractiveUtils
@@ -111,6 +111,9 @@ md"We now define the plant structure using a graph. By specifying the value of t
 plant_graph = Stem() + Stem() +
 	(Leaf([5.0, 3.0, 0.05]), Leaf([4.0, 2.5, 0.05]));
 
+# ╔═╡ 27160915-5943-4048-b363-d123846b02b8
+plotstructure(plant_graph)
+
 # ╔═╡ 98eac4c4-b39a-4e11-917a-90b03d7385d1
 md"""
 #### The environment
@@ -199,8 +202,8 @@ We list the pre-implemented functional modules here with a short description of 
     - `K_module`: describes hydraulic conductivity as proportional to the cross area of the compartment. 
     - `constant_K_module`: describes a constant hydraulic conductivity.
 - Connection modules
-    - `hydraulic_connection`: describes a water flow between two compartments based on the hydraulic conductivities of those compartments.
-    - `evaporation_connection`: describes a water flow between two compartments based on the hydraulic conductivities of those compartments that decreases during night.
+    - `hydraulic_connection`: describes a water flow between two compartments based on the specific hydraulic conductivities of those compartments.
+    - `daynight_hydraulic_connection`: describes a water flow between two compartments based on the hydraulic conductivities of those compartments that decreases during night.
     - `constant_hydraulic_connection`: describes a water flow between two compartments and specifies its own hydraulic conductivity.
 """
 
@@ -232,7 +235,7 @@ connecting_modules = Dict(
 	(:Soil, :Stem) => hydraulic_connection,
 	(:Stem, :Stem) => hydraulic_connection,
 	(:Stem, :Leaf) => hydraulic_connection,
-	(:Leaf, :Air) => evaporation_connection,
+	(:Leaf, :Air) => daynight_hydraulic_connection,
 );
 
 # ╔═╡ b8709a33-301c-41e6-bb24-1035c68a7612
@@ -395,6 +398,12 @@ md"""
 The plot shows us the expected pattern for both plant parts, verifying that the pre-built functionality can capture this basic hydraulic phenomenon. For more interesting applications and more advanced functionality, we refer to the subsequent tutorials.
 """
 
+# ╔═╡ 11212e1a-9bff-4ae2-8b88-b1bc0529543a
+plotgraph(sol, plantstructure, varname = :Π, structmod = [:Leaf, :Stem])
+
+# ╔═╡ b2ea0aff-a41d-4ff9-9f60-0a959822d615
+plotgraph(sol, plantstructure, varname = :P, structmod = [:Leaf, :Stem])
+
 # ╔═╡ Cell order:
 # ╟─56c3527f-d8df-4f5c-9075-77c34d5c7204
 # ╟─6ab177fd-ed5b-4ae4-a2b5-f7f4eb8e4d0d
@@ -416,6 +425,7 @@ The plot shows us the expected pattern for both plant parts, verifying that the 
 # ╠═d57718c2-c77d-42a8-924f-ebdfcd51d919
 # ╟─c4dc4961-ba2b-4b23-b80e-7d4eb8d9a9f4
 # ╠═9af27c17-8f21-4f22-a5bb-e9c95cfdf2f9
+# ╠═27160915-5943-4048-b363-d123846b02b8
 # ╟─98eac4c4-b39a-4e11-917a-90b03d7385d1
 # ╠═e00c5135-1d66-4dec-8283-40ebe06a8038
 # ╠═dac02191-b640-40f5-a7d6-e6b06b946c23
@@ -471,3 +481,5 @@ The plot shows us the expected pattern for both plant parts, verifying that the 
 # ╟─b523a45d-21b4-4bc1-9e47-70ebdb0c45f5
 # ╠═cf30d4f4-a5de-4def-8674-48088eabf17b
 # ╟─79d012fd-4afd-4f3b-ad7c-8ca581bad1e5
+# ╠═11212e1a-9bff-4ae2-8b88-b1bc0529543a
+# ╠═b2ea0aff-a41d-4ff9-9f60-0a959822d615

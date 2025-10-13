@@ -75,7 +75,7 @@ connecting_modules = Dict(
 	(:Soil, :Root) => hydraulic_connection,
 	(:Root, :Stem) => hydraulic_connection,
 	(:Stem, :Leaf) => hydraulic_connection,
-	(:Leaf, :Air) => evaporation_connection,
+	(:Leaf, :Air) => daynight_hydraulic_connection,
 )
 
 plantcoupling = PlantCoupling(; module_coupling, connecting_modules)

@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.20.16
+# v0.20.14
 
 using Markdown
 using InteractiveUtils
@@ -55,7 +55,7 @@ md"## Preparatory calculations"
 
 # ╔═╡ 5a0bf882-68e2-4ad3-ae1f-43cac5d8f890
 md"""
-In order to replicate the model from the paper, we start by defining the structural and functional parameters used there. The paper was transparent enough that all functional parameters can simply be copied (with some unit conversions), though the structure of the tree was not provided exactly, so some estimations had to be made. The most influential of these on the model output is the fraction of the stem radius which consists of water-conducting sapwood (in contrast to the non-conducting heartwood), which was estimated by looking at cross sections of Scots pine stems.
+In order to replicate the model from the paper, we start by defining the structural and functional parameters used there. The paper was transparent enough that all functional parameters can simply be copied (with some unit conversions), though the structure of the tree was not provided exactly, so some estimations had to be made. The most influential of these on the model output is the fraction of the stem radius which consists of water-conducting sapwood (in contrast to the non-conducting heartwood), which was estimated visually.
 """
 
 # ╔═╡ 1371c204-ba0a-4f18-9df3-d2614277bc11
@@ -157,7 +157,7 @@ In order to define a new shape, we define a new composite type as a subtype of t
 A compartment shape representing a hollow cylinder. It is defined by two dimensions: the radius and the length, and the attribute `frac_sapwood`, denoting the fraction of the radius that is conducting sapwood.
 """
 struct HollowCylinder <: PlantModules.Shape
-    frac_sapwood
+    frac_sapwood::Float64
 end
 
 # ╔═╡ 6d1a8b68-e8d3-43d9-84a3-8b3fdd600913
@@ -281,7 +281,7 @@ branchage_rule = Rule(
 );
 
 # ╔═╡ ccb00a00-398a-4b8f-bb7e-f35e5abf86e7
-md"#### Instantation & rewriting"
+md"#### Instantiation & rewriting"
 
 # ╔═╡ e4380613-b5ee-4eb8-9aab-7b15df42925a
 md"Finally, we define our initial graph and apply the rewriting rules. For the final step, we remove the `StemTip` node, as we don't require it."
@@ -297,7 +297,7 @@ begin
 	for _ in 1:(n_segments)
 	    rewrite!(plant)
 	end
-	PlantGraphs.prune!(plant.graph, getid([node for node in getnodes(plant) if getstructmod(node) == :StemTip][1]))
+	PlantGraphs.prune!(plant.graph, getid([node for node in getnodes(plant) if getstructmod(node) == :StemTip][1])) # remove StemTip
 end
 
 # ╔═╡ c383e15e-2adb-4dfa-af86-6980da48aa23
@@ -328,9 +328,6 @@ plantstructure = PlantStructure(graphs, intergraph_connections);
 
 # ╔═╡ ad16819d-1b9e-45c3-8aa7-cca15f63ced7
 plotstructure(plantstructure, names = "")
-
-# ╔═╡ 3a214b46-2a54-4996-8b63-3ce99cbc1eab
-getnodes(plantstructure)[1]
 
 # ╔═╡ 6741bdad-518a-45e9-b127-863c6e9a36c5
 md"## Function definition"
@@ -363,7 +360,8 @@ md"The needle area of a branch is considered to be constant through time, so the
 # ╔═╡ 5bde3460-f174-4277-af4d-e46025cb9298
 function needle_area_module(; name, needle_area)
     @parameters begin
-        needle_area_val = needle_area, [description = "Value of total needle area on branch", unit = u"cm^2"]
+        needle_area_val = needle_area, 
+			[description = "Value of total needle area on branch", unit = u"cm^2"]
     end 
     @variables begin
         needle_area(t), [description = "Total needle area on branch", unit = u"cm^2"]
@@ -590,8 +588,7 @@ system = generate_system(plantstructure, plantcoupling, plantparams, checkunits 
 prob = ODEProblem(system, [], (0.0, 24.0), sparse = true);
 
 # ╔═╡ b24016d3-cd1d-4ba8-b7a6-2ee8b41db1f1
-@time sol = solve(prob, FBDF());
-# sol = remake_graphsystem(prob, system, plantstructure, :ϵ_D, :Stem, ϵ_D_stem .* 1.0) |> x -> solve(x, FBDF());
+sol = solve(prob, FBDF());
 
 # ╔═╡ 087fa5db-83a0-4a47-b52a-7ddc6259a281
 md"## Results"
@@ -610,8 +607,7 @@ When we either want to plot very specific variables, or if we want to use `Model
 """
 
 # ╔═╡ eefbf375-b604-4a67-8861-0a428b088ee3
-air_water_inflow = get_subsystem_variables(system, plantstructure, :ΣF, :Air) |>
-	only
+air_water_inflow = get_subsystem_variables(system, plantstructure, :ΣF, :Air)[1]
 
 # ╔═╡ 38841aaf-d87b-48f2-9b5a-d800828a8791
 md"""
@@ -635,14 +631,14 @@ We use the same approach to select the pressure variable from `Stem` nodes at sp
 """
 
 # ╔═╡ b3186620-808b-481e-89f6-a037223ed990
-let
+begin
 	stem_pressures = get_subsystem_variables(system, plantstructure, :P, :Stem)
-	segment_heights = [10.0, crown_base_height, 1200.0]
-	segment_nrs = ceil.(Int64, segment_heights / segment_length)
+	pressure_segment_heights = [10.0, crown_base_height, 1200.0]
+	pressure_segment_nrs = ceil.(Int64, pressure_segment_heights / segment_length)
 	
-	plot(sol, idxs = stem_pressures[segment_nrs], ylims = (-0.4, 0.0),
+	plot(sol, idxs = stem_pressures[pressure_segment_nrs], ylims = (-0.4, 0.0),
 		 xticks = 0.0:3.0:24.0, xlabel = "Time of day (h)", color = :black,
-		 linewidth = [1 2 3], ylabel = "Water pressure (MPa)",
+		 linewidth = [1 2 3], ylabel = "Water tension (MPa)",
 		 label = ["Base of stem" "Crown base" "Top of tree"])
 end
 
@@ -655,13 +651,13 @@ Finally, we can compare our simulation with actual measurements.
 """
 
 # ╔═╡ 6b2ad036-b6f1-4753-a3f0-4a6d4dc6b7fd
-let
+begin
     dimension_variables = get_subsystem_variables(system, plantstructure, :D, :Stem)
 
     diameter_change_mm(var, sol) = 2*10*(var - sol[var][1]) 
 		# substract first value and change from radius in cm to diameter in mm
-	segment_heights = [6.5 * 1e2, 2.5 * 1e2]
-    segment_nrs = ceil.(Int64, segment_heights ./ segment_length)
+	diameter_segment_heights = [6.5 * 1e2, 2.5 * 1e2]
+    diameter_segment_nrs = ceil.(Int64, diameter_segment_heights ./ segment_length)
 	
     diameter_datas = [readcsv("./data/diameter_data_$(idx).csv") 
 					  for idx in ("c", "d")]
@@ -669,25 +665,47 @@ let
 	subplots = [plot(), plot()]
 	for i in eachindex(subplots)
 		plot!(subplots[i], sol, idxs = 
-			  [diameter_change_mm(dimension_variables[segment_nrs[i]][1], sol)],
+			  [diameter_change_mm(
+				  dimension_variables[diameter_segment_nrs[i]][1], sol
+			  )],
 			  label = "Simulated", color = :black, linewidth = 1)
 		plot!(subplots[i], first.(diameter_datas[i]), last.(diameter_datas[i]), 
 			  label = "Data", color = :black, linewidth = 2)
-		plot!(subplots[i], title = "Stem at height $(segment_heights[i]) cm")
+		plot!(subplots[i], 
+			  title = "Stem at height $(diameter_segment_heights[i]) cm")
 	end
 	plot(subplots..., layout = (2, 1), ylabel = "Diameter change (mm)", 
 		 size = (800, 600), margins = 5*Plots.mm, ylims = (-0.07, 0.01), 
 		 yticks = -0.07:0.01:0.01, xticks = 0:3:24, xlabel = "Time of day (h)")
+	savefig("fig_plantmodules_ex2_results.pdf")
 end
 
 # ╔═╡ 70df3d1e-82ad-4365-97ab-0e31283058c2
 md"## Uncertainty analysis"
 
-# ╔═╡ e3eeaa10-de6f-4eb6-bf7a-cd5c7f39a45b
-# prob2 = remake_graphsystem(prob, system, plantstructure, :ϵ_D, :Stem, ϵ_D_stem .± 0.1*ϵ_D_stem)
+# ╔═╡ 9771ad64-1821-4f3e-bf63-6176ad7dce79
+ϵ_D_r_range = [0.03 * 1e3, 0.27 * 1e3]
 
-# ╔═╡ ffe01ff5-69eb-4812-9715-aa371045fcc3
+# ╔═╡ 97356ed2-d3cc-4007-b2d2-9e326be6c90c
+sample_range(a, b) = (b-a) * rand() + a
 
+# ╔═╡ d99adee7-c13a-44b2-8d8b-7e3d396751e3
+begin
+	uncertainty_plot = plot(ylabel = "Diameter change (mm)", 
+		 size = (800, 600), margins = 5*Plots.mm, ylims = (-0.12, 0.01), 
+		 yticks = -0.12:0.01:0.01, xticks = 0:3:24, xlabel = "Time of day (h)")
+	for _ in 1:20
+	    ϵ_D_r_sample = sample_range(ϵ_D_r_range...)
+	    ϵ_D_sample = [ϵ_D_r_sample, 17.5 * ϵ_D_r_sample] #! 17.5 to variable
+	
+	    prob2 = remake_graphsystem(prob, system, plantstructure, :ϵ_D, 
+								   [:Stem, :Branch, :BranchTip], ϵ_D_sample)
+	    sol2 = solve(prob2, FBDF(), reltol = 1e-1)
+	    plot!(uncertainty_plot, sol2, idxs = 		
+			  [diameter_change_mm(dimension_variables[diameter_segment_nrs[2]][1], sol)], label = false, line_z = ϵ_D_r_sample)
+	end
+	uncertainty_plot
+end
 
 # ╔═╡ Cell order:
 # ╟─e04d4d44-3795-49d0-91d3-645ff3c8265e
@@ -742,7 +760,6 @@ md"## Uncertainty analysis"
 # ╠═b1bed12d-a8db-452c-9863-920344829a7e
 # ╠═47a61b32-92e0-4100-a4fd-7a37c08d38a8
 # ╠═ad16819d-1b9e-45c3-8aa7-cca15f63ced7
-# ╠═3a214b46-2a54-4996-8b63-3ce99cbc1eab
 # ╟─6741bdad-518a-45e9-b127-863c6e9a36c5
 # ╟─58859042-be76-4e9f-a564-5d75d75d466b
 # ╟─275b2d3b-9f36-4897-8c2a-328b4c2781e2
@@ -791,5 +808,6 @@ md"## Uncertainty analysis"
 # ╟─59c6e1f7-ce34-4fcb-aa7b-7a650dc0a4d1
 # ╠═6b2ad036-b6f1-4753-a3f0-4a6d4dc6b7fd
 # ╟─70df3d1e-82ad-4365-97ab-0e31283058c2
-# ╠═e3eeaa10-de6f-4eb6-bf7a-cd5c7f39a45b
-# ╠═ffe01ff5-69eb-4812-9715-aa371045fcc3
+# ╠═9771ad64-1821-4f3e-bf63-6176ad7dce79
+# ╠═97356ed2-d3cc-4007-b2d2-9e326be6c90c
+# ╠═d99adee7-c13a-44b2-8d8b-7e3d396751e3

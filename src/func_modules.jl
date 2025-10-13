@@ -269,13 +269,13 @@ function hydraulic_connection(; name)
 end
 
 """
-    evaporation_connection(; name, t_sunrise, t_sunset, η_night)
+    daynight_hydraulic_connection(; name, t_sunrise, t_sunset, η_night)
 
 Returns a ModelingToolkit System describing a water flow connection between two hydraulics-based compartments that decreases at night.
 
 This module assumes the compartments have a specified hydraulic conductivities.
 """
-function evaporation_connection(; name, t_sunrise, t_sunset, η_night)
+function daynight_hydraulic_connection(; name, t_sunrise, t_sunset, η_night)
     @constants (
         t_unit = 1, [description = "Dummy constant for correcting units", unit = u"hr"],
         K_unit = 1, [description = "Dummy constant for correcting units", unit = u"g / hr / MPa"],
