@@ -12,24 +12,30 @@ Return a ModelingToolkit System describing the turgor-driven growth of a plant c
 
 This module still requires a module describing the osmotically active metabolite content M.
 """
-function hydraulic_module(; name, shape::Shape, ϕ_D, ϵ_D, Γ, T, D, Ψ, M)
+function hydraulic_module(; name, shape::Shape, ϕ_D, ϵ_D, Γ, T, D, Ψ, M, h)
     D, ϕ_D, ϵ_D = [correctdimensionality(shape, var) for var in [D, ϕ_D, ϵ_D]] 
         # turns scalar values into vectors of correct length
 
     num_D = getdimensionality(shape)
-    R = 8.314
-    P = Ψ + M*R*T
+    
+    R = 8.314 # MPa * cm^3 / K / mol
+    ρ_w = 1.0 # g / cm^3
+    g = 9.8 * 1e-5 # hN / g
+    Pₕ = ρ_w * g * h # MPa
+    P = Ψ + R*T*M - Pₕ # MPa
 
     @constants (
         R = R, [description = "Ideal gas constant", unit = u"MPa * cm^3 / K / mol"], # Pa = J/m^3 => J = Pa * m^3 = MPa * cm^3
         P_unit = 1.0, [description = "Dummy constant for correcting units", unit = u"MPa"],
-        ρ_w = 1.0, [description = "Density of water", unit = u"g / cm^3"],
+        ρ_w = ρ_w, [description = "Density of water", unit = u"g / cm^3"],
     )
     @parameters (
         T = T, [description = "Temperature", unit = u"K"],
         ϕ_D[1:num_D] = ϕ_D, [description = "Dimensional extensibility", unit = u"MPa^-1 * hr^-1"],
         ϵ_D[1:num_D] = ϵ_D, [description = "Dimensional elastic modulus", unit = u"MPa"],
         Γ = Γ, [description = "Yield turgor pressure", unit = u"MPa"],
+        Pₕ = Pₕ, [description = "Gravitational water potential", unit = u"MPa"],
+        g = g, [description = "Gravitational acceleration", unit = u"hN / g"] # (from N / kg) Pa = N/m^2 => MPa = hN/cm^2
     )
     @variables (
         Ψ(t), [description = "Total water potential", unit = u"MPa"],
@@ -41,18 +47,19 @@ function hydraulic_module(; name, shape::Shape, ϕ_D, ϵ_D, Γ, T, D, Ψ, M)
         V(t), [description = "Volume of compartment", unit = u"cm^3"],
         ΣF(t), [description = "Net incoming water flux", unit = u"g / hr"],
         
-        ΔP(t), [description = "Change in hydrostatic potential", unit = u"MPa / hr", guess = 0.0], #!
-        ΔW(t), [description = "Change in water content", unit = u"g / hr"],
+        ΔP(t), [description = "Change in hydrostatic potential", unit = u"MPa / hr"],
+        ΔW(t), [description = "Change in water content", unit = u"g / hr"], 
         ΔD(t)[1:num_D], [description = "Change in dimensions of compartment", unit = u"cm / hr"],
     )
 
     eqs = [
-        Ψ ~ P + Π, # Water potential consists of a solute- and a pressure component
+        Ψ ~ P + Π + Pₕ, # Water potential consists of a solute- and a pressure component
         Π ~ -R*T*M, # Solute component is determined by concentration of dissolved metabolites
         ΔW ~ ΣF, # Water content changes due to flux (depending on water potentials as defined in connections)
         V ~ W / ρ_w, # Volume is directly related to water content  
         V ~ volume(shape, D), # Volume is also directly related to compartment dimensions
-        [ΔD[i] ~ D[i]*ϕ_D[i]*P_unit*logsumexp((P - Γ)/P_unit, α = 100) + D[i]*ΔP/ϵ_D[i] for i in eachindex(D)]..., # Compartment dimensions can only change due to a change in pressure
+        [ΔP ~ ϵ_D[i] * (ΔD[i]/D[i] - ϕ_D[i]*P_unit*logsumexp((P - Γ)/P_unit, α = 100)) for i in eachindex(D)]..., # Compartment dimensions can only change due to a change in pressure
+            # from ΔD[i]/D[i] ~ ϕ_D[i]*P_unit*logsumexp((P - Γ)/P_unit, α = 100) + ΔP/ϵ_D[i]
 
         d(P) ~ ΔP,
         d(W) ~ ΔW,
@@ -350,7 +357,7 @@ multi_connection_eqs(node_MTK, connection_MTKs) = [
 
 default_values = Dict(
     :shape => Cylinder(), :ϕ_D => 0.02, :ϵ_D => 50.0, :Γ => 0.3,
-    :T => 298.15, :D => [0.5, 5.0], :Ψ => 0.0, :M => 300e-6, :W_max => 1e6, :W_r => 0.5, 
+    :T => 298.15, :D => [0.5, 5.0], :Ψ => 0.0, :M => 300e-6, :h => 0.0, :W_max => 1e6, :W_r => 0.5, 
     :K_s => 10.0, :K => 1e3, :t_sunrise => 8, :t_sunset => 20, :η_night => 0.1, :A_max => 2e-6, 
     :M_c => 0.05, :K_area_func => cross_area
 )
