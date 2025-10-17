@@ -47,7 +47,7 @@ function hydraulic_module(; name, shape::Shape, ϕ_D, ϵ_D, Γ, T, D, Ψ, M, h)
         V(t), [description = "Volume of compartment", unit = u"cm^3"],
         ΣF(t), [description = "Net incoming water flux", unit = u"g / hr"],
         
-        ΔP(t), [description = "Change in hydrostatic potential", unit = u"MPa / hr"],
+        ΔP(t), [description = "Change in hydrostatic potential", unit = u"MPa / hr", guess = 0.0],
         ΔW(t), [description = "Change in water content", unit = u"g / hr"], 
         ΔD(t)[1:num_D], [description = "Change in dimensions of compartment", unit = u"cm / hr"],
     )
@@ -58,8 +58,7 @@ function hydraulic_module(; name, shape::Shape, ϕ_D, ϵ_D, Γ, T, D, Ψ, M, h)
         ΔW ~ ΣF, # Water content changes due to flux (depending on water potentials as defined in connections)
         V ~ W / ρ_w, # Volume is directly related to water content  
         V ~ volume(shape, D), # Volume is also directly related to compartment dimensions
-        [ΔP ~ ϵ_D[i] * (ΔD[i]/D[i] - ϕ_D[i]*P_unit*logsumexp((P - Γ)/P_unit, α = 100)) for i in eachindex(D)]..., # Compartment dimensions can only change due to a change in pressure
-            # from ΔD[i]/D[i] ~ ϕ_D[i]*P_unit*logsumexp((P - Γ)/P_unit, α = 100) + ΔP/ϵ_D[i]
+        [ΔD[i] ~ D[i] * ϕ_D[i]*P_unit*logsumexp((P - Γ)/P_unit, α = 100) + D[i] * ΔP/ϵ_D[i] for i in eachindex(D)]..., # Compartment dimensions can only change due to a change in pressure
 
         d(P) ~ ΔP,
         d(W) ~ ΔW,
@@ -82,15 +81,15 @@ function environmental_module(; name, T, W_max, W_r)
     )
     @variables (
         Ψ(t), [description = "Total water potential", unit = u"MPa"],
-        W(t) = W_r * W_max, [description = "Water content", unit = u"g"],
-        W_r(t), [description = "Relative water content", unit = u"g / g"],
+        W(t), [description = "Water content", unit = u"g"],
+        W_r(t) = W_r, [description = "Relative water content", unit = u"g / g"],
         ΣF(t), [description = "Net incoming water flux", unit = u"g / hr"],
 
         ΔW(t), [description = "Change in water content", unit = u"g / hr"],
     )
 
     eqs = [
-        W_r ~ W / W_max,
+        W ~ W_r * W_max,
         ΔW ~ ΣF, # Water content changes due to flux (depending on water potentials as defined in connections)
         d(W) ~ ΔW,
     ]
