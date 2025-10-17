@@ -1,5 +1,5 @@
 """
-    remake_graphsystem(prob::AbstractSciMLProblem, value, sys::System, structure, varname::Symbol, subsystem_type)
+    remake_graphsystem(prob::AbstractSciMLProblem, sys::System, structure, varnames::Vector, subsystem_types::Vector, value)
 
 Remake the given `prob`, changing the values of subsystem variables to a specified value.
 Only variables of a given name and subsystem type are changed.
