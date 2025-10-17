@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.20.14
+# v0.20.16
 
 using Markdown
 using InteractiveUtils
@@ -281,7 +281,7 @@ Next to changing functional values over the entire model, some of the informatio
 # ╔═╡ 5f21a4b0-f663-4777-94f3-d00acba109b3
 module_defaults = Dict(
 	:Stem => Dict(:D => [0.5, 10.0], :M => 200e-6),
-	:Leaf => Dict(:shape => Cuboid()),
+	:Leaf => Dict(:shape => Cuboid(), :M => 300e-6),
 	:Soil => Dict(:W_max => 1e3, :K => 1.0),
 	:Air => Dict(:W_r => 0.7, :K => 1e-3)
 );
@@ -344,30 +344,27 @@ Running the model is taken care of DifferentialEquations.jl. Users that are unfa
 """
 
 # ╔═╡ bf114636-1e35-49f1-9407-f472b443a9ea
-time_span = (0, 48.0);
+time_span = (0.0, 48.0);
 
 # ╔═╡ 50d6fc31-80f5-4db7-b716-b26765008a0d
-prob = ODEProblem(system, [], time_span, sparse = true, warn_initialize_determined = false);
+prob = ODEProblem(system, [], time_span, sparse = true);
 
 # ╔═╡ c38b1a71-c5e9-4bfa-a210-bcbf9068f7ed
 sol = solve(prob);
 
 # ╔═╡ a399ea81-5392-4a54-8a40-953faf5b234a
-md"In order to compare the results of higher transpiration, we remake the problem with lower relative air humidity and solve it in the exact same way."
+md"""
+In order to compare the results of higher transpiration, we remake and solve the problem with lower relative air humidity. This can be done by repeating the parameter, problem, system and solution definition with a different value for `W_r`, or we can simply use `ModelingToolkit.jl`'s `remake` function. To make it easier to get the correct variable from our system with many subsystems, the `get_subsystem_variables` convenience function exists that extract all variables corresponding to a certain name and structural module (or connection between two).
+"""
 
-# ╔═╡ 6a6de4fe-88b2-46f9-affe-abdd693e03dc
-begin
-	module_defaults2 = Dict(
-		:Stem => Dict(:D => [0.5, 10.0], :M => 200e-6),
-		:Leaf => Dict(:shape => Cuboid()),
-		:Soil => Dict(:W_max => 1e3, :K => 1.0),
-		:Air => Dict(:W_r => 0.5, :K => 1e-3)
-	);
-	plantparams2 = PlantParameters(; default_changes, module_defaults = module_defaults2);
-	sys2 = generate_system(plantstructure, plantcoupling, plantparams2)
-	prob2 = ODEProblem(sys2, [], time_span, sparse = true, warn_initialize_determined = false)
-	sol2 = solve(prob2)
-end;
+# ╔═╡ 3526f17e-0f8b-4c10-9f33-96832673136d
+air_W_r = get_subsystem_variables(system, plantstructure, :W_r, :Air)[1]
+
+# ╔═╡ 63ce4478-3233-4216-9fa2-36fcf52e8673
+prob2 = remake(prob, u0 = [air_W_r => 0.5]);
+
+# ╔═╡ cb530432-97c8-4c1b-b6ef-905c1e1b5c81
+sol2 = solve(prob2);
 
 # ╔═╡ a6608eff-9399-443c-a33a-c62341f7b14c
 md"""
@@ -398,11 +395,23 @@ md"""
 The plot shows us the expected pattern for both plant parts, verifying that the pre-built functionality can capture this basic hydraulic phenomenon. For more interesting applications and more advanced functionality, we refer to the subsequent tutorials.
 """
 
-# ╔═╡ 11212e1a-9bff-4ae2-8b88-b1bc0529543a
-plotgraph(sol, plantstructure, varname = :Π, structmod = [:Leaf, :Stem])
+# ╔═╡ a8a57cdb-65e7-4b9d-b8a5-f0b0ebf859dd
+md"""
+!!! note
+	The water potential behaving differently on the second day compared to the first is caused by changes in the metabolite concentration between those days, illustrated in the plots below.
+"""
 
-# ╔═╡ b2ea0aff-a41d-4ff9-9f60-0a959822d615
-plotgraph(sol, plantstructure, varname = :P, structmod = [:Leaf, :Stem])
+# ╔═╡ 11212e1a-9bff-4ae2-8b88-b1bc0529543a
+plotgraph(sol, plantstructure, varname = :M, structmod = [:Leaf, :Stem])
+
+# ╔═╡ 1c6fac4d-7c63-4601-8b92-21196f5bb96b
+Plots.plot(
+	plotgraph(sol, plantstructure, varname = :Π, structmod = :Leaf),
+	plotgraph(sol, plantstructure, varname = :P, structmod = :Leaf),
+	plotgraph(sol, plantstructure, varname = :Ψ, structmod = :Leaf,
+			  xlabel = "Time (hr)"),
+	layout = (3, 1)
+)
 
 # ╔═╡ Cell order:
 # ╟─56c3527f-d8df-4f5c-9075-77c34d5c7204
@@ -474,12 +483,15 @@ plotgraph(sol, plantstructure, varname = :P, structmod = [:Leaf, :Stem])
 # ╠═50d6fc31-80f5-4db7-b716-b26765008a0d
 # ╠═c38b1a71-c5e9-4bfa-a210-bcbf9068f7ed
 # ╟─a399ea81-5392-4a54-8a40-953faf5b234a
-# ╠═6a6de4fe-88b2-46f9-affe-abdd693e03dc
+# ╠═3526f17e-0f8b-4c10-9f33-96832673136d
+# ╠═63ce4478-3233-4216-9fa2-36fcf52e8673
+# ╠═cb530432-97c8-4c1b-b6ef-905c1e1b5c81
 # ╟─a6608eff-9399-443c-a33a-c62341f7b14c
 # ╟─a84c1948-26ac-497d-b2f5-8310e5341b52
-# ╟─f66ca207-98a2-40ee-bf95-ab6e191cc60f
+# ╠═f66ca207-98a2-40ee-bf95-ab6e191cc60f
 # ╟─b523a45d-21b4-4bc1-9e47-70ebdb0c45f5
 # ╠═cf30d4f4-a5de-4def-8674-48088eabf17b
 # ╟─79d012fd-4afd-4f3b-ad7c-8ca581bad1e5
+# ╟─a8a57cdb-65e7-4b9d-b8a5-f0b0ebf859dd
 # ╠═11212e1a-9bff-4ae2-8b88-b1bc0529543a
-# ╠═b2ea0aff-a41d-4ff9-9f60-0a959822d615
+# ╠═1c6fac4d-7c63-4601-8b92-21196f5bb96b
