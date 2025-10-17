@@ -1,3 +1,11 @@
+# ## conversion from energy-based PAR to photon-based PAR
+
+h_planck = 6.626 * 1e-34 # J / s (Planck constant)
+c_light = 2.998 * 1e8 # m / s (speed of light)
+λ_photon = 550 * 1e-9 # m (average of 400 nm to 700 nm PAR range)
+N_A = 6.022 * 1e23 # photons per mole (Avogadro's constant)
+E_per_mol = h_planck * c_light * N_A / λ_photon # J / mol
+η_photon = 1 / (E_per_mol * 1e-6) # μmol / J; from mol / J
 
 # ### Photosynthesis
 

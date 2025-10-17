@@ -16,7 +16,6 @@ using PlantGraphs, OrdinaryDiffEq
 # The plant structure is defined as a **graph**. For this tutorial, we'll make use of [PlantGraphs.jl](https://github.com/VirtualPlantLab/PlantGraphs.jl)'s graph implementation.
 # The different types of nodes in the graph represent different (repeating) structural parts of the plant, which we here refer to as **structural modules**.
 
-struct Root <: Node end
 struct Stem <: Node end
 struct Leaf <: Node
 	D::Vector
@@ -25,7 +24,10 @@ end
 # Individual graph nodes can contain parameter values and initial values that should be used for their functional modules.
 # Here, we'll give the leaves a size field `D` so we can start off one of them larger than the other.
 
-plant_graph = Root() + Stem() + (Leaf([5, 2, 0.01]), Leaf([4, 1.5, 0.01]))
+plant_graph = Stem() + Stem() +
+	(Leaf([5.0, 3.0, 0.05]), Leaf([4.0, 2.5, 0.05]));
+
+plotstructure(plant_graph)
 
 # ### The environment
 
@@ -40,7 +42,7 @@ graphs = [plant_graph, Soil(), Air()]
 
 # The connections between graphs are defined as a pair between the indices of the two graphs in question and what nodes to connect.
 # The latter can be either the node itself, the structural module of the node, or a function that takes two nodes and returns whether they should be connected.
-intergraph_connections = [[1, 2] => (PlantModules.getroot(plant_graph), :Soil), [1, 3] => (:Leaf, :Air)]#, [2, 3] => (:Soil, :Air)]
+intergraph_connections = [[1, 2] => (getnodes(plant_graph)[1], :Soil), [1, 3] => (:Leaf, :Air)];
 
 # Finally we can combine all structural information in one variable:
 plantstructure = PlantStructure(graphs, intergraph_connections)
@@ -61,22 +63,21 @@ plotstructure(plantstructure,
 # ### Coupling
 # Our model needs to know which structural modules make use of which functional modules:
 module_coupling = Dict(
-	:Root => [hydraulic_module, constant_carbon_module, K_module],
 	:Stem => [hydraulic_module, constant_carbon_module, K_module],
 	:Leaf => [hydraulic_module, simple_photosynthesis_module, K_module],
 	:Soil => [environmental_module, Ψ_soil_module, constant_K_module],
-	:Air => [environmental_module, Ψ_air_module, constant_K_module],
-)
+	:Air => [environmental_module, Ψ_air_module, constant_K_module]
+);
 
 # Aside from the graph's nodes, the edges also need to be assigned functionality.
 # For this model, that comes down to describing how water flows from one plant part to another.
 # We can use one of PlantModules' predefined functional modules again as follows:
 connecting_modules = Dict(
-	(:Soil, :Root) => hydraulic_connection,
-	(:Root, :Stem) => hydraulic_connection,
+	(:Soil, :Stem) => hydraulic_connection,
+	(:Stem, :Stem) => hydraulic_connection,
 	(:Stem, :Leaf) => hydraulic_connection,
 	(:Leaf, :Air) => daynight_hydraulic_connection,
-)
+);
 
 plantcoupling = PlantCoupling(; module_coupling, connecting_modules)
 
@@ -89,23 +90,22 @@ plantcoupling = PlantCoupling(; module_coupling, connecting_modules)
 # > **Model-wide default values / module-specific default values / node-specific values**
 
 # For __every node__:
-default_changes = Dict(:Γ => 0.4, :T => 293.15) 
+default_changes = Dict(:Ψ => -0.2);
 
 # For every node of a given __structural module__:
 module_defaults = Dict(
-	:Root => Dict(:D => [0.2, 3], :M => 300e-6),
-	:Stem => Dict(:D => [0.1, 5], :M => 400e-6),
-	:Leaf => Dict(:shape => Cuboid(), :M => 450e-6),
-	:Soil => Dict(:W_max => 50.0, :T => 288.15, :W_r => 0.5),
-	:Air => Dict(:K => 3e-4)
-)
+	:Stem => Dict(:D => [0.5, 10.0], :M => 200e-6),
+	:Leaf => Dict(:shape => Cuboid()),
+	:Soil => Dict(:W_max => 1e3, :K => 1.0),
+	:Air => Dict(:W_r => 0.7, :K => 1e-3)
+);
 
 # Note that changing the values for specific nodes is also possible, as discussed during the section on graph creation. 
 
 # The parameters of the connections can also be changed.
 connection_values = Dict(
-    (:Leaf, :Air) => Dict(:t_sunrise => 6.0, :t_sunset => 22.0)
-)
+	(:Leaf, :Air) => Dict(:t_sunrise => 6, :t_sunset => 22),
+);
 
 # All functional information also gets bundled, though the constructor is more complex.
 # Check out its help page to see all the possible arguments and their defaults. 
@@ -117,21 +117,33 @@ plantparams = PlantParameters(; module_defaults, default_changes, connection_val
 system = generate_system(plantstructure, plantcoupling, plantparams)
 
 # ...and solving it.
-prob = ODEProblem(system, [], (0.0, 5*24), sparse = true)
+time_span = (0, 48.0);
+prob = ODEProblem(system, [], time_span, sparse = true)
 @time sol = solve(prob);
+
+air_W_r = get_subsystem_variables(system, plantstructure, :W_r, :Air)[1]
+prob2 = remake(prob, u0 = [air_W_r => 0.5])
+sol2 = solve(prob2)
 
 # ## Plotting
 # Finally, we can use PlantModules' `plotgraph` function to more easily plot the desired results.
 # Based on the water content `W` of the soil (which was the second graph), and growth of the leaves, we can plan when to water next!
-plotgraph(sol, plantstructure, varname = :W, structmod = :Soil)
+p1 = Plots.plot(
+	plotgraph(sol, plantstructure, varname = :ΣF, structmod = :Air, title = "Low transpiration", xaxis = "t (hr)"),
+	plotgraph(sol2, plantstructure, varname = :ΣF, structmod = :Air, title = "High transpiration", xaxis = "t (hr)"), ylims = (0.0, 0.25), yaxis = "ΣF"
+)
 
-plotgraph(sol, plantstructure, varname = :D, structmod = :Leaf)
+p2 = Plots.plot(
+	plotgraph(sol, plantstructure, varname = :Ψ, structmod = [:Stem, :Leaf], title = "Low transpiration"),
+	plotgraph(sol2, plantstructure, varname = :Ψ, structmod = [:Stem, :Leaf], title = "High transpiration"),
+	ylims = (-0.3, -0.1), yaxis = "Ψ"
+)
 
-# Some other variables we may be interested in, to showcase the plotting functionality:
-# the water potentials of the plant parts and the soil
-plotgraph(sol, plantstructure, varname = :Ψ, structmod = [:Leaf, :Stem, :Soil])
-# and the net water flux in all components of the system
-plotgraph(sol, plantstructure, varname = :ΣF)
-
-plotgraph(sol, plantstructure, varname = :P, structmod = [:Leaf, :Stem])
-plotgraph(sol, plantstructure, varname = :M, structmod = [:Leaf, :Stem])
+Plots.plot(
+	plotgraph(sol, plantstructure, varname = :ΣF, structmod = :Air, title = "Low evaporative demand", ylims = (0.0, 0.25), yaxis = "ΣF"),
+	plotgraph(sol2, plantstructure, varname = :ΣF, structmod = :Air, title = "High evaporative demand", ylims = (0.0, 0.25)),
+	plotgraph(sol, plantstructure, varname = :Ψ, structmod = [:Stem, :Leaf], title = "", ylims = (-0.3, -0.1), yaxis = "Ψ", xaxis = "t (hr)"),
+	plotgraph(sol2, plantstructure, varname = :Ψ, structmod = [:Stem, :Leaf], title = "", ylims = (-0.3, -0.1), xaxis = "t (hr)"),
+	size = (800, 600)
+)
+# savefig(homedir() * "\\Documents\\Github\\Den_of_evil\\Non-note files\\images\\" * "fig_plantmodules_ex1_results.pdf")

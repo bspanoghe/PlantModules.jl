@@ -7,47 +7,62 @@ using Measurements
 
 # testing
 
-function _hydraulic_module(; name, ϕ, ϵ, Γ, T, V, Ψ, M, h)
-    R = 8.314 # MPa * cm^3 / K / mol
+import PlantModules: t, d
+# import ModelingToolkit: t_nounits as t, D_nounits as d
+
+function _hydraulic_module(; name, ϕ, ϵ, Γ, V, Ψ)
     ρ_w = 1.0 # g / cm^3
-    g = 9.8 * 1e-5 # hN / g
-    Pₕ = ρ_w * g * h # MPa
-    P = Ψ + R*T*M - Pₕ # MPa
+    P = Ψ
 
     @constants (
-        R = R, [description = "Ideal gas constant", unit = u"MPa * cm^3 / K / mol"], # Pa = J/m^3 => J = Pa * m^3 = MPa * cm^3
         P_unit = 1.0, [description = "Dummy constant for correcting units", unit = u"MPa"],
         ρ_w = ρ_w, [description = "Density of water", unit = u"g / cm^3"],
     )
     @parameters (
-        T = T, [description = "Temperature", unit = u"K"],
         ϕ = ϕ, [description = "Volumetric extensibility", unit = u"MPa^-1 * hr^-1"],
         ϵ = ϵ, [description = "Volumetric elastic modulus", unit = u"MPa"],
         Γ = Γ, [description = "Yield turgor pressure", unit = u"MPa"],
-        Pₕ = Pₕ, [description = "Gravitational water potential", unit = u"MPa"],
-        g = g, [description = "Gravitational acceleration", unit = u"hN / g"] # (from N / kg) Pa = N/m^2 => MPa = hN/cm^2
     )
     @variables (
         Ψ(t), [description = "Total water potential", unit = u"MPa"],
-        Π(t), [description = "Osmotic water potential", unit = u"MPa"],
         P(t) = P, [description = "Hydrostatic potential", unit = u"MPa"],
-        M(t), [description = "Osmotically active metabolite content", unit = u"mol / cm^3"], # m^3 so units match in second equation ()
-        W(t) = ρ_w * V, [description = "Water content", unit = u"g"],
+        W(t) = V * ρ_w, [description = "Water content", unit = u"g"],
         V(t), [description = "Volume of compartment", unit = u"cm^3"],
         ΣF(t), [description = "Net incoming water flux", unit = u"g / hr"],
     )
 
     eqs = [
-        Ψ ~ P + Π + Pₕ,
-        Π ~ -R*T*M,
-        W ~ ρ_w * V,
+        Ψ ~ P,
+        W ~ V * ρ_w,
         
-        d(P) ~ ϵ * (ΣF/V - ϕ*P_unit*logsumexp((P - Γ)/P_unit, α = 100)),
-        d(V) ~ ΣF,
+        d(P) ~ ϵ * ((ΣF / ρ_w)/V - ϕ*P_unit*logsumexp((P - Γ)/P_unit, α = 100)),
+            # dV / V = ϕ * P + dP / ϵ
+        d(V) ~ ΣF / ρ_w,
     ]
     return System(eqs, t; name)
 end
 
+function _constant_hydraulic_connection(; name, K)
+    @parameters (
+        K = K, [description = "Hydraulic conductivity of connection", unit = u"g / hr / MPa"],
+    )
+
+    @variables (
+        F(t), [description = "Water flux from compartment 2 to compartment 1", unit = u"g / hr"],
+        Ψ_1(t), [description = "Total water potential of compartment 1", unit = u"MPa"],
+        Ψ_2(t), [description = "Total water potential of compartment 2", unit = u"MPa"],
+    )
+
+    eqs = [
+        F ~ K * (Ψ_2 - Ψ_1)
+    ]
+
+    get_connection_eqset(node_MTK, nb_node_MTK, connection_MTK) = [ 
+        connection_MTK.Ψ_1 ~ node_MTK.Ψ,
+        connection_MTK.Ψ_2 ~ nb_node_MTK.Ψ,
+    ]
+    return System(eqs, t; name), get_connection_eqset
+end
 
 
 # structure
@@ -61,22 +76,20 @@ graph = Compartment(0.0, 10.0) + Compartment(-1.0, 3.0)
 plantstructure = PlantStructure(graph)
 
 # coupling
-module_coupling = Dict(:Compartment => [_hydraulic_module, constant_carbon_module])
-connecting_modules = Dict((:Compartment, :Compartment) => constant_hydraulic_connection)
+module_coupling = Dict(:Compartment => [_hydraulic_module])
+connecting_modules = Dict((:Compartment, :Compartment) => _constant_hydraulic_connection)
 plantcoupling = PlantCoupling(; module_coupling, connecting_modules)
 
 # parameters
-default_changes = Dict(:shape => Sphere(), :K => 1000.0, :ϵ => 1.0, :ϕ => 1.0)
+default_changes = Dict(:shape => Sphere(), :K => 1.0, :ϵ => 1.0, :ϕ => 1.0, :V => 0.0)
 plantparams = PlantParameters(; default_changes)
 
 # run it
 system = generate_system(plantstructure, plantcoupling, plantparams, checkunits = false);
-prob = ODEProblem(system, Float64[], (0.0, 10.0), check_initialization_units = false);
+prob = ODEProblem(system, [], (0.0, 10.0));
 @time sol = solve(prob, saveat = 0.1);
 
 plotgraph(sol, plantstructure, varname = :W)
-plotgraph(sol, plantstructure, varname = :D)
-
 plotgraph(sol, plantstructure, varname = :Ψ)
 
 function resolve(K)
