@@ -1,8 +1,8 @@
 """
-    remake_graphsystem(prob::AbstractSciMLProblem, sys::System, structure, varnames::Vector, subsystem_types::Vector, value)
+    remake_graphsystem(prob::AbstractSciMLProblem, sys::System, structure, varnames, subsystem_types, value)
 
 Remake the given `prob`, changing the values of subsystem variables to a specified value.
-Only variables of a given name and subsystem type are changed.
+Only variables of given names and subsystem types are changed.
 
 # Inputs
 - `prob::AbstractSciMLProblem`: A SciML problem.
@@ -12,12 +12,9 @@ Only variables of a given name and subsystem type are changed.
 - `subsystem_types`: The desired type(s) of subsystem. For node modules, this corresponds to a node or structural module. For edge modules (or connection modules), this corresponds to a connection, being a 2-tuple of node(s) and structural module(s).
 - `value`: The new variable value.
 """
-function remake_graphsystem(prob::AbstractSciMLProblem, sys::System, structure, varnames::Vector, subsystem_types::Vector, value)
+function remake_graphsystem(prob::AbstractSciMLProblem, sys::System, structure, varnames, subsystem_types, value)
         # can get even more efficient: https://docs.sciml.ai/ModelingToolkit/dev/examples/remake/
-    remakevars = [
-        get_subsystem_variables(sys, structure, varname, subsystem_type) 
-        for varname in varnames for subsystem_type in subsystem_types
-    ] |> x -> reduce(vcat, x)
+    remakevars = get_subsystem_variables(sys, structure, varnames, subsystem_types)
     ps = copy(parameter_values(prob))
     setter = setp(prob, remakevars)
     setter(ps, fill(value, length(remakevars)))
@@ -25,17 +22,13 @@ function remake_graphsystem(prob::AbstractSciMLProblem, sys::System, structure, 
     return newprob
 end
 
-remake_graphsystem(prob, sys, structure, varnames::Vector, subsystem_type, value) = remake_graphsystem(prob, sys, structure, varnames, [subsystem_type], value)
-remake_graphsystem(prob, sys, structure, varname, subsystem_types::Vector, value) = remake_graphsystem(prob, sys, structure, [varname], subsystem_types, value)
-remake_graphsystem(prob, sys, structure, varname, subsystem_type, value) = remake_graphsystem(prob, sys, structure, [varname], [subsystem_type], value)
-
 """
-remake_graphsystem!(prob::AbstractSciMLProblem, sys::System, structure, varname::Symbol, subsystem_type, value)
+    remake_graphsystem!(prob::AbstractSciMLProblem, sys::System, structure, varnames::Symbol, subsystem_types, value)
 
 Mutating version of [`remake_graphsystem`](@ref).
 """
-function remake_graphsystem!(prob::AbstractSciMLProblem, sys::System, structure, varname::Symbol, subsystem_type, value)
-    remakevars = get_subsystem_variables(sys, structure, varname, subsystem_type)
+function remake_graphsystem!(prob::AbstractSciMLProblem, sys::System, structure, varnames::Symbol, subsystem_types, value)
+    remakevars = get_subsystem_variables(sys, structure, varnames, subsystem_types)
     ps = parameter_values(prob)
     setter = setp(prob, remakevars)
     setter(ps, fill(value, length(remakevars)))
@@ -48,17 +41,22 @@ end
 Get the Symbolics representation of all variables (unknowns or parameters) of a system with a given subsystem structure, filtered by variable name and type of subsystem.
 See [`remake_graphsystem`](@ref) for more information about the inputs.
 """
-function get_subsystem_variables(sys::System, structure, varname::Symbol, subsystem_type)
+function get_subsystem_variables(sys::System, structure, varnames::Vector{Symbol}, subsystem_types::Vector)
     nodes = getnodes(structure)
-    sysnames = getsysnames(nodes, subsystem_type, structure)
+    sysnames = [getsysnames(nodes, subsystem_type, structure) for subsystem_type in subsystem_types] |>
+        x -> reduce(vcat, x)
 
     subsystems = [getsubsystem(sys, sysname) for sysname in sysnames]
-    subsys_vars = [getproperty(subsys, varname) for subsys in subsystems]
+    subsys_vars = [getproperty(subsys, varname) for subsys in subsystems for varname in varnames]
     return subsys_vars
 end
 
+get_subsystem_variables(sys, structure, varnames::Vector, subsystem_type) = get_subsystem_variables(sys, structure, varnames, [subsystem_type])
+get_subsystem_variables(sys, structure, varname, subsystem_types::Vector) = get_subsystem_variables(sys, structure, [varname], subsystem_types)
+get_subsystem_variables(sys, structure, varname, subsystem_type) = get_subsystem_variables(sys, structure, [varname], [subsystem_type])
+
 function getsysnames(nodes, node, _)
-    @assert (node in nodes)
+    (node in nodes) || error("Node $node not found.")
     sysnames = [string(getstructmod(node)) * string(getid(node))]
     return sysnames
 end
