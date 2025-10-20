@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.20.14
+# v0.20.16
 
 using Markdown
 using InteractiveUtils
@@ -14,7 +14,7 @@ using PlantModules
 using PlantGraphs, ModelingToolkit, OrdinaryDiffEq, Unitful, Plots
 
 # ╔═╡ 8adf74c7-7fe0-42fd-bde5-9942f30fea36
-using DataInterpolations, Measurements
+using DataInterpolations, Measurements, ForwardDiff
 
 # ╔═╡ df79e96c-a021-4a24-ae8c-4090d014c1f8
 using PlutoUI; TableOfContents()
@@ -183,19 +183,19 @@ The plant structural modules are defined with an attribute for their dimensions 
 # ╔═╡ d7ea529f-4fe2-4daf-9c18-bb4621f0c86d
 struct Stem <: PlantGraphs.Node
     D::Vector
-    height
+    h
 end
 
 # ╔═╡ ee63840c-392c-4e4a-88d9-a41ccb88fa6f
 struct Branch <: PlantGraphs.Node
     D::Vector
-    height
+    h
 end
 
 # ╔═╡ dc48821b-ffb3-4599-b744-b69364e7ad6f
 struct StemTip <: PlantGraphs.Node
     D::Vector
-    height
+    h
     branch_nr
     age
 end
@@ -203,7 +203,7 @@ end
 # ╔═╡ 578a128c-37e7-4b4d-8ba1-513565027110
 struct BranchTip <: PlantGraphs.Node
     D::Vector
-    height
+    h
     age
     needle_area
 end
@@ -236,10 +236,10 @@ branching_rule = Rule(
     StemTip,
     lhs = st -> data(st).age >= crown_start_age && data(st).age % 
 		branching_frequency == 0,
-    rhs = st -> Stem(data(st).D, data(st).height) + (
+    rhs = st -> Stem(data(st).D, data(st).h) + (
         BranchTip([branch_radius(data(st).D[1], Δr), segment_length], 
-				  data(st).height, 0, needle_areas[data(st).branch_nr]),
-        StemTip(data(st).D - [Δr, 0.0], data(st).height + segment_length, 
+				  data(st).h, 0, needle_areas[data(st).branch_nr]),
+        StemTip(data(st).D - [Δr, 0.0], data(st).h + segment_length, 
 				data(st).branch_nr + 1, data(st).age + 1)
     )
 );
@@ -252,8 +252,8 @@ vertical_growth_rule = Rule(
     StemTip,
     lhs = st -> !(data(st).age >= crown_start_age && data(st).age % 
 		branching_frequency == 0),
-    rhs = st -> Stem(data(st).D, data(st).height) + 
-		StemTip(data(st).D, data(st).height + segment_length, 
+    rhs = st -> Stem(data(st).D, data(st).h) + 
+		StemTip(data(st).D, data(st).h + segment_length, 
 				data(st).branch_nr, data(st).age + 1)
 );
 
@@ -264,8 +264,8 @@ md"The outermost branch segments grown another branch segment every `branchgrowt
 branchgrowth_rule = Rule(
     BranchTip,
     lhs = br -> data(br).age % branchgrowth_frequency == 0,
-    rhs = br -> Branch(data(br).D, data(br).height) +
-        BranchTip(data(br).D, data(br).height, data(br).age + 1, 
+    rhs = br -> Branch(data(br).D, data(br).h) +
+        BranchTip(data(br).D, data(br).h, data(br).age + 1, 
 				  data(br).needle_area)
 );
 
@@ -276,7 +276,7 @@ md"The outermost branch segments also age if they are not growing:"
 branchage_rule = Rule(
     BranchTip,
     lhs = br -> !(data(br).age % branchgrowth_frequency == 0),
-    rhs = br -> BranchTip(data(br).D, data(br).height, data(br).age + 1, 
+    rhs = br -> BranchTip(data(br).D, data(br).h, data(br).age + 1, 
 						  data(br).needle_area)
 );
 
@@ -370,73 +370,6 @@ function needle_area_module(; name, needle_area)
     return System(eqs, t; name)
 end;
 
-# ╔═╡ 6478d8cb-68ff-441a-981e-17d3f49875b6
-md"#### Hydraulics module with effects of gravity"
-
-# ╔═╡ 0a7ac994-eb69-400b-b904-73a7dbbc4b8a
-function gravitational_hydraulic_module(; name, shape, ϕ_D, ϵ_D, Γ, T, D, P_0, M, height)
-    D, ϕ_D, ϵ_D = 
-		[PlantModules.correctdimensionality(shape, var) for var in [D, ϕ_D, ϵ_D]] 
-        # turns scalar values into vectors of correct length
-
-    num_D = getdimensionality(shape)
-    R = 8.314
-    ρ_w = 1.0
-    g = 9.8 * 1e-5
-    P = P_0 + R*T*M - ρ_w * g * height
-
-    @constants (
-        R = R, [description = "Ideal gas constant", unit = u"MPa * cm^3 / K / mol"],
-        P_unit = 1.0, [description = "Dummy constant for correcting units",
-					   unit = u"MPa"],
-        ρ_w = ρ_w, [description = "Density of water", unit = u"g / cm^3"],
-        g = g, [description = "Gravitational acceleration", unit = u"hN / g"] 
-    )
-    @parameters (
-        T = T, [description = "Temperature", unit = u"K"],
-        ϕ_D[1:num_D] = ϕ_D, [description = "Dimensional extensibility", 
-							 unit = u"MPa^-1 * hr^-1"],
-        ϵ_D[1:num_D] = ϵ_D, [description = "Dimensional elastic modulus", 
-							 unit = u"MPa"],
-        Γ = Γ, [description = "Yield turgor pressure", unit = u"MPa"],
-        height = height, [description = "Height above ground level", unit = u"cm"],
-    )
-    @variables (
-        Ψ(t), [description = "Total water potential", unit = u"MPa"],
-        Π(t), [description = "Osmotic water potential", unit = u"MPa"],
-        P(t) = P, [description = "Hydrostatic potential", unit = u"MPa"],
-        Pₕ(t), [description = "Gravitational water potential", unit = u"MPa"],
-        M(t), [description = "Osmotically active metabolite content", 
-			   unit = u"mol / cm^3"],
-        W(t) = volume(shape, D) / ρ_w, [description = "Water content", unit = u"g"],
-        D(t)[1:num_D] = D, [description = "Dimensions of compartment", unit = u"cm"],
-        V(t), [description = "Volume of compartment", unit = u"cm^3"],
-        ΣF(t), [description = "Net incoming water flux", unit = u"g / hr"],
-        
-        ΔP(t), [description = "Change in hydrostatic potential", 
-				unit = u"MPa / hr", guess = 0.0],
-        ΔW(t), [description = "Change in water content", unit = u"g / hr"],
-        ΔD(t)[1:num_D], [description = "Change in dimensions of compartment",
-						 unit = u"cm / hr"],
-    )
-
-    eqs = [
-        Ψ ~ P + Π + Pₕ,
-        Π ~ -R*T*M,
-        Pₕ ~ ρ_w * g * height,
-        ΔW ~ ΣF,
-        V ~ W / ρ_w,
-        V ~ volume(shape, D),
-        [ΔD[i] ~ D[i]*ϕ_D[i]*P_unit*logsumexp((P - Γ)/P_unit, α = 100) +
-			D[i]*ΔP/ϵ_D[i] for i in eachindex(D)]...,
-
-        d(P) ~ ΔP,
-        d(W) ~ ΔW,
-        [d(D[i]) ~ ΔD[i] for i in eachindex(D)]...,
-    ]
-    return System(eqs, t; name)
-end;
-
 # ╔═╡ bd152224-7f9b-4d1f-8649-550552fbf032
 md"#### Fixed transpiration"
 
@@ -522,9 +455,9 @@ The coupling of function and structure remains, luckily, straightforward. We onl
 
 # ╔═╡ 9abaf023-2ce5-4246-a41e-f3d507c77194
 module_coupling = Dict(
-	:Stem => [gravitational_hydraulic_module, constant_carbon_module, K_module],
-    :Branch => [gravitational_hydraulic_module, constant_carbon_module, K_module],
-	:BranchTip => [gravitational_hydraulic_module, needle_area_module,
+	:Stem => [hydraulic_module, constant_carbon_module, K_module],
+    :Branch => [hydraulic_module, constant_carbon_module, K_module],
+	:BranchTip => [hydraulic_module, needle_area_module,
 				   constant_carbon_module, K_module],
 	:Soil => [environmental_module, Ψ_soil_module, constant_K_module],
 	:Air => [environmental_module],
@@ -548,13 +481,13 @@ md"### Parameters"
 
 # ╔═╡ e4a0ca52-3679-4d76-b63a-2d9aeaf31e41
 md"""
-The parameter specification mainly comes down to changing the default parameter values to those prescribed by the paper. Note that when we define new parameters or variables they need to be given a module-wide default value, even if those values are never used (here the case for `needle_area` and `height`). Some striking parameters are the zeros for the extensibility `ϕ_D` and metabolite concentration `M`: this was chosen because the model only considers elastic diameter changes and no irreversible growth, and does not consider carbon dynamics.
+The parameter specification mainly comes down to changing the default parameter values to those prescribed by the paper. Note that when we define new parameters or variables they need to be given a module-wide default value, even if those values are never used (here the case for `needle_area`). Some striking parameters are the zeros for the extensibility `ϕ_D` and metabolite concentration `M`: this was chosen because the model only considers elastic diameter changes and no irreversible growth, and does not consider carbon dynamics.
 """
 
 # ╔═╡ 2ed83b9f-820a-4c0e-9ce4-42fcb35daade
 begin
     default_changes = Dict(
-		:needle_area => 0.0, :height => 0.0,
+		:needle_area => 0.0,
 		:ϵ_D => ϵ_D_stem, :K_s => K_s_stem,
         :ϕ_D => 0.0, :M => 0.0, 
 		:P_0 => PlantModules.soilfunc(0.5), 
@@ -584,8 +517,11 @@ System generation and running also remains largely the same, with the exception 
 # ╔═╡ 4ee50611-6032-476d-ad2f-9393ad0b2200
 system = generate_system(plantstructure, plantcoupling, plantparams, checkunits = false);
 
+# ╔═╡ b810c5c6-97c7-4293-ae77-0c399d6f56b2
+tspan = (0.0, 24.0);
+
 # ╔═╡ 7f99ec81-41c9-45bf-9e7d-2ab7dada677d
-prob = ODEProblem(system, [], (0.0, 24.0), sparse = true);
+prob = ODEProblem(system, [], tspan, sparse = false);
 
 # ╔═╡ b24016d3-cd1d-4ba8-b7a6-2ee8b41db1f1
 sol = solve(prob, FBDF());
@@ -677,7 +613,6 @@ begin
 	plot(subplots..., layout = (2, 1), ylabel = "Diameter change (mm)", 
 		 size = (800, 600), margins = 5*Plots.mm, ylims = (-0.07, 0.01), 
 		 yticks = -0.07:0.01:0.01, xticks = 0:3:24, xlabel = "Time of day (h)")
-	savefig("fig_plantmodules_ex2_results.pdf")
 end
 
 # ╔═╡ 70df3d1e-82ad-4365-97ab-0e31283058c2
@@ -694,6 +629,10 @@ begin
 	uncertainty_plot = plot(ylabel = "Diameter change (mm)", 
 		 size = (800, 600), margins = 5*Plots.mm, ylims = (-0.12, 0.01), 
 		 yticks = -0.12:0.01:0.01, xticks = 0:3:24, xlabel = "Time of day (h)")
+
+	get_subsystem_variables(system, plantstructure, :ϵ_D, 
+								   [:Stem, :Branch, :BranchTip])
+					   
 	for _ in 1:20
 	    ϵ_D_r_sample = sample_range(ϵ_D_r_range...)
 	    ϵ_D_sample = [ϵ_D_r_sample, 17.5 * ϵ_D_r_sample] #! 17.5 to variable
@@ -706,6 +645,27 @@ begin
 	end
 	uncertainty_plot
 end
+
+# ╔═╡ 5adf23c5-0187-4ad1-8d03-f525481f5859
+function get_diameter(K_s)
+    ps = get_subsystem_variables(system, plantstructure, :K_s, [:Stem, :Branch])
+    newprob = remake(prob, p = Pair.(ps, [K_s]))
+	newsol = solve(newprob, FBDF(), saveat = 0.1)
+	segment_diameter = newsol[dimension_variables[diameter_segment_nrs[2]]]
+    return segment_diameter
+end
+
+# ╔═╡ 7dce7f52-b142-4e2c-913d-f367c4f896b4
+get_diameter(5000)
+
+# ╔═╡ 4ecb364e-b5ac-4ed2-899d-a96b41153779
+get_diameter(500)
+
+# ╔═╡ af7133d5-c742-4a3f-ac94-25b3becd4b1b
+K_sensitivity = ForwardDiff.derivative(get_diameter, K_s_stem)
+
+# ╔═╡ 3e157c84-738c-41a5-8210-42ad3773e246
+plot(range(tspan..., step = 0.1), K_sensitivity)
 
 # ╔═╡ Cell order:
 # ╟─e04d4d44-3795-49d0-91d3-645ff3c8265e
@@ -768,8 +728,6 @@ end
 # ╟─8f280922-e866-4d2e-8ec1-6f59fa7d5102
 # ╟─6853391b-7018-4d47-a7f3-0199d65c56dd
 # ╠═5bde3460-f174-4277-af4d-e46025cb9298
-# ╟─6478d8cb-68ff-441a-981e-17d3f49875b6
-# ╠═0a7ac994-eb69-400b-b904-73a7dbbc4b8a
 # ╟─bd152224-7f9b-4d1f-8649-550552fbf032
 # ╟─c18de4ad-dfcf-49de-9905-9b158ae0eae4
 # ╠═3b765f93-ed77-467b-a5ba-91d98f4a233a
@@ -791,6 +749,7 @@ end
 # ╟─c7f8bc7f-2fcd-4400-a681-699dce7541df
 # ╟─5025d163-dfc3-4a3f-b1eb-3d902f1d2c98
 # ╠═4ee50611-6032-476d-ad2f-9393ad0b2200
+# ╠═b810c5c6-97c7-4293-ae77-0c399d6f56b2
 # ╠═7f99ec81-41c9-45bf-9e7d-2ab7dada677d
 # ╠═b24016d3-cd1d-4ba8-b7a6-2ee8b41db1f1
 # ╟─087fa5db-83a0-4a47-b52a-7ddc6259a281
@@ -811,3 +770,8 @@ end
 # ╠═9771ad64-1821-4f3e-bf63-6176ad7dce79
 # ╠═97356ed2-d3cc-4007-b2d2-9e326be6c90c
 # ╠═d99adee7-c13a-44b2-8d8b-7e3d396751e3
+# ╠═5adf23c5-0187-4ad1-8d03-f525481f5859
+# ╠═7dce7f52-b142-4e2c-913d-f367c4f896b4
+# ╠═4ecb364e-b5ac-4ed2-899d-a96b41153779
+# ╠═af7133d5-c742-4a3f-ac94-25b3becd4b1b
+# ╠═3e157c84-738c-41a5-8210-42ad3773e246
