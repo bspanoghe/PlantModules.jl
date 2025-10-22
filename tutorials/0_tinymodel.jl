@@ -1,6 +1,6 @@
-using Plots
 using Revise, Infiltrator
 using Pkg; Pkg.activate("./tutorials")
+using Plots
 using PlantModules
 using ModelingToolkit, OrdinaryDiffEq, PlantGraphs, Unitful
 using Measurements
@@ -8,7 +8,6 @@ using Measurements
 # testing
 
 import PlantModules: t, d
-# import ModelingToolkit: t_nounits as t, D_nounits as d
 
 function _hydraulic_module(; name, ϕ, ϵ, Γ, V, Ψ)
     ρ_w = 1.0 # g / cm^3
@@ -19,7 +18,7 @@ function _hydraulic_module(; name, ϕ, ϵ, Γ, V, Ψ)
         ρ_w = ρ_w, [description = "Density of water", unit = u"g / cm^3"],
     )
     @parameters (
-        ϕ = ϕ, [description = "Volumetric extensibility", unit = u"MPa^-1 * hr^-1"],
+        ϕ[1:2] = ϕ, [description = "Volumetric extensibility", unit = u"MPa^-1 * hr^-1"],
         ϵ = ϵ, [description = "Volumetric elastic modulus", unit = u"MPa"],
         Γ = Γ, [description = "Yield turgor pressure", unit = u"MPa"],
     )
@@ -35,7 +34,7 @@ function _hydraulic_module(; name, ϕ, ϵ, Γ, V, Ψ)
         Ψ ~ P,
         W ~ V * ρ_w,
         
-        d(P) ~ ϵ * ((ΣF / ρ_w)/V - ϕ*P_unit*logsumexp((P - Γ)/P_unit, α = 100)),
+        d(P) ~ ϵ * ((ΣF / ρ_w)/V - ϕ[1]*P_unit*logsumexp((P - Γ)/P_unit, α = 100)),
             # dV / V = ϕ * P + dP / ϵ
         d(V) ~ ΣF / ρ_w,
     ]
@@ -81,26 +80,30 @@ connecting_modules = Dict((:Compartment, :Compartment) => _constant_hydraulic_co
 plantcoupling = PlantCoupling(; module_coupling, connecting_modules)
 
 # parameters
-default_changes = Dict(:shape => Sphere(), :K => 1.0, :ϵ => 1.0, :ϕ => 1.0, :V => 0.0)
+default_changes = Dict(:shape => Sphere(), :K => 1.0, :ϵ => 1.0, :ϕ => [1.0, 0.0], :V => 0.0)
 plantparams = PlantParameters(; default_changes)
 
 # run it
+tspan = (0.0, 10.0)
 system = generate_system(plantstructure, plantcoupling, plantparams, checkunits = false);
-prob = ODEProblem(system, [], (0.0, 10.0));
+prob = ODEProblem(system, [], tspan);
 @time sol = solve(prob, saveat = 0.1);
 
 plotgraph(sol, plantstructure, varname = :W)
 plotgraph(sol, plantstructure, varname = :Ψ)
 
-function resolve(K)
+function re_solve(K)
     ps = get_subsystem_variables(system, plantstructure, :K, (:Compartment, :Compartment))
     newprob = remake(prob, p = Pair.(ps, [K]))
-    return solve(newprob, saveat = 0.1)[system.Compartment1.D] .|> only
+
+    return solve(newprob, saveat = 0.1)[system.Compartment1.V] .|> only
 end
 
-plot(resolve(10.0))
-plot(resolve(1.0))
+plot(re_solve(1.0))
+plot(re_solve(1.1))
+
 
 using ForwardDiff
 
-ForwardDiff.derivative(resolve, 1.0)
+K_grad = ForwardDiff.derivative(re_solve, 1.0)
+plot(range(tspan..., step = 0.1), K_grad)

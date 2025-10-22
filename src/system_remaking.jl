@@ -9,7 +9,7 @@ Only variables of given names and subsystem types are changed.
 - `sys::System`: The ModelingToolkit.jl system corresponding to the given problem.
 - `structure`: A graph representing the subsystem structure of the system. PlantModules' graph functions must be extended for the graph type. See also [`PlantStructure`](@ref).
 - `varnames`: The name(s) of the desired variable.
-- `subsystem_types`: The desired type(s) of subsystem. For node modules, this corresponds to a node or structural module. For edge modules (or connection modules), this corresponds to a connection, being a 2-tuple of node(s) and structural module(s).
+- `subsystem_types`: The desired type(s) of subsystem. For node modules, this corresponds to a node or a structural module. For edge modules (or connection modules), this corresponds to a connection, being a 2-tuple of node(s) and structural module(s).
 - `value`: The new variable value.
 """
 function remake_graphsystem(prob::AbstractSciMLProblem, sys::System, structure, varnames, subsystem_types, value)

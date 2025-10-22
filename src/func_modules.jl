@@ -42,7 +42,7 @@ function hydraulic_module(; name, shape::Shape, ϕ_D, ϵ_D, Γ, T, D, Ψ, M, h)
         Π(t), [description = "Osmotic water potential", unit = u"MPa"],
         P(t) = P, [description = "Hydrostatic potential", unit = u"MPa"],
         M(t), [description = "Osmotically active metabolite content", unit = u"mol / cm^3"], # m^3 so units match in second equation ()
-        W(t) = volume(shape, D) / ρ_w, [description = "Water content", unit = u"g"],
+        W(t), [description = "Water content", unit = u"g"],
         D(t)[1:num_D] = D, [description = "Dimensions of compartment", unit = u"cm"],
         V(t), [description = "Volume of compartment", unit = u"cm^3"],
         ΣF(t), [description = "Net incoming water flux", unit = u"g / hr"],

@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.20.16
+# v0.20.19
 
 using Markdown
 using InteractiveUtils
@@ -14,7 +14,7 @@ using PlantModules
 using PlantGraphs, ModelingToolkit, OrdinaryDiffEq, Unitful, Plots
 
 # ╔═╡ 8adf74c7-7fe0-42fd-bde5-9942f30fea36
-using DataInterpolations, Measurements, ForwardDiff
+using DataInterpolations, ForwardDiff, Sparspak
 
 # ╔═╡ df79e96c-a021-4a24-ae8c-4090d014c1f8
 using PlutoUI; TableOfContents()
@@ -37,7 +37,7 @@ In this tutorial, we cover some of the more advanced functionality from the pack
 md"## Setup"
 
 # ╔═╡ b2f4ec18-5447-4999-9da6-52ca770a8120
-md"## Problem definition"
+md"## Context"
 
 # ╔═╡ ac068794-a6cc-4563-899a-4b5ca1b2c22b
 md"""
@@ -122,7 +122,8 @@ begin
     K_roots = ρ_w * L_p * total_root_area # g / hr / MPa
 
     ## elastic modulus
-    ϵ_D_stem = [0.15 * 1e3, 17.5 * 0.15 * 1e3] # MPa; from GPa (input)
+	ϵ_D_r_stem = 0.15 * 1e3 # MPa; from GPa (input)
+    ϵ_D_stem = [ϵ_D_r_stem, 17.5 * ϵ_D_r_stem] # Perämäki et al. use a constant ratio of 1/17.5 between the radial and longitudinal elastic moduli
 end;
 
 # ╔═╡ fdedf540-9c04-476f-9ffb-d7bc82e81f79
@@ -515,13 +516,13 @@ System generation and running also remains largely the same, with the exception 
 """
 
 # ╔═╡ 4ee50611-6032-476d-ad2f-9393ad0b2200
-system = generate_system(plantstructure, plantcoupling, plantparams, checkunits = false);
+system = generate_system(plantstructure, plantcoupling, plantparams);
 
 # ╔═╡ b810c5c6-97c7-4293-ae77-0c399d6f56b2
 tspan = (0.0, 24.0);
 
 # ╔═╡ 7f99ec81-41c9-45bf-9e7d-2ab7dada677d
-prob = ODEProblem(system, [], tspan, sparse = false);
+prob = ODEProblem(system, [], tspan, sparse = true, use_scc = false);
 
 # ╔═╡ b24016d3-cd1d-4ba8-b7a6-2ee8b41db1f1
 sol = solve(prob, FBDF());
@@ -618,54 +619,107 @@ end
 # ╔═╡ 70df3d1e-82ad-4365-97ab-0e31283058c2
 md"## Uncertainty analysis"
 
+# ╔═╡ c3429638-e1f7-4254-93ff-c77762642b44
+md"""
+Perämäki et al. give a value **range** for the radial elasticity and the specific hydraulic conductivity of the tree segments. To inspect the effect of the uncertainty on these parameters on the results of our simulation, we conduct two types of uncertainty analysis here.
+"""
+
+# ╔═╡ d9045d2a-2343-4848-a854-07942ba8bbd4
+md"We will choose the diameter of the stem segment at 250 cm as our output variable of interest."
+
+# ╔═╡ c0749089-7c61-42ba-a9ce-26d448e82840
+D1_at_250cm = dimension_variables[diameter_segment_nrs[2]][1]
+
+# ╔═╡ b9c6f2cb-98a9-42a1-8cb4-8c82a756099a
+md"""
+### Monte Carlo
+"""
+
+# ╔═╡ 861dff9d-0c94-4edf-927b-7de9a75beaff
+md"""
+First we perform a simple Monte Carlo experiment to visualize the effect of different values of the radial elasticity on the stem diameter variation.
+"""
+
+# ╔═╡ 04b603d0-2580-421c-bb77-0defc55d1e4b
+md"We start by defining the radial elasticity's range of values and a function to sample from said range."
+
 # ╔═╡ 9771ad64-1821-4f3e-bf63-6176ad7dce79
-ϵ_D_r_range = [0.03 * 1e3, 0.27 * 1e3]
+ϵ_D_r_range = [0.03 * 1e3, 0.27 * 1e3] # MPa (from GPa)
 
 # ╔═╡ 97356ed2-d3cc-4007-b2d2-9e326be6c90c
 sample_range(a, b) = (b-a) * rand() + a
 
+# ╔═╡ 2c88b40c-c4cc-49bb-b287-60851ad86db7
+md"""
+Recreating the system and problem with `generate_system` and `ODEProblem` is a costly way to change the parameter values of the problem. We can circumvent this by using `ModelingToolkit.jl`'s `remake` function to change the parameter values of the problem directly. `PlantModules.jl`'s defines the helper function `remake_graphsystem` to make the remaking easier for systems with many subsystems.
+"""
+
 # ╔═╡ d99adee7-c13a-44b2-8d8b-7e3d396751e3
 begin
-	uncertainty_plot = plot(ylabel = "Diameter change (mm)", 
-		 size = (800, 600), margins = 5*Plots.mm, ylims = (-0.12, 0.01), 
-		 yticks = -0.12:0.01:0.01, xticks = 0:3:24, xlabel = "Time of day (h)")
-
-	get_subsystem_variables(system, plantstructure, :ϵ_D, 
-								   [:Stem, :Branch, :BranchTip])
+	p_montecarlo = plot()
 					   
 	for _ in 1:20
-	    ϵ_D_r_sample = sample_range(ϵ_D_r_range...)
-	    ϵ_D_sample = [ϵ_D_r_sample, 17.5 * ϵ_D_r_sample] #! 17.5 to variable
+	    ϵ_D_r_sample = sample_range(ϵ_D_r_range[1], ϵ_D_r_range[2])
+	    ϵ_D_sample = [ϵ_D_r_sample, 17.5 * ϵ_D_r_sample] 
+			# Perämäki et al. use a constant ratio of 1/17.5 between the radial and longitudinal elastic moduli
 	
-	    prob2 = remake_graphsystem(prob, system, plantstructure, :ϵ_D, 
-								   [:Stem, :Branch, :BranchTip], ϵ_D_sample)
-	    sol2 = solve(prob2, FBDF(), reltol = 1e-1)
-	    plot!(uncertainty_plot, sol2, idxs = 		
-			  [diameter_change_mm(dimension_variables[diameter_segment_nrs[2]][1], sol)], label = false, line_z = ϵ_D_r_sample)
+	    prob2 = remake_graphsystem(
+			prob, system, plantstructure, :ϵ_D, 
+			[:Stem, :Branch, :BranchTip], ϵ_D_sample
+		)
+	    sol2 = solve(prob2, FBDF(), reltol = 1e-1) 
+			# We use a higher relative tolerance for faster solving. Note that this can cause a SingularException error now and again but the faster solving time is generally worth it
+
+	    plot!(p_montecarlo, sol2, 
+			  idxs = [diameter_change_mm(D1_at_250cm, sol)], label = false, line_z = ϵ_D_r_sample)
 	end
-	uncertainty_plot
+	plot!(
+		p_montecarlo, xlabel = "Time of day (h)", ylabel = "Diameter change (mm)",
+		size = (800, 600), margins = 5*Plots.mm, ylims = (-0.12, 0.01), 
+		yticks = -0.12:0.01:0.01, xticks = 0:3:24
+	)
 end
+
+# ╔═╡ 81907a2e-c545-4ec4-8818-05ec81d190f2
+md"### Local sensitivity"
+
+# ╔═╡ fa37132e-bce7-452e-b361-0b372ff867fa
+md"""
+Using `ForwardDiff.jl`, it is possible to perform automatic differentiation to compute gradients through our simulation. We can apply this to investigate the effect of changes in the specific hydraulic conductivity on the stem diameter.
+"""
+
+# ╔═╡ 212c51b0-a498-44bb-b877-dbed23939594
+md"""
+We begin by defining a function that returns our output variable of interest given the value of the specific hydraulic conductivity. `remake_graphsystem` only works when we change the value of a parameter to another one of the same type, which is not the case when we perform automatic differentiation. Instead we retrieve the specific hydraulic conductivities from all our stem and branch subsystems with the `get_subsystem_variables` function and then manually use [pure remake](https://docs.sciml.ai/ModelingToolkit/dev/examples/remake/) to allow replacing parameters with values of different types, at the cost of performance.
+"""
 
 # ╔═╡ 5adf23c5-0187-4ad1-8d03-f525481f5859
 function get_diameter(K_s)
     ps = get_subsystem_variables(system, plantstructure, :K_s, [:Stem, :Branch])
     newprob = remake(prob, p = Pair.(ps, [K_s]))
 	newsol = solve(newprob, FBDF(), saveat = 0.1)
-	segment_diameter = newsol[dimension_variables[diameter_segment_nrs[2]]]
+	segment_diameter = newsol[D1_at_250cm]
     return segment_diameter
 end
 
-# ╔═╡ 7dce7f52-b142-4e2c-913d-f367c4f896b4
-get_diameter(5000)
-
-# ╔═╡ 4ecb364e-b5ac-4ed2-899d-a96b41153779
-get_diameter(500)
+# ╔═╡ 4d2ab9a6-43d9-4ade-9b43-0360b308fb1d
+md"We can then call `ForwardDiff.derivative` on this function to get the derivative around a given value. We choose the value used in the simulation."
 
 # ╔═╡ af7133d5-c742-4a3f-ac94-25b3becd4b1b
 K_sensitivity = ForwardDiff.derivative(get_diameter, K_s_stem)
 
 # ╔═╡ 3e157c84-738c-41a5-8210-42ad3773e246
-plot(range(tspan..., step = 0.1), K_sensitivity)
+plot(
+	tspan[1]:0.1:tspan[2], K_sensitivity, 
+	xticks = 0:3:24, xlabel = "Time of day (h)", legend = false, 
+	title = "Derivative of stem radius w.r.t. the hydraulic conductivity", 
+	size = (800, 600), margins = 5*Plots.mm
+)
+
+# ╔═╡ f090a016-0f63-401b-b81a-8338213ca7cb
+md"""
+The plot shows that an increase in hydraulic conductivity will have a positive impact on the diameter and that the magnitude of the effect follows the same pattern as [the transpiration throughout the day](#Check-transpiration), which intuitively makes sense!
+"""
 
 # ╔═╡ Cell order:
 # ╟─e04d4d44-3795-49d0-91d3-645ff3c8265e
@@ -767,11 +821,21 @@ plot(range(tspan..., step = 0.1), K_sensitivity)
 # ╟─59c6e1f7-ce34-4fcb-aa7b-7a650dc0a4d1
 # ╠═6b2ad036-b6f1-4753-a3f0-4a6d4dc6b7fd
 # ╟─70df3d1e-82ad-4365-97ab-0e31283058c2
+# ╟─c3429638-e1f7-4254-93ff-c77762642b44
+# ╟─d9045d2a-2343-4848-a854-07942ba8bbd4
+# ╠═c0749089-7c61-42ba-a9ce-26d448e82840
+# ╟─b9c6f2cb-98a9-42a1-8cb4-8c82a756099a
+# ╟─861dff9d-0c94-4edf-927b-7de9a75beaff
+# ╟─04b603d0-2580-421c-bb77-0defc55d1e4b
 # ╠═9771ad64-1821-4f3e-bf63-6176ad7dce79
 # ╠═97356ed2-d3cc-4007-b2d2-9e326be6c90c
+# ╟─2c88b40c-c4cc-49bb-b287-60851ad86db7
 # ╠═d99adee7-c13a-44b2-8d8b-7e3d396751e3
+# ╟─81907a2e-c545-4ec4-8818-05ec81d190f2
+# ╟─fa37132e-bce7-452e-b361-0b372ff867fa
+# ╟─212c51b0-a498-44bb-b877-dbed23939594
 # ╠═5adf23c5-0187-4ad1-8d03-f525481f5859
-# ╠═7dce7f52-b142-4e2c-913d-f367c4f896b4
-# ╠═4ecb364e-b5ac-4ed2-899d-a96b41153779
+# ╟─4d2ab9a6-43d9-4ade-9b43-0360b308fb1d
 # ╠═af7133d5-c742-4a3f-ac94-25b3becd4b1b
 # ╠═3e157c84-738c-41a5-8210-42ad3773e246
+# ╟─f090a016-0f63-401b-b81a-8338213ca7cb

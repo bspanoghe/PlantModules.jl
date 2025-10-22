@@ -9,6 +9,10 @@ using Pkg; Pkg.activate("./tutorials")
 using PlantModules
 using PlantGraphs, OrdinaryDiffEq
 
+# pretty colors :)
+include(raw"C:\Users\bspanogh\Documents\Github\Caverns_of_code\Julia\Lifehacks\catpuccin\get_palette.jl")
+cpalette = get_palette("latte", type = :cb)
+
 # ## Structure
 
 # ### The plant
@@ -38,19 +42,21 @@ plotstructure(plant_graph)
 struct Soil <: Node end
 struct Air <: Node end
 
-graphs = [plant_graph, Soil(), Air()]
+graphs = [Soil(), plant_graph, Air()]
 
 # The connections between graphs are defined as a pair between the indices of the two graphs in question and what nodes to connect.
 # The latter can be either the node itself, the structural module of the node, or a function that takes two nodes and returns whether they should be connected.
-intergraph_connections = [[1, 2] => (getnodes(plant_graph)[1], :Soil), [1, 3] => (:Leaf, :Air)];
+intergraph_connections = [[1, 2] => (:Soil, getnodes(plant_graph)[1]), [2, 3] => (:Leaf, :Air)];
 
 # Finally we can combine all structural information in one variable:
 plantstructure = PlantStructure(graphs, intergraph_connections)
 
-plotstructure(plantstructure, 
-	method = :spectral, 
-	layout_kw = Dict(:nodeweights => [fill(0.1, 74); [0.0]], :dim => 2)
-)
+begin
+	using Random
+	Random.seed!(12)
+	plotstructure(plantstructure, palette = cpalette)
+	# savefig(raw"C:\Users\bspanogh\Documents\Github\Den_of_evil\Non-note files\images" * "/fig_plantmodules_ex1_structure.pdf")
+end
 
 # ## Function
 
@@ -118,7 +124,7 @@ system = generate_system(plantstructure, plantcoupling, plantparams)
 
 # ...and solving it.
 time_span = (0, 48.0);
-prob = ODEProblem(system, [], time_span, sparse = true)
+prob = ODEProblem(system, [], time_span, sparse = true, use_scc = false)
 @time sol = solve(prob);
 
 air_W_r = get_subsystem_variables(system, plantstructure, :W_r, :Air)[1]
@@ -139,11 +145,13 @@ p2 = Plots.plot(
 	ylims = (-0.3, -0.1), yaxis = "Ψ"
 )
 
-Plots.plot(
-	plotgraph(sol, plantstructure, varname = :ΣF, structmod = :Air, title = "Low evaporative demand", ylims = (0.0, 0.25), yaxis = "ΣF"),
-	plotgraph(sol2, plantstructure, varname = :ΣF, structmod = :Air, title = "High evaporative demand", ylims = (0.0, 0.25)),
-	plotgraph(sol, plantstructure, varname = :Ψ, structmod = [:Stem, :Leaf], title = "", ylims = (-0.3, -0.1), yaxis = "Ψ", xaxis = "t (hr)"),
-	plotgraph(sol2, plantstructure, varname = :Ψ, structmod = [:Stem, :Leaf], title = "", ylims = (-0.3, -0.1), xaxis = "t (hr)"),
-	size = (800, 600)
-)
-# savefig(homedir() * "\\Documents\\Github\\Den_of_evil\\Non-note files\\images\\" * "fig_plantmodules_ex1_results.pdf")
+begin
+	Plots.plot(
+		plotgraph(sol, plantstructure, varname = :ΣF, structmod = :Air, title = "Low evaporative demand", ylims = (0.0, 0.25), yaxis = "ΣF", palette = cpalette),
+		plotgraph(sol2, plantstructure, varname = :ΣF, structmod = :Air, title = "High evaporative demand", ylims = (0.0, 0.25), palette = cpalette),
+		plotgraph(sol, plantstructure, varname = :Ψ, structmod = [:Stem, :Leaf], title = "", ylims = (-0.3, -0.1), yaxis = "Ψ", xaxis = "t (hr)", palette = cpalette),
+		plotgraph(sol2, plantstructure, varname = :Ψ, structmod = [:Stem, :Leaf], title = "", ylims = (-0.3, -0.1), xaxis = "t (hr)", palette = cpalette),
+		size = (800, 600)
+	)
+	savefig(homedir() * "\\Documents\\Github\\Den_of_evil\\Non-note files\\images\\" * "fig_plantmodules_ex1_results.pdf")
+end

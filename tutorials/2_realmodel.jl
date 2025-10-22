@@ -5,7 +5,13 @@ using Pkg; Pkg.activate("./tutorials")
 using PlantModules
 using PlantGraphs
 using ModelingToolkit, OrdinaryDiffEq, Unitful
-using DataInterpolations, Measurements
+using DataInterpolations, ForwardDiff, Sparspak
+
+# for figures
+include(raw"C:\Users\bspanogh\Documents\Github\Caverns_of_code\Julia\Lifehacks\catpuccin\get_palette.jl")
+cpalette = get_palette("latte", type = :cb)
+
+plotdir = homedir() * raw"\Documents\Github\Den_of_evil\Non-note files\images\\"
 
 # # Preparatory calculations
 
@@ -157,17 +163,30 @@ for _ in 1:(n_segments)
 end
 
 PlantGraphs.prune!(plant.graph, getid([node for node in getnodes(plant) if getstructmod(node) == :StemTip][1]))
-plotstructure(plant)
-
 
 struct Soil <: Node end
 struct Air <: Node end
 
-graphs = [plant, Soil(), Air()]
-intergraph_connections = [(1, 2) => (getnodes(plant)[1], :Soil), (1, 3) => (:BranchTip, :Air)]
+graphs = [Soil(), plant, Air()]
+intergraph_connections = [(1, 2) => (:Soil, getnodes(plant)[1]), (2, 3) => (:BranchTip, :Air)]
 plantstructure = PlantStructure(graphs, intergraph_connections)
-
 plotstructure(plantstructure, names = "")
+
+begin
+    using Random
+    Random.seed!(7)
+    plot_structure = PlantStructure([Soil(), plant], [(1, 2) => (:Soil, getnodes(plant)[1])])
+
+    plotstructure(plot_structure, 
+        names = "", size = (600, 400), axisbuffer = 0.05, label = false, legend = true, 
+        palette = cpalette
+    )
+    plot!([], [], markershape = :hexagon, color = cpalette[1], label = "Soil")
+    plot!([], [], markershape = :hexagon, color = cpalette[2], label = "Stem")
+    plot!([], [], markershape = :hexagon, color = cpalette[3], label = "Branch")
+    plot!([], [], markershape = :hexagon, color = cpalette[4], label = "BranchTip")
+    # savefig(plotdir * "fig_plantmodules_ex2_structure.pdf")
+end
 
 # # Function
 
@@ -250,7 +269,7 @@ begin
 		:needle_area => 0.0,
 		:ϵ_D => ϵ_D_stem, :K_s => K_s_stem,
         :ϕ_D => 0.0, :M => 0.0, 
-		:P_0 => PlantModules.soilfunc(0.5), 
+		:Ψ => PlantModules.soilfunc(0.5), 
 		:shape => HollowCylinder(radial_fraction_sapwood)
 	)
 
@@ -267,8 +286,9 @@ end
 
 # # Run it
 
+tspan = (0.0, 24.0)
 system = generate_system(plantstructure, plantcoupling, plantparams, checkunits = false)
-prob = ODEProblem(system, [], (0.0, 24.0), sparse = true)
+@time prob = ODEProblem(system, [], tspan, sparse = true, use_scc = false)
 
 @time sol = solve(prob, FBDF())
 
@@ -280,7 +300,7 @@ transpiration_unit_conversion(var) = var * 1e3 / (total_needle_area * (1e-2)^2) 
 plot(
     sol, idxs = [transpiration_unit_conversion(air_water_inflow)], label = false,
 	xlabel = "Time of day (h)", ylabel = "Transpiration (mg / m^2 / s)",
-	xticks = 0:3:24, ylims = (0, 10), yticks = 0:2:10, color = :black
+	xticks = 0:3:24, ylims = (0, 10), yticks = 0:2:10, palette = cpalette
 )
 
 ## water tension
@@ -291,8 +311,8 @@ begin
 	pressure_segment_nrs = ceil.(Int64, pressure_segment_heights / segment_length)
 	
 	plot(sol, idxs = stem_pressures[pressure_segment_nrs], ylims = (-0.4, 0.0),
-		 xticks = 0.0:3.0:24.0, xlabel = "Time of day (h)", color = :black,
-		 linewidth = [1 2 3], ylabel = "Water tension (MPa)",
+		 xticks = 0.0:3.0:24.0, xlabel = "Time of day (h)", palette = cpalette,
+		 ylabel = "Water tension (MPa)",
 		 label = ["Base of stem" "Crown base" "Top of tree"])
 end
 
@@ -315,63 +335,72 @@ begin
 			  [diameter_change_mm(
 				  dimension_variables[diameter_segment_nrs[i]][1], sol
 			  )],
-			  label = "Simulated", color = :black, linewidth = 1)
+			  label = "Simulated", color = cpalette[2])
 		plot!(subplots[i], first.(diameter_datas[i]), last.(diameter_datas[i]), 
-			  label = "Data", color = :black, linewidth = 2)
+			  label = "Data", color = cpalette[1])
 		plot!(subplots[i], 
-			  title = "Stem at height $(diameter_segment_heights[i]) cm")
+			  title = "Stem at height $(Int64(diameter_segment_heights[i])) cm")
 	end
 	plot(subplots..., layout = (2, 1), ylabel = "Diameter change (mm)", 
 		 size = (800, 600), margins = 5*Plots.mm, ylims = (-0.07, 0.01), 
 		 yticks = -0.07:0.01:0.01, xticks = 0:3:24, xlabel = "Time of day (h)")
+    savefig(plotdir * "fig_plantmodules_ex2_results.pdf")
 end
 
 # Uncertainty analysis
 
+D1_at_250cm = dimension_variables[diameter_segment_nrs[2]][1]
+
+## monte carlo
+
 ϵ_D_r_range = [0.03 * 1e3, 0.27 * 1e3]
 sample_range(a, b) = (b-a) * rand() + a
 
-uncertainty_plot = plot()
-for _ in 1:20
-    ϵ_D_r_sample = sample_range(ϵ_D_r_range...)
-    ϵ_D_sample = [ϵ_D_r_sample, 17.5 * ϵ_D_r_sample]
+begin
+    Random.seed!(1337)
+	p_montecarlo = plot()
+					   
+	for _ in 1:20
+	    ϵ_D_r_sample = sample_range(ϵ_D_r_range[1], ϵ_D_r_range[2])
+	    ϵ_D_sample = [ϵ_D_r_sample, 17.5 * ϵ_D_r_sample] 
+			# Perämäki et al. use a constant ratio of 1/17.5 between the radial and longitudinal elastic moduli
+	
+	    prob2 = remake_graphsystem(
+			prob, system, plantstructure, :ϵ_D, 
+			[:Stem, :Branch, :BranchTip], ϵ_D_sample
+		)
+	    @time sol2 = solve(prob2, FBDF(), reltol = 1e-2) 
+			# We use a higher relative tolerance for faster solving. Note that this can cause a SingularException error now and again but the faster solving time is generally worth it
 
-    prob2 = remake_graphsystem(prob, system, plantstructure, :ϵ_D, [:Stem, :Branch, :BranchTip], ϵ_D_sample)
-    @time sol2 = solve(prob2, FBDF(), reltol = 1e-1)
-    plot!(uncertainty_plot, sol2, idxs = [diameter_change_mm(dimension_variables[low_segment_nr][1], sol)], label = false, line_z = ϵ_D_r_sample)
+	    plot!(p_montecarlo, sol2, 
+			  idxs = [diameter_change_mm(D1_at_250cm, sol)], label = false, line_z = ϵ_D_r_sample, color = cgrad(cpalette[[1, 2]]))
+	end
+	plot!(
+		p_montecarlo, xlabel = "Time of day (h)", ylabel = "Diameter change (mm)",
+		size = (800, 600), margins = 5*Plots.mm, ylims = (-0.15, 0.01), 
+		yticks = -0.15:0.01:0.01, xticks = 0:3:24, title = "Effect of elastic modulus on diameter change"
+	)
+    savefig(plotdir * "fig_plantmodules_ex2_montecarlo.pdf")
 end
-uncertainty_plot
 
+## local sensitivity
 
+function get_diameter(K_s)
+    ps = get_subsystem_variables(system, plantstructure, :K_s, [:Stem, :Branch])
+    newprob = remake(prob, p = Pair.(ps, [K_s]))
+	newsol = solve(newprob, FBDF(), saveat = 0.1)
+	segment_diameter = newsol[D1_at_250cm]
+    return segment_diameter
+end
 
-
-
-import ModelingToolkit: parameter_values, setp
-import ModelingToolkit.SciMLStructures: Tunable, canonicalize, replace
-import PreallocationTools: DiffCache, get_tmp
-
-varnames = [:ϵ_D]
-subsystem_types = [:Stem, :Branch]
-sys = system
-structure = plantstructure
-value = ϵ_D_stem .± ϵ_D_stem ./ 10
-
-remakevars = [
-    get_subsystem_variables(sys, structure, varname, subsystem_type) 
-    for varname in varnames for subsystem_type in subsystem_types
-] |> x -> reduce(vcat, x)
-
-ps = copy(parameter_values(prob))
-diffcache = DiffCache(copy(canonicalize(Tunable(), parameter_values(prob))[1]))
-buffer = get_tmp(diffcache, fill(value, length(remakevars))) # |> x -> convert(Vector{Measurement{Float64}}, x)
-copyto!(buffer, canonicalize(Tunable(), ps)[1])
-ps = ModelingToolkit.SciMLStructures.replace(Tunable(), ps, buffer)
-
-setter = setp(prob, remakevars)
-setter(ps, fill(value, length(remakevars)))
-
-newprob = remake(prob, p = ps)
-
-sssol = solve(newprob, FBDF())
-
-plot(sssol, idxs = [diameter_change_mm(dimension_variables[low_segment_nr][1], sol)], label = false, line_z = ϵ_D_r_sample, color = :bluesreds)
+@time K_sensitivity = ForwardDiff.derivative(get_diameter, K_s_stem)
+begin
+    plot(
+        tspan[1]:0.1:tspan[2], K_sensitivity, 
+        xticks = 0:3:24, yticks = 0:0.3e-7:1.5e-7,
+        xlabel = "Time of day (h)", ylabel = "Local sensitivity", legend = false, 
+        title = "Local sensitivity analysis of the hydraulic conductivity", 
+        size = (800, 600), margins = 5*Plots.mm, color = cpalette[1]
+    )
+    savefig(plotdir * "fig_plantmodules_ex2_sens.pdf")
+end
