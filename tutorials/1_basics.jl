@@ -10,7 +10,7 @@ using PlantModules
 using PlantGraphs, OrdinaryDiffEq
 
 # pretty colors :)
-include(raw"C:\Users\bspanogh\Documents\Github\Caverns_of_code\Julia\Lifehacks\catpuccin\get_palette.jl")
+include(homedir() * raw"\Documents\Github\Caverns_of_code\Julia\Lifehacks\catpuccin\get_palette.jl")
 cpalette = get_palette("latte", type = :cb)
 
 # ## Structure
@@ -147,11 +147,11 @@ p2 = Plots.plot(
 
 begin
 	Plots.plot(
-		plotgraph(sol, plantstructure, varname = :ΣF, structmod = :Air, title = "Low evaporative demand", ylims = (0.0, 0.25), yaxis = "ΣF", palette = cpalette),
+		plotgraph(sol, plantstructure, varname = :ΣF, structmod = :Air, title = "Low evaporative demand", ylims = (0.0, 0.25), yaxis = "Net water influx (g / hr)", palette = cpalette),
 		plotgraph(sol2, plantstructure, varname = :ΣF, structmod = :Air, title = "High evaporative demand", ylims = (0.0, 0.25), palette = cpalette),
-		plotgraph(sol, plantstructure, varname = :Ψ, structmod = [:Stem, :Leaf], title = "", ylims = (-0.3, -0.1), yaxis = "Ψ", xaxis = "t (hr)", palette = cpalette),
-		plotgraph(sol2, plantstructure, varname = :Ψ, structmod = [:Stem, :Leaf], title = "", ylims = (-0.3, -0.1), xaxis = "t (hr)", palette = cpalette),
+		plotgraph(sol, plantstructure, varname = :Ψ, structmod = [:Stem, :Leaf], title = "", ylims = (-0.3, -0.1), yaxis = "Water potential (MPa)", xaxis = "Time (hr)", palette = cpalette),
+		plotgraph(sol2, plantstructure, varname = :Ψ, structmod = [:Stem, :Leaf], title = "", ylims = (-0.3, -0.1), xaxis = "Time (hr)", palette = cpalette),
 		size = (800, 600)
 	)
-	savefig(homedir() * "\\Documents\\Github\\Den_of_evil\\Non-note files\\images\\" * "fig_plantmodules_ex1_results.pdf")
+	# savefig(homedir() * "\\Documents\\Github\\Den_of_evil\\Non-note files\\images\\" * "fig_plantmodules_ex1_results.pdf")
 end
