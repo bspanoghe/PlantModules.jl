@@ -45,7 +45,7 @@ function hydraulic_module(; name, shape::Shape, ϕ_D, ϵ_D, Γ, T, D, Ψ, M, h)
         W(t), [description = "Water content", unit = u"g"],
         D(t)[1:num_D] = D, [description = "Dimensions of compartment", unit = u"cm"],
         V(t), [description = "Volume of compartment", unit = u"cm^3"],
-        ΣF(t), [description = "Net incoming water flux", unit = u"g / hr"],
+        ΣF(t), [description = "Net water influx", unit = u"g / hr"],
         
         ΔP(t), [description = "Change in hydrostatic potential", unit = u"MPa / hr", guess = 0.0],
         ΔW(t), [description = "Change in water content", unit = u"g / hr"], 
@@ -83,7 +83,7 @@ function environmental_module(; name, T, W_max, W_r)
         Ψ(t), [description = "Total water potential", unit = u"MPa"],
         W(t), [description = "Water content", unit = u"g"],
         W_r(t) = W_r, [description = "Relative water content", unit = u"g / g"],
-        ΣF(t), [description = "Net incoming water flux", unit = u"g / hr"],
+        ΣF(t), [description = "Net water influx", unit = u"g / hr"],
 
         ΔW(t), [description = "Change in water content", unit = u"g / hr"],
     )
@@ -349,7 +349,7 @@ end
 
 multi_connection_eqs(node_MTK, connection_MTKs) = [
     node_MTK.ΣF ~ sum([connection_MTK.F for connection_MTK in connection_MTKs])
-        # "node's net incoming water flux equals the sum of all connected water flows"
+        # "node's Net water influx equals the sum of all connected water flows"
 ]
 
 # # Default values
