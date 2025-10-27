@@ -1,10 +1,9 @@
-module basictests
+module tests
     using Test, PlantModules, PlantGraphs, ModelingToolkit, OrdinaryDiffEq, Plots
     import ModelingToolkit: get_eqs, get_systems, get_unknowns, get_defaults, get_name, get_iv
-    @testset "Basic functionality and plotting" include("./generate_system_and_plotting.jl")
-end
 
-module readingtests
-    using Test, PlantModules
+    @testset "Structure definition" include("./test_plantstructure.jl")
+    @testset "System generation" include("./test_generate_system.jl")
+    @testset "Plotting" include("./test_plotting.jl")
     @testset "Reading plant structure files" include("test_readgraphs.jl")
 end
