@@ -11,7 +11,7 @@ using PlantGraphs, OrdinaryDiffEq
 
 # pretty colors :)
 include(homedir() * raw"\Documents\Github\Caverns_of_code\Julia\Lifehacks\catpuccin\get_palette.jl")
-cpalette = get_palette("latte", type = :cb)
+cpalette = get_palette("prettycolors")
 
 # ## Structure
 
@@ -55,7 +55,7 @@ begin
 	using Random
 	Random.seed!(12)
 	plotstructure(plantstructure, palette = cpalette)
-	# savefig(raw"C:\Users\bspanogh\Documents\Github\Den_of_evil\Non-note files\images" * "/fig_plantmodules_ex1_structure.pdf")
+	# savefig(homedir() * raw"\Documents\Github\Den_of_evil\Non-note files\images" * "/fig_plantmodules_ex1_structure.pdf")
 end
 
 # ## Function
@@ -147,10 +147,10 @@ p2 = Plots.plot(
 
 begin
 	Plots.plot(
-		plotgraph(sol, plantstructure, varname = :ΣF, structmod = :Air, title = "Low evaporative demand", ylims = (0.0, 0.25), yaxis = "Net water influx (g / hr)", palette = cpalette),
-		plotgraph(sol2, plantstructure, varname = :ΣF, structmod = :Air, title = "High evaporative demand", ylims = (0.0, 0.25), palette = cpalette),
-		plotgraph(sol, plantstructure, varname = :Ψ, structmod = [:Stem, :Leaf], title = "", ylims = (-0.3, -0.1), yaxis = "Water potential (MPa)", xaxis = "Time (hr)", palette = cpalette),
-		plotgraph(sol2, plantstructure, varname = :Ψ, structmod = [:Stem, :Leaf], title = "", ylims = (-0.3, -0.1), xaxis = "Time (hr)", palette = cpalette),
+		plotgraph(sol, plantstructure, varname = :ΣF, structmod = :Air, title = "Low evaporative demand", ylims = (0.0, 0.25), yaxis = "Net water influx (g / hr)", palette = cpalette, lw = 2),
+		plotgraph(sol2, plantstructure, varname = :ΣF, structmod = :Air, title = "High evaporative demand", ylims = (0.0, 0.25), palette = cpalette, lw = 2),
+		plotgraph(sol, plantstructure, varname = :Ψ, structmod = [:Stem, :Leaf], title = "", ylims = (-0.3, -0.1), yaxis = "Water potential (MPa)", xaxis = "Time (hr)", palette = cpalette, lw = 2),
+		plotgraph(sol2, plantstructure, varname = :Ψ, structmod = [:Stem, :Leaf], title = "", ylims = (-0.3, -0.1), xaxis = "Time (hr)", palette = cpalette, lw = 2),
 		size = (800, 600)
 	)
 	# savefig(homedir() * "\\Documents\\Github\\Den_of_evil\\Non-note files\\images\\" * "fig_plantmodules_ex1_results.pdf")

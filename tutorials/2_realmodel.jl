@@ -8,8 +8,8 @@ using ModelingToolkit, OrdinaryDiffEq, Unitful
 using DataInterpolations, ForwardDiff, Sparspak
 
 # for figures
-include(raw"C:\Users\bspanogh\Documents\Github\Caverns_of_code\Julia\Lifehacks\catpuccin\get_palette.jl")
-cpalette = get_palette("latte", type = :cb)
+include(homedir() * raw"\Documents\Github\Caverns_of_code\Julia\Lifehacks\catpuccin\get_palette.jl")
+cpalette = get_palette("prettycolors")
 
 plotdir = homedir() * raw"\Documents\Github\Den_of_evil\Non-note files\images\\"
 
@@ -373,14 +373,14 @@ begin
 			# We use a higher relative tolerance for faster solving. Note that this can cause a SingularException error now and again but the faster solving time is generally worth it
 
 	    plot!(p_montecarlo, sol2, 
-			  idxs = [diameter_change_mm(D1_at_250cm, sol)], label = false, line_z = ϵ_D_r_sample, color = cgrad(cpalette[[1, 2]]))
+			  idxs = [diameter_change_mm(D1_at_250cm, sol)], label = false, line_z = ϵ_D_r_sample, color = cgrad(cpalette[[1, 4]]))
 	end
 	plot!(
 		p_montecarlo, xlabel = "Time of day (h)", ylabel = "Diameter change (mm)",
 		size = (800, 600), margins = 5*Plots.mm, ylims = (-0.15, 0.01), 
 		yticks = -0.15:0.01:0.01, xticks = 0:3:24, title = "Effect of elastic modulus on diameter change"
 	)
-    savefig(plotdir * "fig_plantmodules_ex2_montecarlo.pdf")
+    # savefig(plotdir * "fig_plantmodules_ex2_montecarlo.pdf")
 end
 
 ## local sensitivity
@@ -402,5 +402,5 @@ begin
         title = "Local sensitivity analysis of the hydraulic conductivity", 
         size = (800, 600), margins = 5*Plots.mm, color = cpalette[1]
     )
-    savefig(plotdir * "fig_plantmodules_ex2_sens.pdf")
+    # savefig(plotdir * "fig_plantmodules_ex2_sens.pdf")
 end
