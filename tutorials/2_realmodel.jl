@@ -81,7 +81,7 @@ begin
     ϵ_D_stem = [0.15 * 1e3, 17.5 * 0.15 * 1e3] # MPa; from GPa (input)
 end
 
-struct HollowCylinder{T} <: PlantModules.Shape
+struct HollowCylinder{T} <: ModuleShape
     frac_sapwood::T # fraction of radius that is conducting sapwood
     function HollowCylinder(frac_sapwood::T) where {T <: Number}
         @assert 0 <= frac_sapwood <= 1
@@ -269,12 +269,12 @@ begin
 		:needle_area => 0.0,
 		:ϵ_D => ϵ_D_stem, :K_s => K_s_stem,
         :ϕ_D => 0.0, :M => 0.0, 
-		:Ψ => PlantModules.soilfunc(0.5), 
+		:Ψ => PlantModules.soilfunc(0.9), 
 		:shape => HollowCylinder(radial_fraction_sapwood)
 	)
 
 	module_defaults = Dict(
-        :Soil => Dict(:W_max => 1e6, :W_r => 0.5),
+        :Soil => Dict(:W_max => 1e6, :W_r => 0.9),
     )
 
     connection_values = Dict(
@@ -342,9 +342,9 @@ begin
 			  title = "Stem at height $(Int64(diameter_segment_heights[i])) cm")
 	end
 	plot(subplots..., layout = (2, 1), ylabel = "Diameter change (mm)", 
-		 size = (800, 600), margins = 5*Plots.mm, ylims = (-0.07, 0.01), 
+		 size = (800, 600), margins = 5*Plots.mm, #ylims = (-0.07, 0.01), 
 		 yticks = -0.07:0.01:0.01, xticks = 0:3:24, xlabel = "Time of day (h)")
-    savefig(plotdir * "fig_plantmodules_ex2_results.pdf")
+    # savefig(plotdir * "fig_plantmodules_ex2_results.pdf")
 end
 
 # Uncertainty analysis
@@ -380,7 +380,7 @@ begin
 		size = (800, 600), margins = 5*Plots.mm, ylims = (-0.15, 0.01), 
 		yticks = -0.15:0.01:0.01, xticks = 0:3:24, title = "Effect of elastic modulus on diameter change"
 	)
-    # savefig(plotdir * "fig_plantmodules_ex2_montecarlo.pdf")
+    savefig(plotdir * "fig_plantmodules_ex2_montecarlo.pdf")
 end
 
 ## local sensitivity
@@ -400,7 +400,7 @@ begin
         xticks = 0:3:24, yticks = 0:0.3e-7:1.5e-7,
         xlabel = "Time of day (h)", ylabel = "Local sensitivity", legend = false, 
         title = "Local sensitivity analysis of the hydraulic conductivity", 
-        size = (800, 600), margins = 5*Plots.mm, color = cpalette[1]
+        size = (800, 600), margins = 5*Plots.mm, color = cpalette[1], lw = 2
     )
-    # savefig(plotdir * "fig_plantmodules_ex2_sens.pdf")
+    savefig(plotdir * "fig_plantmodules_ex2_sens.pdf")
 end

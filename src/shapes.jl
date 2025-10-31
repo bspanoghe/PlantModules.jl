@@ -1,9 +1,9 @@
 # Plant compartment shapes used by hydraulic functional module #
 
 """
-    Shape
+    ModuleShape
 
-An abstract type representing the physical shape of a compartment, used by the hydraulic functional module.
+An abstract type representing the physical shape of a structural module, used by the hydraulic functional module.
 
 # Functions
 The functional modules implemented in this package expect the following functions to be defined
@@ -13,54 +13,54 @@ for the shape `MyShape` with dimensions the vector `D`:
 - [`cross_area`](@ref)`(m::MyShape, D)`: Calculate the cross-sectional area of the shape.
 - [`surface_area`](@ref)`(m::MyShape, D)`: Calculate the surface area of the shape.
 """
-abstract type Shape end
+abstract type ModuleShape end
 
 """
-    Sphere <: Shape
+    Sphere <: ModuleShape
 
 A spherical compartment shape, defined by a single dimension: the radius.
 """
-struct Sphere <: Shape end
+struct Sphere <: ModuleShape end
 
 """
-    Cylinder <: Shape
+    Cylinder <: ModuleShape
 
 A cylindrical compartment shape, defined by two dimensions: the radius and the length.
 """
-struct Cylinder <: Shape end
+struct Cylinder <: ModuleShape end
 
 """
-    Cuboid <: Shape
+    Cuboid <: ModuleShape
 
 A cuboidal compartment shape, defined by three dimensions: the length, the width and the thickness.
 """
-struct Cuboid <: Shape end
+struct Cuboid <: ModuleShape end
 
 """
-    getdimensionality(s::Shape)
+    getdimensionality(s::ModuleShape)
 
 Return the number of dimensions that define shape `s`.
 """
-getdimensionality(s::Shape) = error("Function not yet defined for shape $s")
+getdimensionality(s::ModuleShape) = error("Function not yet defined for shape $s")
 getdimensionality(::Sphere) = 1
 getdimensionality(::Cylinder) = 2
 getdimensionality(::Cuboid) = 3
 
 """
-    correctdimensionality(s::Shape, var)
+    correctdimensionality(s::ModuleShape, var)
 
 Correct the dimensions of a variable `var` to match the number of dimensions of shape `s`.
 
 If `var` is a scalar, return a vector of the length matching `s` with the value of `var` used for every dimension.
 If `var` is an array, either return the same vector if the dimensions match or throw an error if they do not.
 """
-function correctdimensionality(s::Shape, var)
+function correctdimensionality(s::ModuleShape, var)
     @info "A scalar value was found for a variable that needs to be defined for every dimensions of the shape (D, ϕ_D, ϵ_D)." *
     " This value will be used for every dimension." maxlog = 1
     return fill(var, getdimensionality(s))
 end
 
-function correctdimensionality(s::Shape, var::AbstractArray)
+function correctdimensionality(s::ModuleShape, var::AbstractArray)
     if length(var) != getdimensionality(s)
         error("Volumes of shape $s must have $(getdimensionality(s)) dimension$(getdimensionality(s) > 1 ? "s" : "")" *
             " for all dimensional variables (by default: dimensions `D`, extensibility `ϕ_D`, elasticity `ϵ_D`).")
@@ -69,11 +69,11 @@ function correctdimensionality(s::Shape, var::AbstractArray)
 end
 
 """
-    volume(s::Shape, ::AbstractArray)
+    volume(s::ModuleShape, ::AbstractArray)
 
 Calculate the volume of a given shape.
 """
-volume(s::Shape, ::AbstractArray) = error("Function not yet defined for shape $s")
+volume(s::ModuleShape, ::AbstractArray) = error("Function not yet defined for shape $s")
 """
     volume(::Sphere, D::AbstractArray)
 
@@ -95,11 +95,11 @@ volume(::Cuboid, D::AbstractArray) = D[1] * D[2] * D[3] # Write dimensions in th
 
 
 """
-    cross_area(s::Shape, ::AbstractArray)
+    cross_area(s::ModuleShape, ::AbstractArray)
 
 Calculate the cross-sectional area of a given shape.
 """
-cross_area(s::Shape, ::AbstractArray) = error("Function not yet defined for shape $s")
+cross_area(s::ModuleShape, ::AbstractArray) = error("Function not yet defined for shape $s")
 """
     cross_area(::Sphere, D::AbstractArray)
 
@@ -120,11 +120,11 @@ Calculate the cross-sectional area of a cuboid, defined as the product of its fi
 cross_area(::Cuboid, D::AbstractArray) = D[1] * D[2] # Write dimensions in the order: length - width - thickness
 
 """
-    surface_area(s::Shape, ::AbstractArray)
+    surface_area(s::ModuleShape, ::AbstractArray)
 
 Calculate the surface area of a given shape.
 """
-surface_area(s::Shape, ::AbstractArray) = error("Function not yet defined for shape $s")
+surface_area(s::ModuleShape, ::AbstractArray) = error("Function not yet defined for shape $s")
 """
     surface_area(::Sphere, D::AbstractArray)
 

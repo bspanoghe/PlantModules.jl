@@ -143,7 +143,7 @@ md"### Defining a new shape"
 
 # ╔═╡ 479acd0d-ce44-411d-97bf-e12a49004a5d
 md"""
-In order to define a new shape, we define a new composite type as a subtype of the `PlantModules.Shape` abstract type. Afterwards, we extend the following functions for the shape `MyShape` with dimensions the vector `D`, also listed in the `PlantModules.Shape` docstring:
+In order to define a new shape, we define a new composite type as a subtype of the `PlantModules.ModuleShape` abstract type. Afterwards, we extend the following functions for the shape `MyShape` with dimensions the vector `D`, also listed in the `PlantModules.ModuleShape` docstring:
 - `getdimensionality(m::MyShape)`: Return how many dimensions define the shape. 
 - `volume(m::MyShape, D)`: Calculate the volume of the shape. 
 - `cross_area(m::MyShape, D)`: Calculate the cross-sectional area of the shape. 
@@ -153,25 +153,25 @@ In order to define a new shape, we define a new composite type as a subtype of t
 
 # ╔═╡ 2a4b2b06-a057-4fef-b8fe-30700b39b564
 """
-    HollowCylinder <: Shape
+    HollowCylinder <: ModuleShape
 
 A compartment shape representing a hollow cylinder. It is defined by two dimensions: the radius and the length, and the attribute `frac_sapwood`, denoting the fraction of the radius that is conducting sapwood.
 """
-struct HollowCylinder <: PlantModules.Shape
+struct HollowCylinder <: PlantModules.ModuleShape
     frac_sapwood::Float64
 end
 
 # ╔═╡ 6d1a8b68-e8d3-43d9-84a3-8b3fdd600913
-PlantModules.getdimensionality(::HollowCylinder) = 2
+getdimensionality(::HollowCylinder) = 2
 
 # ╔═╡ 1ca717b5-7c67-4727-a984-7fd6914a3257
-PlantModules.cross_area(hc::HollowCylinder, D::AbstractArray) = D[1]^2 * pi * (2 / hc.frac_sapwood - 1)
+cross_area(hc::HollowCylinder, D::AbstractArray) = D[1]^2 * π * (2 / hc.frac_sapwood - 1)
 
 # ╔═╡ c0ce423e-ddec-4a2f-b724-8d55d3d05073
-PlantModules.volume(hc::HollowCylinder, D::AbstractArray) = cross_area(hc, D) * D[2]
+volume(hc::HollowCylinder, D::AbstractArray) = cross_area(hc, D) * D[2]
 
 # ╔═╡ 17a090c0-f673-4c2d-b1e4-8f9f8a360179
-PlantModules.surface_area(hc::HollowCylinder, D::AbstractArray) = (D[1]/frac_sapwood)^2 * pi * D[2]
+surface_area(hc::HollowCylinder, D::AbstractArray) = 2 * (D[1]/frac_sapwood) * π * D[2]
 
 # ╔═╡ d59a64b2-9fdf-4723-b764-b27330a050fc
 md"### Plant structural module types"
@@ -491,12 +491,12 @@ begin
 		:needle_area => 0.0,
 		:ϵ_D => ϵ_D_stem, :K_s => K_s_stem,
         :ϕ_D => 0.0, :M => 0.0, 
-		:P_0 => PlantModules.soilfunc(0.5), 
+		:P_0 => PlantModules.soilfunc(0.9), 
 		:shape => HollowCylinder(radial_fraction_sapwood)
 	)
 
 	module_defaults = Dict(
-        :Soil => Dict(:W_max => 1e6, :W_r => 0.5),
+        :Soil => Dict(:W_max => 1e6, :W_r => 0.9),
     )
 
     connection_values = Dict(

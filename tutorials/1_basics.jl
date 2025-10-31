@@ -142,15 +142,15 @@ p1 = Plots.plot(
 p2 = Plots.plot(
 	plotgraph(sol, plantstructure, varname = :Ψ, structmod = [:Stem, :Leaf], title = "Low transpiration"),
 	plotgraph(sol2, plantstructure, varname = :Ψ, structmod = [:Stem, :Leaf], title = "High transpiration"),
-	ylims = (-0.3, -0.1), yaxis = "Ψ"
+	ylims = (-0.35, -0.1), yaxis = "Ψ"
 )
 
 begin
 	Plots.plot(
 		plotgraph(sol, plantstructure, varname = :ΣF, structmod = :Air, title = "Low evaporative demand", ylims = (0.0, 0.25), yaxis = "Net water influx (g / hr)", palette = cpalette, lw = 2),
 		plotgraph(sol2, plantstructure, varname = :ΣF, structmod = :Air, title = "High evaporative demand", ylims = (0.0, 0.25), palette = cpalette, lw = 2),
-		plotgraph(sol, plantstructure, varname = :Ψ, structmod = [:Stem, :Leaf], title = "", ylims = (-0.3, -0.1), yaxis = "Water potential (MPa)", xaxis = "Time (hr)", palette = cpalette, lw = 2),
-		plotgraph(sol2, plantstructure, varname = :Ψ, structmod = [:Stem, :Leaf], title = "", ylims = (-0.3, -0.1), xaxis = "Time (hr)", palette = cpalette, lw = 2),
+		plotgraph(sol, plantstructure, varname = :Ψ, structmod = [:Stem, :Leaf], title = "", ylims = (-0.4, -0.1), yaxis = "Water potential (MPa)", xaxis = "Time (hr)", palette = cpalette, lw = 2),
+		plotgraph(sol2, plantstructure, varname = :Ψ, structmod = [:Stem, :Leaf], title = "", ylims = (-0.4, -0.1), xaxis = "Time (hr)", palette = cpalette, lw = 2),
 		size = (800, 600)
 	)
 	# savefig(homedir() * "\\Documents\\Github\\Den_of_evil\\Non-note files\\images\\" * "fig_plantmodules_ex1_results.pdf")

@@ -12,7 +12,7 @@ Return a ModelingToolkit System describing the turgor-driven growth of a plant c
 
 This module still requires a module describing the osmotically active metabolite content M.
 """
-function hydraulic_module(; name, shape::Shape, ϕ_D, ϵ_D, Γ, T, D, Ψ, M, h)
+function hydraulic_module(; name, shape::ModuleShape, ϕ_D, ϵ_D, Γ, T, D, Ψ, M, h)
     D, ϕ_D, ϵ_D = [correctdimensionality(shape, var) for var in [D, ϕ_D, ϵ_D]] 
         # turns scalar values into vectors of correct length
 
@@ -188,18 +188,19 @@ function Ψ_soil_module(; name)
 	return System(eqs, t; name)
 end
 
-soilfunc(W_r) = -(1/W_r) * exp(-30*W_r) # empirical equation for soil water potential
-
+soilfunc(W_r; a = 3.5, b = 5.5) = -(a/W_r) * exp(-b*W_r) # empirical equation for soil water potential
+    # default values fit to loam soil data from Chen et al. (1997) 
+    # doi: https://doi.org/10.1093/treephys/17.12.797
 
 # ## Hydraulic conductivity
 
 """
-    K_module(; name, K_s, shape::Shape)
+    K_module(; name, K_s, shape::ModuleShape)
 
 Return a ModelingToolkit System describing the hydraulic conductance of a 
 compartment as the product of its specific hydraulic conductance and an area of the compartment.
 """
-function K_module(; name, K_s, shape::Shape, K_area_func::Function)
+function K_module(; name, K_s, shape::ModuleShape, K_area_func::Function)
     num_D = getdimensionality(shape)
 
     @parameters (
@@ -218,7 +219,7 @@ function K_module(; name, K_s, shape::Shape, K_area_func::Function)
 end
 
 """
-    constant_K_module(; name, K_s, shape::Shape)
+    constant_K_module(; name, K_s, shape::ModuleShape)
 
 Return a ModelingToolkit System describing the hydraulic conductance of a 
 compartment as a constant.
@@ -356,7 +357,7 @@ multi_connection_eqs(node_MTK, connection_MTKs) = [
 
 default_values = Dict(
     :shape => Cylinder(), :ϕ_D => 0.02, :ϵ_D => 50.0, :Γ => 0.3,
-    :T => 298.15, :D => [0.5, 5.0], :Ψ => 0.0, :M => 300e-6, :h => 0.0, :W_max => 1e6, :W_r => 0.5, 
+    :T => 298.15, :D => [0.5, 5.0], :Ψ => 0.0, :M => 300e-6, :h => 0.0, :W_max => 1e6, :W_r => 0.8, 
     :K_s => 10.0, :K => 1e3, :t_sunrise => 8, :t_sunset => 20, :η_night => 0.1, :A_max => 2e-6, 
     :M_c => 0.05, :K_area_func => cross_area
 )

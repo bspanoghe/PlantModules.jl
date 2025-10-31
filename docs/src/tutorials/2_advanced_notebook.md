@@ -142,14 +142,14 @@ end;</code></pre>
 <div class="markdown"><h3 id="Defining-a-new-shape">Defining a new shape</h3></div>
 
 
-<div class="markdown"><p>In order to define a new shape, we define a new composite type as a subtype of the <code>PlantModules.Shape</code> abstract type. Afterwards, we extend the following functions for the shape <code>MyShape</code> with dimensions the vector <code>D</code>, also listed in the <code>PlantModules.Shape</code> docstring:</p><ul><li><p><code>getdimensionality(m::MyShape)</code>: Return how many dimensions define the shape. </p></li><li><p><code>volume(m::MyShape, D)</code>: Calculate the volume of the shape. </p></li><li><p><code>cross_area(m::MyShape, D)</code>: Calculate the cross-sectional area of the shape. </p></li><li><p><code>surface_area(m::MyShape, D)</code>: Calculate the surface area of the shape.</p><ul><li><p>This one is used for the photosynthesis module, which we won't be using this tutorial, so we don't need to extend it.</p></li></ul></li></ul></div>
+<div class="markdown"><p>In order to define a new shape, we define a new composite type as a subtype of the <code>PlantModules.ModuleShape</code> abstract type. Afterwards, we extend the following functions for the shape <code>MyShape</code> with dimensions the vector <code>D</code>, also listed in the <code>PlantModules.ModuleShape</code> docstring:</p><ul><li><p><code>getdimensionality(m::MyShape)</code>: Return how many dimensions define the shape. </p></li><li><p><code>volume(m::MyShape, D)</code>: Calculate the volume of the shape. </p></li><li><p><code>cross_area(m::MyShape, D)</code>: Calculate the cross-sectional area of the shape. </p></li><li><p><code>surface_area(m::MyShape, D)</code>: Calculate the surface area of the shape.</p><ul><li><p>This one is used for the photosynthesis module, which we won't be using this tutorial, so we don't need to extend it.</p></li></ul></li></ul></div>
 
 <pre class='language-julia'><code class='language-julia'>"""
-    HollowCylinder &lt;: Shape
+    HollowCylinder &lt;: ModuleShape
 
 A compartment shape representing a hollow cylinder. It is defined by two dimensions: the radius and the length, and the attribute `frac_sapwood`, denoting the fraction of the radius that is conducting sapwood.
 """
-struct HollowCylinder &lt;: PlantModules.Shape
+struct HollowCylinder &lt;: PlantModules.ModuleShape
     frac_sapwood::Float64
 end</code></pre>
 

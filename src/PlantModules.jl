@@ -17,7 +17,7 @@ using RecipesBase, GraphRecipes # visualisation
 # # Exports
 # ## Own functions
 export generate_system, PlantStructure, PlantCoupling, PlantParameters # generate system
-export Shape, Sphere, Cylinder, Cuboid # shapes
+export ModuleShape, Sphere, Cylinder, Cuboid # shapes
 export getnodes, getneighbors, getattributes, getstructmod, getid # graph functions
 export getdimensionality, volume, cross_area, surface_area # shape functions
 export logsumexp, smooth_daynight # smooth functions
