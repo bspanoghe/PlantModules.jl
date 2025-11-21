@@ -58,7 +58,7 @@ function hydraulic_module(; name, shape::ModuleShape, ϕ_D, ϵ_D, Γ, T, D, Ψ, 
         ΔW ~ ΣF, # Water content changes due to flux (depending on water potentials as defined in connections)
         V ~ W / ρ_w, # Volume is directly related to water content  
         V ~ volume(shape, D), # Volume is also directly related to compartment dimensions
-        [ΔD[i] ~ D[i] * ϕ_D[i]*P_unit*logsumexp((P - Γ)/P_unit, α = 100) + D[i] * ΔP/ϵ_D[i] for i in eachindex(D)]..., # Compartment dimensions can only change due to a change in pressure
+        [ΔD[i] ~ D[i] * ϕ_D[i]*P_unit*logsumexp((P - Γ)/P_unit, α = 40) + D[i] * ΔP/ϵ_D[i] for i in eachindex(D)]..., # Compartment dimensions can only change due to a change in pressure
 
         d(P) ~ ΔP,
         d(W) ~ ΔW,
@@ -190,7 +190,7 @@ end
 
 soilfunc(W_r; a = 3.5, b = 5.5) = -(a/W_r) * exp(-b*W_r) # empirical equation for soil water potential
     # default values fit to loam soil data from Chen et al. (1997) 
-    # doi: https://doi.org/10.1093/treephys/17.12.797
+    # link: https://doi.org/10.1093/treephys/17.12.797
 
 # ## Hydraulic conductivity
 

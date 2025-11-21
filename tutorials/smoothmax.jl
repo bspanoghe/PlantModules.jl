@@ -14,12 +14,15 @@ begin
     default(linewidth=2)
     scalefontsizes(1.5)
 
-    plot(title = "Comparison of thresholding functions", xlims = (-0.5, 1), 
+    plot(title = "Comparison of thresholding functions", xlims = (-0.5, 0.5), 
         size = (800, 600), xlabel = L"x")
     plot!(hardmax, color = :black, label = L"\mathrm{max}(x, 0)", linewidth = 2)
-    plot!(x -> LSE(x, α = 5), color = cpalette[1], linestyle = :dash, label = L"\mathrm{LSE}_5(x, 0)")
-    plot!(x -> LSE(x, α = 10), color = cpalette[2], linestyle = :dash, label = L"\mathrm{LSE}_{10}(x, 0)")
-    plot!(x -> LSE(x, α = 50), color = cpalette[3], linestyle = :dash, label = L"\mathrm{LSE}_{50}(x, 0)")
-end
 
-savefig(plotdir * "fig_plantmodules_max.pdf")
+    αs = [5, 50, 500]
+    for (i, α) in enumerate(αs)
+        plot!(x -> LSE(x; α), color = cpalette[i], linestyle = :dash, label = L"\mathrm{LSE}_{%$(α)}(x, 0)")
+    end
+end
+plot!()
+
+# savefig(plotdir * "fig_plantmodules_max.pdf")
