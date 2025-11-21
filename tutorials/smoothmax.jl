@@ -18,7 +18,7 @@ begin
         size = (800, 600), xlabel = L"x")
     plot!(hardmax, color = :black, label = L"\mathrm{max}(x, 0)", linewidth = 2)
 
-    αs = [5, 50, 500]
+    αs = [4, 40, 400]
     for (i, α) in enumerate(αs)
         plot!(x -> LSE(x; α), color = cpalette[i], linestyle = :dash, label = L"\mathrm{LSE}_{%$(α)}(x, 0)")
     end
