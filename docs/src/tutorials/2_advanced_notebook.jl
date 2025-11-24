@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.20.19
+# v0.20.21
 
 using Markdown
 using InteractiveUtils
@@ -162,16 +162,16 @@ struct HollowCylinder <: PlantModules.ModuleShape
 end
 
 # ╔═╡ 6d1a8b68-e8d3-43d9-84a3-8b3fdd600913
-getdimensionality(::HollowCylinder) = 2
+PlantModules.getdimensionality(::HollowCylinder) = 2
 
 # ╔═╡ 1ca717b5-7c67-4727-a984-7fd6914a3257
-cross_area(hc::HollowCylinder, D::AbstractArray) = D[1]^2 * π * (2 / hc.frac_sapwood - 1)
+PlantModules.cross_area(hc::HollowCylinder, D::AbstractArray) = D[1]^2 * π * (2 / hc.frac_sapwood - 1)
 
 # ╔═╡ c0ce423e-ddec-4a2f-b724-8d55d3d05073
-volume(hc::HollowCylinder, D::AbstractArray) = cross_area(hc, D) * D[2]
+PlantModules.volume(hc::HollowCylinder, D::AbstractArray) = cross_area(hc, D) * D[2]
 
 # ╔═╡ 17a090c0-f673-4c2d-b1e4-8f9f8a360179
-surface_area(hc::HollowCylinder, D::AbstractArray) = 2 * (D[1]/frac_sapwood) * π * D[2]
+PlantModules.surface_area(hc::HollowCylinder, D::AbstractArray) = 2 * (D[1]/frac_sapwood) * π * D[2]
 
 # ╔═╡ d59a64b2-9fdf-4723-b764-b27330a050fc
 md"### Plant structural module types"
