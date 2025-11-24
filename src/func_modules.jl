@@ -11,6 +11,20 @@ d = Differential(t); # differential operator
 Return a ModelingToolkit System describing the turgor-driven growth of a plant compartment.
 
 This module still requires a module describing the osmotically active metabolite content M.
+
+# Inputs
+## Parameters
+- `shape`: The shape, defined as an instance of [`PlantModules.ModuleShape`](@ref).
+- `ϕ_D`: The dimensional extensibility [1 / MPa / h], must be a vector with a value for every dimension of the compartment's shape.
+- `ϵ_D`: The dimensional elastic modulus [MPa], must be a vector with a value for every dimension of the compartment's shape.
+- `Γ`: The yield turgor pressure [MPa].
+- `T`: The temperature [K].
+
+## Initial values
+- `D`: The dimensions [cm], must be a vector with a value for every dimension of the compartment's shape.
+- `Ψ`: The total water potential [MPa].
+- `M`: The osmotically active metabolite concentration [mol/cm^3].
+- `h`: The height above a chosen reference level [cm].
 """
 function hydraulic_module(; name, shape::ModuleShape, ϕ_D, ϵ_D, Γ, T, D, Ψ, M, h)
     D, ϕ_D, ϵ_D = [correctdimensionality(shape, var) for var in [D, ϕ_D, ϵ_D]] 
@@ -73,6 +87,14 @@ end
 Return a ModelingToolkit System describing a non-growing water reservoir.
 
 This module still requires a module describing the total water potential Ψ.
+
+# Inputs
+## Parameters
+- `T`: The temperature [K].
+- `W_max`: The water capacity of the compartment [g].
+
+## Initial values
+- `W_r`: The relative water content, equal to the ratio of the current water content `W` over the water capacity `W_max` [g/g].
 """
 function environmental_module(; name, T, W_max, W_r)
     @parameters (
@@ -102,8 +124,19 @@ end
     simple_photosynthesis_module(; name, M, shape)
 
 Return a ModelingToolkit System describing a concentration of osmotically active metabolite content increasing during day and decreasing in function of the current concentration.
+
+# Inputs
+## Parameters
+- `shape`: The shape, defined as an instance of [`PlantModules.ModuleShape`](@ref).
+- `t_sunrise`: The time of sunrise [h].
+- `t_sunset`: The time of sunset [h].
+- `A_max`: The maximum carbon assimilation rate [mol / cm^2 / h].
+- `M_c`: The rate of carbon consumption [1 / h].
+
+## Initial values
+- `M`: The osmotically active metabolite concentration [mol/cm^3].
 """
-function simple_photosynthesis_module(; name, M, shape, t_sunrise, t_sunset, A_max, M_c)
+function simple_photosynthesis_module(; name, shape, t_sunrise, t_sunset, A_max, M_c, M)
     @constants (
         t_unit = 1, [description = "Dummy constant for correcting units", unit = u"hr"],
     )
@@ -127,9 +160,13 @@ function simple_photosynthesis_module(; name, M, shape, t_sunrise, t_sunset, A_m
 end
 
 """
-    constant_carbon_module(; name, C)
+    constant_carbon_module(; name, M)
 
 Return a ModelingToolkit System describing a constant concentration of osmotically active metabolite content.
+
+# Inputs
+## Initial values
+- `M`: The osmotically active metabolite concentration [mol/cm^3].
 """
 function constant_carbon_module(; name, M)
     @parameters (
@@ -151,8 +188,11 @@ end
 """
     Ψ_air_module(; name, T)
 
-Return a ModelingToolkit System describing the relationship between
-the total water potential of the air and its relative water content.
+Return a ModelingToolkit System describing the relationship between the total water potential of the air and its relative water content.
+
+# Inputs
+## Parameters
+- `T`: The temperature [K].
 """
 function Ψ_air_module(; name, T)
 	@variables (
@@ -173,8 +213,10 @@ end
 """
     Ψ_soil_module(; name)
 
-Return a ModelingToolkit System describing an empirical relationship between
-the total water potential of the soil and its relative water content.
+Return a ModelingToolkit System describing an empirical relationship between the total water potential of the soil and its relative water content.
+
+# Inputs
+None.
 """
 function Ψ_soil_module(; name)
 	@variables (
@@ -197,10 +239,14 @@ soilfunc(W_r; a = 3.5, b = 5.5) = -(a/W_r) * exp(-b*W_r) # empirical equation fo
 """
     K_module(; name, K_s, shape::ModuleShape)
 
-Return a ModelingToolkit System describing the hydraulic conductance of a 
-compartment as the product of its specific hydraulic conductance and an area of the compartment.
+Return a ModelingToolkit System describing the hydraulic conductance of a compartment as the product of its specific hydraulic conductance and an area of the compartment.
+
+# Inputs
+## Parameters
+- `shape`: The shape, defined as an instance of [`PlantModules.ModuleShape`](@ref).
+- `K_s`: The specific hydraulic conductivity, defined per unit area of the cross section [g / h / MPa / cm^2].
 """
-function K_module(; name, K_s, shape::ModuleShape, K_area_func::Function)
+function K_module(; name, shape::ModuleShape, K_s)
     num_D = getdimensionality(shape)
 
     @parameters (
@@ -212,7 +258,7 @@ function K_module(; name, K_s, shape::ModuleShape, K_area_func::Function)
     )
 
     eqs = [
-		K ~ K_s * K_area_func(shape, D)
+		K ~ K_s * cross_area(shape, D)
     ]
 
     return System(eqs, t; name)
@@ -223,6 +269,10 @@ end
 
 Return a ModelingToolkit System describing the hydraulic conductance of a 
 compartment as a constant.
+
+# Inputs
+## Parameters
+- `K`: The hydraulic conductivity [g / h / MPa].
 """
 function constant_K_module(; name, K)
     @parameters (
@@ -247,6 +297,9 @@ end
 Returns a ModelingToolkit System describing a water flow connection between two hydraulics-based compartments.
 
 This module assumes the compartments have a specified hydraulic conductivities.
+
+# Inputs
+None.
 """
 function hydraulic_connection(; name)
     @constants (
@@ -281,6 +334,12 @@ end
 Returns a ModelingToolkit System describing a water flow connection between two hydraulics-based compartments that decreases at night.
 
 This module assumes the compartments have a specified hydraulic conductivities.
+
+# Inputs
+## Parameters
+- `t_sunrise`: The time of sunrise [h].
+- `t_sunset`: The time of sunset [h].
+- `η_night`: The ratio of the hydraulic conductivity at night over the default hydraulic conducivity.
 """
 function daynight_hydraulic_connection(; name, t_sunrise, t_sunset, η_night)
     @constants (
@@ -288,8 +347,8 @@ function daynight_hydraulic_connection(; name, t_sunrise, t_sunset, η_night)
         K_unit = 1, [description = "Dummy constant for correcting units", unit = u"g / hr / MPa"],
     )
     @parameters (
-        t_sunrise = t_sunrise, [description = "Time of t_sunrise (hours past midnight)", unit = u"hr"],
-        t_sunset = t_sunset, [description = "Time of t_sunset (hours past midnight)", unit = u"hr"],
+        t_sunrise = t_sunrise, [description = "Time of sunrise (hours past midnight)", unit = u"hr"],
+        t_sunset = t_sunset, [description = "Time of sunset (hours past midnight)", unit = u"hr"],
         η_night = η_night, [description = "Relative hydraulic conductivity at night", unit = u"(g / hr / MPa) / (g / hr / MPa)"]
     )
     @variables (
@@ -323,6 +382,10 @@ end
 Returns a ModelingToolkit System describing a water flow connection between two hydraulics-based functional modules.
 
 This module specifies a constant hydraulic conductivity between the compartments.
+
+# Inputs
+## Parameters
+- `K`: The hydraulic conductivity [g / h / MPa].
 """
 function constant_hydraulic_connection(; name, K)
     @parameters (
@@ -356,8 +419,7 @@ multi_connection_eqs(node_MTK, connection_MTKs) = [
 # # Default values
 
 default_values = Dict(
-    :shape => Cylinder(), :ϕ_D => 0.02, :ϵ_D => 50.0, :Γ => 0.3,
-    :T => 298.15, :D => [0.5, 5.0], :Ψ => 0.0, :M => 300e-6, :h => 0.0, :W_max => 1e6, :W_r => 0.8, 
-    :K_s => 10.0, :K => 1e3, :t_sunrise => 8, :t_sunset => 20, :η_night => 0.1, :A_max => 2e-6, 
-    :M_c => 0.05, :K_area_func => cross_area
+    :shape => Cylinder(), :ϕ_D => 0.02, :ϵ_D => 50.0, :Γ => 0.3, :T => 298.15, :D => [0.5, 5.0],
+    :Ψ => 0.0, :M => 300e-6, :h => 0.0, :W_max => 1e6, :W_r => 0.8, :K_s => 10.0, :K => 1e3,
+    :t_sunrise => 8, :t_sunset => 20, :η_night => 0.1, :A_max => 2e-6, :M_c => 0.05
 )

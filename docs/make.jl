@@ -18,7 +18,11 @@ pages = [
     "Basics tutorial" => "tutorials/1_basics_notebook.md",
     "Advanced tutorial" => "tutorials/2_advanced_notebook.md",
     "API" => "api.md",
+    "List of variables" => "variables.md",
     "Theoretical overview" => "theory.md",
+    "Plotting" => "plotting.md",
+    "Graphs" => "graphs.jl",
+    "Compartment shapes" => "shapes.jl",
 ]
 
 makedocs(; 
