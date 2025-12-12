@@ -55,7 +55,7 @@ If `var` is a scalar, return a vector of the length matching `s` with the value 
 If `var` is an array, either return the same vector if the dimensions match or throw an error if they do not.
 """
 function correctdimensionality(s::ModuleShape, var)
-    @info "A scalar value was found for a variable that needs to be defined for every dimensions of the shape (D, ϕ_D, ϵ_D)." *
+    @info "A scalar value was found for a variable that needs to be defined for every dimensions of the shape (D, ϕ_D, E_D)." *
     " This value will be used for every dimension." maxlog = 1
     return fill(var, getdimensionality(s))
 end
@@ -63,7 +63,7 @@ end
 function correctdimensionality(s::ModuleShape, var::AbstractArray)
     if length(var) != getdimensionality(s)
         error("Volumes of shape $s must have $(getdimensionality(s)) dimension$(getdimensionality(s) > 1 ? "s" : "")" *
-            " for all dimensional variables (by default: dimensions `D`, extensibility `ϕ_D`, elasticity `ϵ_D`).")
+            " for all dimensional variables (by default: dimensions `D`, extensibility `ϕ_D`, elasticity `E_D`).")
     end
     return var
 end

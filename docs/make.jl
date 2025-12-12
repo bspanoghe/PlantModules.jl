@@ -20,9 +20,9 @@ pages = [
     "API" => "api.md",
     "List of variables" => "variables.md",
     "Theoretical overview" => "theory.md",
-    "Plotting" => "plotting.md",
-    "Graphs" => "graphs.jl",
-    "Compartment shapes" => "shapes.jl",
+    # "Plotting" => "plotting.md",
+    # "Graphs" => "graphs.jl",
+    # "Compartment shapes" => "shapes.jl",
 ]
 
 makedocs(; 

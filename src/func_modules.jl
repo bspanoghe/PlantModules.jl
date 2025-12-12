@@ -1,12 +1,12 @@
 # # Setup
-@independent_variables t, [description = "Time", unit = u"hr"]; # independent variable
+@independent_variables t, [description = "Time"] #, unit = u"hr"]; # independent variable
 d = Differential(t); # differential operator
 
 # # Modules
 
 # ## Hydraulics
 """
-    hydraulic_module(; name, shape, ϕ_D, ϵ_D, Γ, T, D, Ψ, M)
+    hydraulic_module(; name, shape, ϕ_D, E_D, Γ, T, D, Ψ, M)
 
 Return a ModelingToolkit System describing the turgor-driven growth of a plant compartment.
 
@@ -16,7 +16,7 @@ This module still requires a module describing the osmotically active metabolite
 ## Parameters
 - `shape`: The shape, defined as an instance of [`PlantModules.ModuleShape`](@ref).
 - `ϕ_D`: The dimensional extensibility [1 / MPa / h], must be a vector with a value for every dimension of the compartment's shape.
-- `ϵ_D`: The dimensional elastic modulus [MPa], must be a vector with a value for every dimension of the compartment's shape.
+- `E_D`: The dimensional elastic modulus [MPa], must be a vector with a value for every dimension of the compartment's shape.
 - `Γ`: The yield turgor pressure [MPa].
 - `T`: The temperature [K].
 
@@ -26,8 +26,8 @@ This module still requires a module describing the osmotically active metabolite
 - `M`: The osmotically active metabolite concentration [mol/cm^3].
 - `h`: The height above a chosen reference level [cm].
 """
-function hydraulic_module(; name, shape::ModuleShape, ϕ_D, ϵ_D, Γ, T, D, Ψ, M, h)
-    D, ϕ_D, ϵ_D = [correctdimensionality(shape, var) for var in [D, ϕ_D, ϵ_D]] 
+function hydraulic_module(; name, shape::ModuleShape, ϕ_D, E_D, Γ, T, D, Ψ, M, h)
+    D, ϕ_D, E_D = [correctdimensionality(shape, var) for var in [D, ϕ_D, E_D]] 
         # turns scalar values into vectors of correct length
 
     num_D = getdimensionality(shape)
@@ -39,45 +39,37 @@ function hydraulic_module(; name, shape::ModuleShape, ϕ_D, ϵ_D, Γ, T, D, Ψ, 
     P = Ψ + R*T*M - Pₕ # MPa
 
     @constants (
-        R = R, [description = "Ideal gas constant", unit = u"MPa * cm^3 / K / mol"], # Pa = J/m^3 => J = Pa * m^3 = MPa * cm^3
-        P_unit = 1.0, [description = "Dummy constant for correcting units", unit = u"MPa"],
-        ρ_w = ρ_w, [description = "Density of water", unit = u"g / cm^3"],
+        R = R, [description = "Ideal gas constant"], #, unit = u"MPa * cm^3 / K / mol"], # Pa = J/m^3 => J = Pa * m^3 = MPa * cm^3
+        P_unit = 1.0, [description = "Dummy constant for correcting units"], #, unit = u"MPa"],
+        ρ_w = ρ_w, [description = "Density of water"], #, unit = u"g / cm^3"],
     )
     @parameters (
-        T = T, [description = "Temperature", unit = u"K"],
-        ϕ_D[1:num_D] = ϕ_D, [description = "Dimensional extensibility", unit = u"MPa^-1 * hr^-1"],
-        ϵ_D[1:num_D] = ϵ_D, [description = "Dimensional elastic modulus", unit = u"MPa"],
-        Γ = Γ, [description = "Yield turgor pressure", unit = u"MPa"],
-        Pₕ = Pₕ, [description = "Gravitational water potential", unit = u"MPa"],
-        g = g, [description = "Gravitational acceleration", unit = u"hN / g"] # (from N / kg) Pa = N/m^2 => MPa = hN/cm^2
+        T = T, [description = "Temperature"], #, unit = u"K"],
+        ϕ_D[1:num_D] = ϕ_D, [description = "Dimensional extensibility"], #, unit = u"MPa^-1 * hr^-1"],
+        E_D[1:num_D] = E_D, [description = "Dimensional elastic modulus"], #, unit = u"MPa"],
+        Γ = Γ, [description = "Yield turgor pressure"], #, unit = u"MPa"],
+        Pₕ = Pₕ, [description = "Gravitational water potential"], #, unit = u"MPa"],
+        g = g, [description = "Gravitational acceleration"], #, unit = u"hN / g"] # (from N / kg) Pa = N/m^2 => MPa = hN/cm^2
     )
     @variables (
-        Ψ(t), [description = "Total water potential", unit = u"MPa"],
-        Π(t), [description = "Osmotic water potential", unit = u"MPa"],
-        P(t) = P, [description = "Hydrostatic potential", unit = u"MPa"],
-        M(t), [description = "Osmotically active metabolite content", unit = u"mol / cm^3"], # m^3 so units match in second equation ()
-        W(t), [description = "Water content", unit = u"g"],
-        D(t)[1:num_D] = D, [description = "Dimensions of compartment", unit = u"cm"],
-        V(t), [description = "Volume of compartment", unit = u"cm^3"],
-        ΣF(t), [description = "Net water influx", unit = u"g / hr"],
-        
-        ΔP(t), [description = "Change in hydrostatic potential", unit = u"MPa / hr", guess = 0.0],
-        ΔW(t), [description = "Change in water content", unit = u"g / hr"], 
-        ΔD(t)[1:num_D], [description = "Change in dimensions of compartment", unit = u"cm / hr"],
+        Ψ(t), [description = "Total water potential"], #, unit = u"MPa"],
+        Π(t), [description = "Osmotic water potential"], #, unit = u"MPa"],
+        P(t) = P, [description = "Hydrostatic potential"], #, unit = u"MPa"],
+        M(t), [description = "Osmotically active metabolite content"], #, unit = u"mol / cm^3"], # m^3 so units match in second equation ()
+        W(t), [description = "Water content"], #, unit = u"g"],
+        D(t)[1:num_D] = D, [description = "Dimensions of compartment"], #, unit = u"cm"],
+        V(t), [description = "Volume of compartment"], #, unit = u"cm^3"],
+        ΣF(t), [description = "Net water influx"], #, unit = u"g / hr"],
     )
-
     eqs = [
         Ψ ~ P + Π + Pₕ, # Water potential consists of a solute- and a pressure component
         Π ~ -R*T*M, # Solute component is determined by concentration of dissolved metabolites
-        ΔW ~ ΣF, # Water content changes due to flux (depending on water potentials as defined in connections)
+        d(W) ~ ΣF, # Water content changes due to flux (depending on water potentials as defined in connections)
         V ~ W / ρ_w, # Volume is directly related to water content  
         V ~ volume(shape, D), # Volume is also directly related to compartment dimensions
-        [ΔD[i] ~ D[i] * ϕ_D[i]*P_unit*logsumexp((P - Γ)/P_unit, α = 40) + D[i] * ΔP/ϵ_D[i] for i in eachindex(D)]..., # Compartment dimensions can only change due to a change in pressure
-
-        d(P) ~ ΔP,
-        d(W) ~ ΔW,
-        [d(D[i]) ~ ΔD[i] for i in eachindex(D)]...,
+        [d(D[i]) ~ D[i] * ϕ_D[i]*P_unit*logsumexp((P - Γ)/P_unit, α = 40) + D[i] * d(P)/E_D[i] for i in eachindex(D)]..., # Compartment dimensions can only change due to a change in pressure
     ]
+
     return System(eqs, t; name)
 end
 
@@ -98,22 +90,19 @@ This module still requires a module describing the total water potential Ψ.
 """
 function environmental_module(; name, T, W_max, W_r)
     @parameters (
-        T = T, [description = "Temperature", unit = u"K"],
-        W_max = W_max, [description = "Water capacity of compartment", unit = u"g"],
+        T = T, [description = "Temperature"], #, unit = u"K"],
+        W_max = W_max, [description = "Water capacity of compartment"], #, unit = u"g"],
     )
     @variables (
-        Ψ(t), [description = "Total water potential", unit = u"MPa"],
-        W(t), [description = "Water content", unit = u"g"],
-        W_r(t) = W_r, [description = "Relative water content", unit = u"g / g"],
-        ΣF(t), [description = "Net water influx", unit = u"g / hr"],
-
-        ΔW(t), [description = "Change in water content", unit = u"g / hr"],
+        Ψ(t), [description = "Total water potential"], #, unit = u"MPa"],
+        W(t), [description = "Water content"], #, unit = u"g"],
+        W_r(t) = W_r, [description = "Relative water content"], #, unit = u"g / g"],
+        ΣF(t), [description = "Net water influx"], #, unit = u"g / hr"],
     )
 
     eqs = [
         W ~ W_r * W_max,
-        ΔW ~ ΣF, # Water content changes due to flux (depending on water potentials as defined in connections)
-        d(W) ~ ΔW,
+        d(W) ~ ΣF, # Water content changes due to flux (depending on water potentials as defined in connections)
     ]
     return System(eqs, t; name)
 end
@@ -138,18 +127,18 @@ Return a ModelingToolkit System describing a concentration of osmotically active
 """
 function simple_photosynthesis_module(; name, shape, t_sunrise, t_sunset, A_max, M_c, M)
     @constants (
-        t_unit = 1, [description = "Dummy constant for correcting units", unit = u"hr"],
+        t_unit = 1, [description = "Dummy constant for correcting units"], #, unit = u"hr"],
     )
     @parameters (
-        t_sunrise = t_sunrise, [description = "Time of sunrise (hours past midnight)", unit = u"hr"],
-        t_sunset = t_sunset, [description = "Time of sunset (hours past midnight)", unit = u"hr"],
-        A_max = A_max, [description = "Maximum carbon assimilation rate", unit = u"mol / cm^2 / hr"],
-        M_c = M_c, [description = "Rate of carbon consumption", unit = u"hr^-1"],
+        t_sunrise = t_sunrise, [description = "Time of sunrise (hours past midnight)"], #, unit = u"hr"],
+        t_sunset = t_sunset, [description = "Time of sunset (hours past midnight)"], #, unit = u"hr"],
+        A_max = A_max, [description = "Maximum carbon assimilation rate"], #, unit = u"mol / cm^2 / hr"],
+        M_c = M_c, [description = "Rate of carbon consumption"], #, unit = u"hr^-1"],
 	)
 	@variables (
-        M(t) = M, [description = "Osmotically active metabolite content", unit = u"mol / cm^3"],
-		A(t), [description = "Carbon assimilation rate", unit = u"mol / cm^2 / hr"],
-		D(t)[1:getdimensionality(shape)], [description = "Dimensions of compartment", unit = u"cm"],
+        M(t) = M, [description = "Osmotically active metabolite content"], #, unit = u"mol / cm^3"],
+		A(t), [description = "Carbon assimilation rate"], #, unit = u"mol / cm^2 / hr"],
+		D(t)[1:getdimensionality(shape)], [description = "Dimensions of compartment"], #, unit = u"cm"],
     )
 
     eqs = [
@@ -170,11 +159,11 @@ Return a ModelingToolkit System describing a constant concentration of osmotical
 """
 function constant_carbon_module(; name, M)
     @parameters (
-        M_value = M, [description = "Constant value of osmotically active metabolite content", unit = u"mol / cm^3"],
+        M_value = M, [description = "Constant value of osmotically active metabolite content"], #, unit = u"mol / cm^3"],
     )
 
     @variables (
-        M(t), [description = "Osmotically active metabolite content", unit = u"mol / cm^3"],
+        M(t), [description = "Osmotically active metabolite content"], #, unit = u"mol / cm^3"],
     )
 
     eqs = [
@@ -196,13 +185,13 @@ Return a ModelingToolkit System describing the relationship between the total wa
 """
 function Ψ_air_module(; name, T)
 	@variables (
-        Ψ(t), [description = "Total water potential", unit = u"MPa"],
-        W_r(t), [description = "Relative water content", unit = u"g / g"],
+        Ψ(t), [description = "Total water potential"], #, unit = u"MPa"],
+        W_r(t), [description = "Relative water content"], #, unit = u"g / g"],
     )
-	@parameters T = T [description = "Temperature", unit = u"K"]
+	@parameters T = T [description = "Temperature"] #, unit = u"K"]
 	@constants (
-        R = 8.314, [description = "Ideal gas constant", unit = u"MPa * cm^3 / K / mol"],
-        V_w = 18, [description = "Molar volume of water", unit = u"cm^3/mol"]
+        R = 8.314, [description = "Ideal gas constant"], #, unit = u"MPa * cm^3 / K / mol"],
+        V_w = 18, [description = "Molar volume of water"], #, unit = u"cm^3/mol"]
     )
 
 	eqs = [Ψ ~ R * T / V_w * log(W_r)] # Spanner equation (see e.g. https://academic.oup.com/insilicoplants/article/4/1/diab038/6510844)
@@ -220,10 +209,10 @@ None.
 """
 function Ψ_soil_module(; name)
 	@variables (
-        Ψ(t), [description = "Total water potential", unit = u"MPa"],
-        W_r(t), [description = "Relative water content", unit = u"g / g"],
+        Ψ(t), [description = "Total water potential"], #, unit = u"MPa"],
+        W_r(t), [description = "Relative water content"], #, unit = u"g / g"],
     )
-    @constants Ψ_unit = 1 [description = "Dummy constant for correcting units", unit = u"MPa"]
+    @constants Ψ_unit = 1 [description = "Dummy constant for correcting units"] #, unit = u"MPa"]
 
 	eqs = [Ψ ~ Ψ_unit * soilfunc(W_r)]
 
@@ -250,11 +239,11 @@ function K_module(; name, shape::ModuleShape, K_s)
     num_D = getdimensionality(shape)
 
     @parameters (
-        K_s = K_s, [description = "Specific hydraulic conductivity", unit = u"g / hr / MPa / cm^2"],
+        K_s = K_s, [description = "Specific hydraulic conductivity"], #, unit = u"g / hr / MPa / cm^2"],
     )
     @variables (
-        K(t), [description = "Hydraulic conductivity of compartment", unit = u"g / hr / MPa"],
-		D(t)[1:num_D], [description = "Dimensions of compartment", unit = u"cm"],
+        K(t), [description = "Hydraulic conductivity of compartment"], #, unit = u"g / hr / MPa"],
+		D(t)[1:num_D], [description = "Dimensions of compartment"], #, unit = u"cm"],
     )
 
     eqs = [
@@ -276,10 +265,10 @@ compartment as a constant.
 """
 function constant_K_module(; name, K)
     @parameters (
-        K_value = K, [description = "Hydraulic conductivity of compartment", unit = u"g / hr / MPa"],
+        K_value = K, [description = "Hydraulic conductivity of compartment"], #, unit = u"g / hr / MPa"],
     )
     @variables (
-        K(t), [description = "Hydraulic conductivity of compartment", unit = u"g / hr / MPa"],
+        K(t), [description = "Hydraulic conductivity of compartment"], #, unit = u"g / hr / MPa"],
     )
 
     eqs = [
@@ -303,15 +292,15 @@ None.
 """
 function hydraulic_connection(; name)
     @constants (
-        K_unit = 1, [description = "Dummy constant for correcting units", unit = u"g / hr / MPa"],
+        K_unit = 1, [description = "Dummy constant for correcting units"], #, unit = u"g / hr / MPa"],
     )
     @variables (
-        F(t), [description = "Water flux from compartment 2 to compartment 1", unit = u"g / hr"],
-        K(t), [description = "Hydraulic conductivity of connection", unit = u"g / hr / MPa"],
-        K_1(t), [description = "Hydraulic conductivity of compartment 1", unit = u"g / hr / MPa"],
-        K_2(t), [description = "Hydraulic conductivity of compartment 2", unit = u"g / hr / MPa"],
-        Ψ_1(t), [description = "Total water potential of compartment 1", unit = u"MPa"],
-        Ψ_2(t), [description = "Total water potential of compartment 2", unit = u"MPa"],
+        F(t), [description = "Water flux from compartment 2 to compartment 1"], #, unit = u"g / hr"],
+        K(t), [description = "Hydraulic conductivity of connection"], #, unit = u"g / hr / MPa"],
+        K_1(t), [description = "Hydraulic conductivity of compartment 1"], #, unit = u"g / hr / MPa"],
+        K_2(t), [description = "Hydraulic conductivity of compartment 2"], #, unit = u"g / hr / MPa"],
+        Ψ_1(t), [description = "Total water potential of compartment 1"], #, unit = u"MPa"],
+        Ψ_2(t), [description = "Total water potential of compartment 2"], #, unit = u"MPa"],
     )
 
     eqs = [
@@ -343,21 +332,21 @@ This module assumes the compartments have a specified hydraulic conductivities.
 """
 function daynight_hydraulic_connection(; name, t_sunrise, t_sunset, η_night)
     @constants (
-        t_unit = 1, [description = "Dummy constant for correcting units", unit = u"hr"],
-        K_unit = 1, [description = "Dummy constant for correcting units", unit = u"g / hr / MPa"],
+        t_unit = 1, [description = "Dummy constant for correcting units"], #, unit = u"hr"],
+        K_unit = 1, [description = "Dummy constant for correcting units"], #, unit = u"g / hr / MPa"],
     )
     @parameters (
-        t_sunrise = t_sunrise, [description = "Time of sunrise (hours past midnight)", unit = u"hr"],
-        t_sunset = t_sunset, [description = "Time of sunset (hours past midnight)", unit = u"hr"],
-        η_night = η_night, [description = "Relative hydraulic conductivity at night", unit = u"(g / hr / MPa) / (g / hr / MPa)"]
+        t_sunrise = t_sunrise, [description = "Time of sunrise (hours past midnight)"], #, unit = u"hr"],
+        t_sunset = t_sunset, [description = "Time of sunset (hours past midnight)"], #, unit = u"hr"],
+        η_night = η_night, [description = "Relative hydraulic conductivity at night"], #, unit = u"(g / hr / MPa) / (g / hr / MPa)"]
     )
     @variables (
-        F(t), [description = "Water flux from compartment 2 to compartment 1", unit = u"g / hr"],
-        K(t), [description = "Hydraulic conductivity of connection", unit = u"g / hr / MPa"],
-        K_1(t), [description = "Hydraulic conductivity of compartment 1", unit = u"g / hr / MPa"],
-        K_2(t), [description = "Hydraulic conductivity of compartment 2", unit = u"g / hr / MPa"],
-        Ψ_1(t), [description = "Total water potential of compartment 1", unit = u"MPa"],
-        Ψ_2(t), [description = "Total water potential of compartment 2", unit = u"MPa"],
+        F(t), [description = "Water flux from compartment 2 to compartment 1"], #, unit = u"g / hr"],
+        K(t), [description = "Hydraulic conductivity of connection"], #, unit = u"g / hr / MPa"],
+        K_1(t), [description = "Hydraulic conductivity of compartment 1"], #, unit = u"g / hr / MPa"],
+        K_2(t), [description = "Hydraulic conductivity of compartment 2"], #, unit = u"g / hr / MPa"],
+        Ψ_1(t), [description = "Total water potential of compartment 1"], #, unit = u"MPa"],
+        Ψ_2(t), [description = "Total water potential of compartment 2"], #, unit = u"MPa"],
     )
 
     eqs = [
@@ -389,13 +378,13 @@ This module specifies a constant hydraulic conductivity between the compartments
 """
 function constant_hydraulic_connection(; name, K)
     @parameters (
-        K = K, [description = "Hydraulic conductivity of connection", unit = u"g / hr / MPa"],
+        K = K, [description = "Hydraulic conductivity of connection"], #, unit = u"g / hr / MPa"],
     )
 
     @variables (
-        F(t), [description = "Water flux from compartment 2 to compartment 1", unit = u"g / hr"],
-        Ψ_1(t), [description = "Total water potential of compartment 1", unit = u"MPa"],
-        Ψ_2(t), [description = "Total water potential of compartment 2", unit = u"MPa"],
+        F(t), [description = "Water flux from compartment 2 to compartment 1"], #, unit = u"g / hr"],
+        Ψ_1(t), [description = "Total water potential of compartment 1"], #, unit = u"MPa"],
+        Ψ_2(t), [description = "Total water potential of compartment 2"], #, unit = u"MPa"],
     )
 
     eqs = [
@@ -419,7 +408,7 @@ multi_connection_eqs(node_MTK, connection_MTKs) = [
 # # Default values
 
 default_values = Dict(
-    :shape => Cylinder(), :ϕ_D => 0.02, :ϵ_D => 50.0, :Γ => 0.3, :T => 298.15, :D => [0.5, 5.0],
+    :shape => Cylinder(), :ϕ_D => 0.02, :E_D => 50.0, :Γ => 0.3, :T => 298.15, :D => [0.5, 5.0],
     :Ψ => 0.0, :M => 300e-6, :h => 0.0, :W_max => 1e6, :W_r => 0.8, :K_s => 10.0, :K => 1e3,
     :t_sunrise => 8, :t_sunset => 20, :η_night => 0.1, :A_max => 2e-6, :M_c => 0.05
 )

@@ -7,6 +7,8 @@ MultiScaleTreeGraph = "dd4a991b-8a45-4075-bede-262ee62d5583"
 OrdinaryDiffEq = "1dea7af3-3e70-54e6-95c3-0bf5283fa5ed"
 PlantGraphs = "615ad455-9aac-4340-9247-71ef610f781a"
 PlantModules = "c420d4a8-207b-40ca-9fc4-c574d258dc7a"
-Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"
 Sparspak = "e56a9233-b9d6-4f03-8d0f-1825330902ac"
 Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
+
+[sources]
+PlantModules = {path = ".."}

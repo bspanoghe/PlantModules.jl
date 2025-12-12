@@ -9,35 +9,35 @@ d = Differential(t);
 abstract type Shape end
 
 struct Sphere<:Shape
-    ϵ_D::Vector
+    E_D::Vector
     ϕ_D::Vector
-    function Sphere(; ϵ_D::Vector, ϕ_D::Vector)
-        length(ϵ_D) != 1 && error("An array of length $(length(ϵ_D)) was given for ϵ_D while length 1 was expected.")
+    function Sphere(; E_D::Vector, ϕ_D::Vector)
+        length(E_D) != 1 && error("An array of length $(length(E_D)) was given for E_D while length 1 was expected.")
         length(ϕ_D) != 1 && error("An array of length $(length(ϕ_D)) was given for ϕ_D while length 1 was expected.")
 
-        return new(ϵ_D, ϕ_D)
+        return new(E_D, ϕ_D)
     end
 end
 
 struct Cilinder<:Shape
-    ϵ_D::Vector
+    E_D::Vector
     ϕ_D::Vector
-    function Cilinder(; ϵ_D::Vector, ϕ_D::Vector)
-        length(ϵ_D) != 2 && error("An array of length $(length(ϵ_D)) was given for ϵ_D while length 2 was expected.")
+    function Cilinder(; E_D::Vector, ϕ_D::Vector)
+        length(E_D) != 2 && error("An array of length $(length(E_D)) was given for E_D while length 2 was expected.")
         length(ϕ_D) != 2 && error("An array of length $(length(ϕ_D)) was given for ϕ_D while length 2 was expected.")
 
-        return new(ϵ_D, ϕ_D)
+        return new(E_D, ϕ_D)
     end
 end
 
 struct Cuboid<:Shape
-    ϵ_D::Vector
+    E_D::Vector
     ϕ_D::Vector
-    function Cuboid(; ϵ_D::Vector, ϕ_D::Vector)
-        length(ϵ_D) != 3 && error("An array of length $(length(ϵ_D)) was given for ϵ_D while length 3 was expected.")
+    function Cuboid(; E_D::Vector, ϕ_D::Vector)
+        length(E_D) != 3 && error("An array of length $(length(E_D)) was given for E_D while length 3 was expected.")
         length(ϕ_D) != 3 && error("An array of length $(length(ϕ_D)) was given for ϕ_D while length 3 was expected.")
 
-        return new(ϵ_D, ϕ_D)
+        return new(E_D, ϕ_D)
     end
 end
 
@@ -81,11 +81,11 @@ LSE(x::Real...; γ = 1) = log(sum(exp.(γ .* x)) ) / γ
 
 ### general compartment definition
 function hydraulic_module(; name, shape::Shape)
-    num_D = length(shape.ϵ_D)
+    num_D = length(shape.E_D)
     @parameters (
         T = 298.15, [description = "Temperature", unit = u"K"],
         ρ_w = 1.0e6, [description = "Density of water", unit = u"g / m^3"],
-        ϵ_D[1:num_D] = shape.ϵ_D, [description = "Dimensional elastic modulus", unit = u"MPa"],
+        E_D[1:num_D] = shape.E_D, [description = "Dimensional elastic modulus", unit = u"MPa"],
         ϕ_D[1:num_D] = shape.ϕ_D, [description = "Dimensional extensibility", unit = u"MPa^-1 * hr^-1"],
         Γ = 0.3, [description = "Critical turgor pressure", unit = u"MPa"],
         P_0 = 0.0, [description = "Minimum pressure", unit = u"MPa"], 
@@ -110,7 +110,7 @@ function hydraulic_module(; name, shape::Shape)
         Π ~ -R*T*M, # Solute component is determined by concentration of dissolved metabolites
         ΔW ~ ΣF, # Water content changes due to flux (depending on water potentials as defined in connections)
         W ~ ρ_w * volume(shape, D), # Shape is also directly related to compartment dimensions
-        [ΔD[i] ~ D[i] * (ΔP/ϵ_D[i] + ϕ_D[i] * LSE(P - Γ, P_0, γ = 100)) for i in eachindex(D)]..., # Compartment dimensions can only change due to a change in pressure
+        [ΔD[i] ~ D[i] * (ΔP/E_D[i] + ϕ_D[i] * LSE(P - Γ, P_0, γ = 100)) for i in eachindex(D)]..., # Compartment dimensions can only change due to a change in pressure
 
         d(P) ~ ΔP,
         d(M) ~ ΔM, # Change in dissolved metabolites is defined in the connections
@@ -169,9 +169,9 @@ end
 
 # Create compartment instances #
 
-rootvol = Sphere(ϵ_D = [3.0], ϕ_D = [0.45])
-stemvol = Cilinder(ϵ_D = [6.0, 0.15], ϕ_D = [0.8, 0.03])
-leafvol = Cuboid(ϵ_D = [5.0, 0.3, 0.2], ϕ_D = [0.7, 0.1, 0.05])
+rootvol = Sphere(E_D = [3.0], ϕ_D = [0.45])
+stemvol = Cilinder(E_D = [6.0, 0.15], ϕ_D = [0.8, 0.03])
+leafvol = Cuboid(E_D = [5.0, 0.3, 0.2], ϕ_D = [0.7, 0.1, 0.05])
 
 @named root = hydraulic_module(shape = rootvol)
 @named stem = hydraulic_module(shape = stemvol)
@@ -311,11 +311,11 @@ plot(env_plots..., layout = (5, 2), size = (800, 500))
 ############################ Smaller example ############################
 
 function hydraulic_module2(; name, shape::Shape, D)
-    num_D = length(shape.ϵ_D)
+    num_D = length(shape.E_D)
     @parameters (
         T = 298.15, [description = "Temperature", unit = u"K"],
         ρ_w = 1.0e6, [description = "Density of water", unit = u"g / m^3"],
-        ϵ_D[1:num_D] = shape.ϵ_D, [description = "Dimensional elastic modulus", unit = u"MPa"],
+        E_D[1:num_D] = shape.E_D, [description = "Dimensional elastic modulus", unit = u"MPa"],
         ϕ_D[1:num_D] = shape.ϕ_D, [description = "Dimensional extensibility", unit = u"MPa^-1 * hr^-1"],
         Γ = 0.3, [description = "Critical turgor pressure", unit = u"MPa"],
         P_0 = 0.0, [description = "Minimum pressure", unit = u"MPa"], 
@@ -341,7 +341,7 @@ function hydraulic_module2(; name, shape::Shape, D)
         ΔW ~ ΣF, # Water content changes due to flux (depending on water potentials as defined in connections)
         V ~ W / ρ_w, # Shape is directly related to water content        
         V ~ volume(shape, D), # Shape is also directly related to compartment dimensions
-        [ΔD[i] ~ D[i] * (ΔP/ϵ_D[i] + ϕ_D[i] * LSE(P - Γ, P_0, γ = 100)) for i in eachindex(D)]..., # Compartment dimensions can only change due to a change in pressure
+        [ΔD[i] ~ D[i] * (ΔP/E_D[i] + ϕ_D[i] * LSE(P - Γ, P_0, γ = 100)) for i in eachindex(D)]..., # Compartment dimensions can only change due to a change in pressure
 
         d(P) ~ ΔP,
         d(W) ~ ΔW,
@@ -371,8 +371,8 @@ end
 
 # Create compartment instances #
 
-stemvol = Cilinder(ϵ_D = [6.0, 0.15], ϕ_D = [0.8, 0.03])
-leafvol = Cuboid(ϵ_D = [5.0, 0.3, 0.2], ϕ_D = [0.7, 0.1, 0.05])
+stemvol = Cilinder(E_D = [6.0, 0.15], ϕ_D = [0.8, 0.03])
+leafvol = Cuboid(E_D = [5.0, 0.3, 0.2], ϕ_D = [0.7, 0.1, 0.05])
 
 @named stemC = constant_carbon_module()
 @named stemH = hydraulic_module2(shape = stemvol, D = [0.3, 0.2])

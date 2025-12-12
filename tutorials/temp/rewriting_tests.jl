@@ -55,11 +55,11 @@ struct_connections = PlantStructure(graphs, intergraph_connections)
 
 # Functional processes
 
-ϵ_D = 0.5
+E_D = 0.5
 ϕ_D = 0.005
 module_defaults = Dict(
-	:Stem => Dict(:shape => Cylinder(ϵ_D, ϕ_D), :M => 400e-6),
-	:Leaf => Dict(:shape => Cuboid(ϵ_D, ϕ_D), :M => 450e-6, :K_s => 1e-4),
+	:Stem => Dict(:shape => Cylinder(E_D, ϕ_D), :M => 400e-6),
+	:Leaf => Dict(:shape => Cuboid(E_D, ϕ_D), :M => 450e-6, :K_s => 1e-4),
 	:Soil => Dict(:W_max => 1e4, :T => 288.15),
 	:Air => Dict()
 )
@@ -108,9 +108,9 @@ SOLTIMES
 7 (765): 135s
 
 PARAM INFLUENCES (3 rewrites)
-Base (ϵ = 3, ϕ = 3e-3, K = 1000 (Leaf: 1e-4), W_max soil: 1e5): 104ms
+Base (E = 3, ϕ = 3e-3, K = 1000 (Leaf: 1e-4), W_max soil: 1e5): 104ms
 
-elastic modulus ϵ (for very low values => no growth; same results for medium small to large values)
+elastic modulus E (for very low values => no growth; same results for medium small to large values)
     - 0.0003: 51ms
     - 0.003: 44ms
     - 0.03: 49ms

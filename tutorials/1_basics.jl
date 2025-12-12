@@ -29,7 +29,7 @@ end
 # Here, we'll give the leaves a size field `D` so we can start off one of them larger than the other.
 
 plant_graph = Stem() + Stem() +
-	(Leaf([5.0, 3.0, 0.05]), Leaf([4.0, 2.5, 0.05]));
+	(Leaf([5.0, 3.0, 0.05]), Leaf([1.0, 0.5, 0.05]));
 
 plotstructure(plant_graph)
 

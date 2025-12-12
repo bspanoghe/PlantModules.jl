@@ -1,11 +1,10 @@
-using Infiltrator
-using Revise
 using Plots
+using Infiltrator, Revise
 using Pkg; Pkg.activate("./tutorials")
 using PlantModules
 using PlantGraphs
-using ModelingToolkit, OrdinaryDiffEq, Unitful
-using DataInterpolations, ForwardDiff, Sparspak
+using ModelingToolkit, OrdinaryDiffEq
+using DataInterpolations
 
 # for figures
 include(homedir() * raw"\Documents\Github\Caverns_of_code\Julia\Lifehacks\catpuccin\get_palette.jl")
@@ -78,7 +77,7 @@ begin
     K_roots = ρ_w * L_p * total_root_area # g / hr / MPa
 
     ## elastic modulus
-    ϵ_D_stem = [0.15 * 1e3, 17.5 * 0.15 * 1e3] # MPa; from GPa (input)
+    E_D_stem = [0.15 * 1e3, 17.5 * 0.15 * 1e3] # MPa; from GPa (input)
 end
 
 struct HollowCylinder{T} <: ModuleShape
@@ -199,10 +198,10 @@ readcsv(filepath) = readlines(filepath) .|> x -> split(x, ", ") .|> x -> parse(F
 
 function needle_area_module(; name, needle_area)
     @parameters begin
-        needle_area_val = needle_area, [description = "Value of total needle area on branch", unit = u"cm^2"]
+        needle_area_val = needle_area, [description = "Value of total needle area on branch"]
     end 
     @variables begin
-        needle_area(t), [description = "Total needle area on branch", unit = u"cm^2"]
+        needle_area(t), [description = "Total needle area on branch"]
     end
     eqs = [needle_area ~ needle_area_val]
     return System(eqs, t; name)
@@ -218,13 +217,13 @@ plot(transpiration_rate) # in mg / s / m^2
 # #### module
 function fixed_daynight_hydraulic_connection(; name, original_order)
     @constants begin
-        t_unit = 1, [description = "Dummy constant for correcting units", unit = u"hr"]
-        uc = 1e-3 * 3600 * (1e-2)^2, [description = "Unit conversion from (mg / s / m^2) to (g / hr / cm^2)", unit = u"g / hr / cm^2"]
+        t_unit = 1, [description = "Dummy constant for correcting units"]
+        uc = 1e-3 * 3600 * (1e-2)^2, [description = "Unit conversion from (mg / s / m^2) to (g / hr / cm^2)"]
     end
     @variables begin
-        F_s(t), [description = "Specific water flux from compartment 2 to compartment 1", unit = u"g / hr / cm^2"]
-        F(t), [description = "Water flux from compartment 2 to compartment 1", unit = u"g / hr"]
-        needle_area(t), [description = "Total needle area on branch", unit = u"cm^2"]
+        F_s(t), [description = "Specific water flux from compartment 2 to compartment 1"]
+        F(t), [description = "Water flux from compartment 2 to compartment 1"]
+        needle_area(t), [description = "Total needle area on branch"]
     end
 
     polarity = original_order ? -1 : 1
@@ -267,7 +266,7 @@ plantcoupling = PlantCoupling(; module_coupling, connecting_modules)
 begin
     default_changes = Dict(
 		:needle_area => 0.0,
-		:ϵ_D => ϵ_D_stem, :K_s => K_s_stem,
+		:E_D => E_D_stem, :K_s => K_s_stem,
         :ϕ_D => 0.0, :M => 0.0, 
 		:Ψ => PlantModules.soilfunc(0.9), 
 		:shape => HollowCylinder(radial_fraction_sapwood)
@@ -288,11 +287,14 @@ end
 
 tspan = (0.0, 24.0)
 system = generate_system(plantstructure, plantcoupling, plantparams, checkunits = false)
-@time prob = ODEProblem(system, [], tspan, sparse = true, use_scc = false)
-
-@time sol = solve(prob, FBDF())
+@time prob = ODEProblem(system, [], tspan, sparse = true);
+@time sol = solve(prob, FBDF());
 
 # # Show it
+dimension_variables = get_subsystem_variables(system, plantstructure, :D, :Stem)
+diameter_segment_heights = [6.5 * 1e2, 2.5 * 1e2]
+diameter_segment_nrs = ceil.(Int64, diameter_segment_heights ./ segment_length)
+D1_at_250cm = dimension_variables[diameter_segment_nrs[2]][1]
 
 ## transpiration
 air_water_inflow = get_subsystem_variables(system, plantstructure, :ΣF, :Air)[1]
@@ -319,13 +321,10 @@ end
 ## diameter variation
 
 begin
-    dimension_variables = get_subsystem_variables(system, plantstructure, :D, :Stem)
 
     diameter_change_mm(var, sol) = 2*10*(var - sol[var][1]) 
 		# substract first value and change from radius in cm to diameter in mm
-	diameter_segment_heights = [6.5 * 1e2, 2.5 * 1e2]
-    diameter_segment_nrs = ceil.(Int64, diameter_segment_heights ./ segment_length)
-	
+
     diameter_datas = [readcsv("./tutorials/clouddata/diameter_data_$(idx).csv") 
 					  for idx in ("c", "d")]
 	
@@ -351,31 +350,30 @@ plotgraph(sol, plantstructure, structmod = :Branch, varname = :P)
 
 # Uncertainty analysis
 
-D1_at_250cm = dimension_variables[diameter_segment_nrs[2]][1]
-
 ## monte carlo
 
-ϵ_D_r_range = [0.03 * 1e3, 0.27 * 1e3]
+E_D_r_range = [0.03 * 1e3, 0.27 * 1e3]
 sample_range(a, b) = (b-a) * rand() + a
+get_E_D_sample() = sample_range(E_D_r_range[1], E_D_r_range[2]) |> E_radius -> [E_radius, 17.5 * E_radius]
 
 begin
     Random.seed!(1337)
 	p_montecarlo = plot()
 					   
 	for _ in 1:20
-	    ϵ_D_r_sample = sample_range(ϵ_D_r_range[1], ϵ_D_r_range[2])
-	    ϵ_D_sample = [ϵ_D_r_sample, 17.5 * ϵ_D_r_sample] 
+	    E_D_r_sample = sample_range(E_D_r_range[1], E_D_r_range[2])
+	    E_D_sample = [E_D_r_sample, 17.5 * E_D_r_sample] 
 			# Perämäki et al. use a constant ratio of 1/17.5 between the radial and longitudinal elastic moduli
 	
 	    prob2 = remake_graphsystem(
-			prob, system, plantstructure, :ϵ_D, 
-			[:Stem, :Branch, :BranchTip], ϵ_D_sample
+			prob, system, plantstructure, :E_D, 
+			[:Stem, :Branch, :BranchTip], E_D_sample
 		)
 	    @time sol2 = solve(prob2, FBDF(), reltol = 1e-2) 
 			# We use a higher relative tolerance for faster solving. Note that this can cause a SingularException error now and again but the faster solving time is generally worth it
 
 	    plot!(p_montecarlo, sol2, 
-			  idxs = [diameter_change_mm(D1_at_250cm, sol)], label = false, line_z = ϵ_D_r_sample, color = cgrad(cpalette[[1, 2]]))
+			  idxs = [diameter_change_mm(D1_at_250cm, sol)], label = false, line_z = E_D_r_sample, color = cgrad(cpalette[[1, 2]]))
 	end
 	plot!(
 		p_montecarlo, xlabel = "Time of day (h)", ylabel = "Diameter change (mm)",
@@ -385,16 +383,52 @@ begin
     # savefig(plotdir * "fig_plantmodules_ex2_montecarlo.pdf")
 end
 
-## local sensitivity
+### time difference
 
-function get_diameter(K_s)
-    ps = get_subsystem_variables(system, plantstructure, :K_s, [:Stem, :Branch])
-    newprob = remake(prob, p = Pair.(ps, [K_s]))
-	newsol = solve(newprob, FBDF(), saveat = 0.1)
-	segment_diameter = newsol[D1_at_250cm]
-    return segment_diameter
+function smart_remake()
+    prob2 = remake_graphsystem(
+        prob, system, plantstructure, :E_D, 
+        [:Stem, :Branch, :BranchTip], E_D_stem
+    )
+    sol2 = solve(prob2, FBDF()) 
+    return sol2
 end
 
+function full_remake()
+    default_changes2 = Dict(
+		:needle_area => 0.0,
+		:E_D => E_D_stem, :K_s => K_s_stem,
+        :ϕ_D => 0.0, :M => 0.0, 
+		:Ψ => PlantModules.soilfunc(0.9), 
+		:shape => HollowCylinder(radial_fraction_sapwood)
+	)
+
+    plantparams2 = PlantParameters(; default_changes = default_changes2, module_defaults, connection_values)
+
+    system2 = generate_system(plantstructure, plantcoupling, plantparams2)
+    prob2 = ODEProblem(system2, [], tspan, sparse = true, use_scc = false);
+
+    sol2 = solve(prob2, FBDF());
+    return sol2
+end
+
+using BenchmarkTools
+@benchmark smart_remake() seconds=600 evals=1 # 15s ± 3s
+@benchmark full_remake() seconds=3600 evals=1 # 100s ± 30s (37 samples)
+
+## local sensitivity 
+
+K_s_vars = get_subsystem_variables(system, plantstructure, :K_s, [:Stem, :Branch])
+function get_diameter(K_s)
+    newprob = remake(prob, p = Pair.(K_s_vars, [K_s]))
+
+	newsol = solve(newprob, FBDF(), saveat = 0.1)
+    return newsol[D1_at_250cm]
+end
+
+using ForwardDiff
+
+Base.Float64(x::ForwardDiff.Dual) = x.value #! yar har
 @time K_sensitivity = ForwardDiff.derivative(get_diameter, K_s_stem)
 begin
     plot(

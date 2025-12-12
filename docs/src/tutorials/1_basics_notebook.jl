@@ -1,13 +1,15 @@
 ### A Pluto.jl notebook ###
-# v0.20.19
+# v0.20.21
 
 using Markdown
 using InteractiveUtils
 
 # ╔═╡ 57b8dcb8-9baa-4ddf-9368-431b1be5850e
+# ╠═╡ show_logs = false
 using Pkg; Pkg.activate("../..")
 
 # ╔═╡ 662c0476-70aa-4a60-a81c-d7db2248b728
+# ╠═╡ show_logs = false
 using PlantModules
 
 # ╔═╡ 65f88593-1180-447a-900f-49aef4647cd1
@@ -109,7 +111,7 @@ md"We now define the plant structure using a graph. By specifying the value of t
 
 # ╔═╡ 9af27c17-8f21-4f22-a5bb-e9c95cfdf2f9
 plant_graph = Stem() + Stem() +
-	(Leaf([5.0, 3.0, 0.05]), Leaf([4.0, 2.5, 0.05]));
+	(Leaf([5.0, 3.0, 0.05]), Leaf([1.0, 0.5, 0.05]));
 
 # ╔═╡ 27160915-5943-4048-b363-d123846b02b8
 plotstructure(plant_graph)
@@ -352,7 +354,7 @@ prob = ODEProblem(system, [], time_span, sparse = true, use_scc = false);
 # ╔═╡ b29b3c61-5db3-48ba-bc17-f201f1535ccc
 md"""
 !!! warning
-	Problem construction currently throws an error if a `SciMLBase.SCCNonlinearProblem` is used for the initialization problem. We can prevent this by specifying `use_scc = false`.
+	Problem construction of DAEs uses `SciMLBase.SCCNonlinearProblem` by default to solve the initialization problem. For the functional modules provided by `PlantModules.jl`, this currently takes much longer than the alternative option `SciMLBase.NonlinearProblem`. We can specify we want the alternative method for problem initialization using `use_scc = false`.
 """
 
 # ╔═╡ c38b1a71-c5e9-4bfa-a210-bcbf9068f7ed
@@ -381,7 +383,7 @@ md"""
 md"First we verify that there is indeed a higher transpiration in our second simulation by plotting the total incoming water influx of the air."
 
 # ╔═╡ f66ca207-98a2-40ee-bf95-ab6e191cc60f
-Plots.plot(
+plot(
 	plotgraph(sol, plantstructure, varname = :ΣF, structmod = :Air, title = "Low transpiration", xaxis = "t (hr)"),
 	plotgraph(sol2, plantstructure, varname = :ΣF, structmod = :Air, title = "High transpiration", xaxis = "t (hr)"), ylims = (0.0, 0.25), yaxis = "ΣF"
 )
@@ -390,10 +392,10 @@ Plots.plot(
 md"Finally, we can inspect whether the effect on the water potential of the stem is as expected. We plot the water potential of the leaves along with it to see if they follow the same pattern."
 
 # ╔═╡ cf30d4f4-a5de-4def-8674-48088eabf17b
-Plots.plot(
+plot(
 	plotgraph(sol, plantstructure, varname = :Ψ, structmod = [:Stem, :Leaf], title = "Low transpiration"),
 	plotgraph(sol2, plantstructure, varname = :Ψ, structmod = [:Stem, :Leaf], title = "High transpiration"),
-	ylims = (-0.3, -0.1), yaxis = "Ψ"
+	ylims = (-0.35, -0.1), yaxis = "Ψ"
 )
 
 # ╔═╡ 79d012fd-4afd-4f3b-ad7c-8ca581bad1e5
@@ -411,7 +413,7 @@ md"""
 plotgraph(sol, plantstructure, varname = :M, structmod = [:Leaf, :Stem])
 
 # ╔═╡ 1c6fac4d-7c63-4601-8b92-21196f5bb96b
-Plots.plot(
+plot(
 	plotgraph(sol, plantstructure, varname = :Π, structmod = :Leaf),
 	plotgraph(sol, plantstructure, varname = :P, structmod = :Leaf),
 	plotgraph(sol, plantstructure, varname = :Ψ, structmod = :Leaf,

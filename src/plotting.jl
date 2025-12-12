@@ -1,19 +1,19 @@
 # # Plot plant structure
 
 """
-    plotstructure(structure::PlantStructure)
+    plotstructure(plantstructure::PlantStructure)
 
 Visualise the structure of a plant system.
 
 This function is a thin wrapper around [`GraphRecipes.graphplot`](@ref) with some keyword arguments specified for plant structures.
 """
-function plotstructure(structure::PlantStructure; kwargs...)
-    names = getstructmod.(getnodes(structure))
+function plotstructure(plantstructure::PlantStructure; kwargs...)
+    names = getstructmod.(getnodes(plantstructure))
     colordict = [name => idx for (idx, name) in enumerate(unique(names))] |> Dict
     markercolor = [colordict[name] for name in names]
     curves = false
     
-    graphplot(structure; names, markercolor, curves, kwargs...)
+    graphplot(plantstructure; names, markercolor, curves, kwargs...)
 end
 
 plotstructure(graph; kwargs...) = plotstructure(PlantStructure(graph); kwargs...)

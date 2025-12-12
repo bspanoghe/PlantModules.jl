@@ -239,7 +239,7 @@ function photosynthesis_module(; name, T, M, shape)
         M(t) = M, [description = "Osmotically active metabolite content", unit = u"mol / cm^3"],
 		PF(t), [description = "Incoming PAR flux", unit = u"J / s / m^2"],
 		A(t), [description = "Carbon assimilation rate", unit = u"µmol / m^2 / s"],
-		D(t)[1:length(shape.ϵ_D)], [description = "Dimensions of compartment", unit = u"cm"],
+		D(t)[1:length(shape.E_D)], [description = "Dimensions of compartment", unit = u"cm"],
     )
 
 	leafarea(::Cuboid, D::AbstractArray) = D[1] * D[2]
