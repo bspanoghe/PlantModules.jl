@@ -349,13 +349,7 @@ Running the model is taken care of DifferentialEquations.jl. Users that are unfa
 time_span = (0.0, 48.0);
 
 # ╔═╡ 50d6fc31-80f5-4db7-b716-b26765008a0d
-prob = ODEProblem(system, [], time_span, sparse = true, use_scc = false);
-
-# ╔═╡ b29b3c61-5db3-48ba-bc17-f201f1535ccc
-md"""
-!!! warning
-	Problem construction of DAEs uses `SciMLBase.SCCNonlinearProblem` by default to solve the initialization problem. For the functional modules provided by `PlantModules.jl`, this currently takes much longer than the alternative option `SciMLBase.NonlinearProblem`. We can specify we want the alternative method for problem initialization using `use_scc = false`.
-"""
+prob = ODEProblem(system, [], time_span, sparse = true);
 
 # ╔═╡ c38b1a71-c5e9-4bfa-a210-bcbf9068f7ed
 sol = solve(prob);
@@ -489,7 +483,6 @@ plot(
 # ╟─6b46bf1d-b54e-48e3-b4eb-364b4e2b1dfd
 # ╠═bf114636-1e35-49f1-9407-f472b443a9ea
 # ╠═50d6fc31-80f5-4db7-b716-b26765008a0d
-# ╟─b29b3c61-5db3-48ba-bc17-f201f1535ccc
 # ╠═c38b1a71-c5e9-4bfa-a210-bcbf9068f7ed
 # ╟─a399ea81-5392-4a54-8a40-953faf5b234a
 # ╠═3526f17e-0f8b-4c10-9f33-96832673136d
