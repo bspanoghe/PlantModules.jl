@@ -1,5 +1,6 @@
 # PlantModules.jl
 
+<<<<<<< HEAD
 A pure Julia package for defining Functional-Structural Plant Models (FSPMs).
 
 - Simulate plant growth with hundreds of parts in seconds
@@ -7,6 +8,10 @@ A pure Julia package for defining Functional-Structural Plant Models (FSPMs).
 - Built on [ModelingToolkit.jl](https://github.com/SciML/ModelingToolkit.jl)
 
 This package is still under active development, but core functionality is already available.
+=======
+A Julia package for defining Functional-Structural Plant Modeling (FSPMs) based on [ModelingToolkit.jl](https://github.com/SciML/ModelingToolkit.jl) created to work well together with Julia's plant modeling framework [VirtualPlantLab.jl](https://github.com/VirtualPlantLab/VirtualPlantLab.jl).
+This package is still under active development, but core functionality is already available. 
+>>>>>>> c71c803cbf5e84f69a5edcf0ed7a38b1cb5d4b7b
 
 ## 1. Installation
 

@@ -14,6 +14,7 @@ import ModelingToolkit.SciMLBase.AbstractSciMLProblem
 using PlantGraphs, MultiScaleTreeGraph # graphs
 using RecipesBase, GraphRecipes # visualisation
 
+<<<<<<< HEAD
 # # Exports
 # ## Own functions
 export generate_system, PlantStructure, PlantCoupling, PlantParameters # generate system
@@ -26,6 +27,14 @@ export hydraulic_connection, constant_hydraulic_connection, daynight_hydraulic_c
 export readXEG, convert_to_MTG, convert_to_PG # graph reading and converting
 export remake_graphsystem, remake_graphsystem!, get_subsystem_variables # system remaking
 export plotstructure, plotgraph, plotnode # plotting
+=======
+using ModelingToolkit, DifferentialEquations, Unitful # Simulation packages
+import ModelingToolkit: get_eqs, get_unknowns, get_ps, get_parameter_dependencies, get_observed,
+    get_continuous_events, get_discrete_events, get_defaults, get_systems, get_name, get_iv
+import ModelingToolkit: extend, AbstractSystem, get_gui_metadata
+using PlantGraphs, MultiScaleTreeGraph # Graph packages
+using Plots # Visualisation packages
+>>>>>>> c71c803cbf5e84f69a5edcf0ed7a38b1cb5d4b7b
 
 # ## Re-exports
 export graphplot

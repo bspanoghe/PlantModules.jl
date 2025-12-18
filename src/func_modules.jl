@@ -1,6 +1,11 @@
+<<<<<<< HEAD
 # # Setup
 @independent_variables t, [description = "Time"] #, unit = u"hr"]; # independent variable
 d = Differential(t); # differential operator
+=======
+@variables t, [description = "Time", unit = u"hr"];
+d = Differential(t);
+>>>>>>> c71c803cbf5e84f69a5edcf0ed7a38b1cb5d4b7b
 
 # # Modules
 
@@ -52,6 +57,7 @@ function hydraulic_module(; name, shape::ModuleShape, ϕ_D, E_D, Γ, T, D, Ψ, M
         g = g, [description = "Gravitational acceleration"], #, unit = u"hN / g"] # (from N / kg) Pa = N/m^2 => MPa = hN/cm^2
     )
     @variables (
+<<<<<<< HEAD
         Ψ(t), [description = "Total water potential"], #, unit = u"MPa"],
         Π(t), [description = "Osmotic water potential"], #, unit = u"MPa"],
         P(t) = P, [description = "Hydrostatic potential"], #, unit = u"MPa"],
@@ -60,6 +66,20 @@ function hydraulic_module(; name, shape::ModuleShape, ϕ_D, E_D, Γ, T, D, Ψ, M
         D(t)[1:num_D] = D, [description = "Dimensions of compartment"], #, unit = u"cm"],
         V(t), [description = "Volume of compartment"], #, unit = u"cm^3"],
         ΣF(t), [description = "Net water influx"], #, unit = u"g / hr"],
+=======
+        Ψ(t), [description = "Total water potential", unit = u"MPa"],
+        Π(t), [description = "Osmotic water potential", unit = u"MPa"],
+        P(t) = P, [description = "Hydrostatic potential", unit = u"MPa"],
+        M(t), [description = "Osmotically active metabolite content", unit = u"mol / cm^3"],
+        W(t) = PlantModules.volume(shape, D) * ρ_w, [description = "Water content", unit = u"g"],
+        D(t)[1:num_D] = D, [description = "Dimensions of compartment", unit = u"cm"],
+        V(t), [description = "Volume of compartment", unit = u"cm^3"],
+        ΣF(t), [description = "Net incoming water flux", unit = u"g / hr"],
+        
+        ΔP(t), [description = "Change in hydrostatic potential", unit = u"MPa / hr"],
+        ΔW(t), [description = "Change in water content", unit = u"g / hr"],
+        ΔD(t)[1:num_D], [description = "Change in dimensions of compartment", unit = u"cm / hr"],
+>>>>>>> c71c803cbf5e84f69a5edcf0ed7a38b1cb5d4b7b
     )
     eqs = [
         Ψ ~ P + Π + Pₕ, # Water potential consists of a solute- and a pressure component
@@ -69,8 +89,12 @@ function hydraulic_module(; name, shape::ModuleShape, ϕ_D, E_D, Γ, T, D, Ψ, M
         V ~ volume(shape, D), # Volume is also directly related to compartment dimensions
         [d(D[i]) ~ D[i] * ϕ_D[i]*P_unit*logsumexp((P - Γ)/P_unit, α = 40) + D[i] * d(P)/E_D[i] for i in eachindex(D)]..., # Compartment dimensions can only change due to a change in pressure
     ]
+<<<<<<< HEAD
 
     return System(eqs, t; name)
+=======
+    return ODESystem(eqs, t; name)
+>>>>>>> c71c803cbf5e84f69a5edcf0ed7a38b1cb5d4b7b
 end
 
 """

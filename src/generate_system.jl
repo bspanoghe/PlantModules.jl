@@ -135,13 +135,23 @@ function getMTKsystem(node, plantparams, plantcoupling, checkunits)
 		error("No functional module defined for structural module `$structmodule`.")
 	func_modules = plantcoupling.module_coupling[structmodule]
 
+<<<<<<< HEAD
 	component_systems = Vector{System}(undef, length(func_modules))
+=======
+	component_systems = Vector{ODESystem}(undef, length(func_modules))
+>>>>>>> c71c803cbf5e84f69a5edcf0ed7a38b1cb5d4b7b
 
 	for (modulenum, func_module) in enumerate(func_modules)
 		nodevalues = getnodevalues(node, structmodule, func_module, plantparams)
 
+<<<<<<< HEAD
 		component_systems[modulenum] = func_module(; :name => Symbol(string(structmodule) * string(PlantModules.getid(node))),
 			Pair.(keys(nodevalues), values(nodevalues))...)
+=======
+		component_systems[modulenum] = func_module(; :name => Symbol(string(structmodule) * string(PlantModules.id(node))),
+			Pair.(keys(nodeparams), values(nodeparams))..., Pair.(keys(nodeu0s), values(nodeu0s))...)
+				# real name given later
+>>>>>>> c71c803cbf5e84f69a5edcf0ed7a38b1cb5d4b7b
 	end
 
 	MTKsystem = component_systems[1]
@@ -153,15 +163,61 @@ function getMTKsystem(node, plantparams, plantcoupling, checkunits)
 	return MTKsystem
 end
 
+# extended version of ModelingToolkit.extend to include unitful checks
+function extend(sys::AbstractSystem, basesys::AbstractSystem, checkunits::Bool; name::Symbol = nameof(sys),
+	gui_metadata = get_gui_metadata(sys))
+
+	T = SciMLBase.parameterless_type(basesys)
+	ivs = independent_variables(basesys)
+	if !(sys isa T)
+		if length(ivs) == 0
+			sys = convert_system(T, sys)
+		elseif length(ivs) == 1
+			sys = convert_system(T, sys, ivs[1])
+		else
+			throw("Extending multivariate systems is not supported")
+		end
+	end
+
+	eqs = union(get_eqs(basesys), get_eqs(sys))
+	sts = union(get_unknowns(basesys), get_unknowns(sys))
+	ps = union(get_ps(basesys), get_ps(sys))
+	base_deps = get_parameter_dependencies(basesys)
+	deps = get_parameter_dependencies(sys)
+	dep_ps = isnothing(base_deps) ? deps :
+			isnothing(deps) ? base_deps : union(base_deps, deps)
+	obs = union(get_observed(basesys), get_observed(sys))
+	cevs = union(get_continuous_events(basesys), get_continuous_events(sys))
+	devs = union(get_discrete_events(basesys), get_discrete_events(sys))
+	defs = merge(get_defaults(basesys), get_defaults(sys)) # prefer `sys`
+	syss = union(get_systems(basesys), get_systems(sys))
+
+	if length(ivs) == 0
+		T(eqs, sts, ps, observed = obs, defaults = defs, name = name, systems = syss,
+			continuous_events = cevs, discrete_events = devs, gui_metadata = gui_metadata,
+			parameter_dependencies = dep_ps, checks = checkunits)
+	elseif length(ivs) == 1
+		T(eqs, ivs[1], sts, ps, observed = obs, defaults = defs, name = name,
+			systems = syss, continuous_events = cevs, discrete_events = devs,
+			gui_metadata = gui_metadata, parameter_dependencies = dep_ps, 
+			checks = checkunits)
+	end
+end
+
 # get correct parameter/initial values for node between those defined in the model defaults, module defaults and node values
 function getnodevalues(node, structmodule, func_module, plantparams)
 	node_defaults = get_func_defaults(plantparams.default_values, func_module)
 	node_module_defaults = get(plantparams.module_defaults, structmodule, Dict())
 	node_attributes = PlantModules.getattributes(node)
 
+<<<<<<< HEAD
 	nodevalues = overwrite!(deepcopy(node_defaults), node_module_defaults, node_attributes)
 	return nodevalues
 end
+=======
+	paramu0s = default_paramu0s[Symbol(func_module)] |> x -> Dict{Any, Any}(Pair.(keys(x), values(x))) # PlantModules defaults
+	paramu0names = keys(paramu0s)
+>>>>>>> c71c803cbf5e84f69a5edcf0ed7a38b1cb5d4b7b
 
 # filters the values required for `funcmod` out of `default_values`
 # intended to use with `System` functions so filters out `name` kwarg
@@ -185,6 +241,7 @@ function overwrite!(dicts::Dict...)
 	return maindict
 end
 
+<<<<<<< HEAD
 # extended version of ModelingToolkit.extend to include unitful checks
 function extend(sys::ModelingToolkit.AbstractSystem, basesys::ModelingToolkit.AbstractSystem, checkunits::Bool; name::Symbol = nameof(sys),
 	gui_metadata = get_gui_metadata(sys))
@@ -226,6 +283,8 @@ function extend(sys::ModelingToolkit.AbstractSystem, basesys::ModelingToolkit.Ab
 	end
 end
 
+=======
+>>>>>>> c71c803cbf5e84f69a5edcf0ed7a38b1cb5d4b7b
 # Get the MTK system of the edge between the two nodes, and whether it exists in correct order
 function get_connecting_module(node, nb_node, plantcoupling)
 	structmodule = PlantModules.getstructmod(node)
@@ -255,9 +314,17 @@ function get_connection_info(node, nb_node, connecting_module,
 		get(plantparams.connection_values, (structmodule, nb_structmodule), Dict()) :
 		get(plantparams.connection_values, (nb_structmodule, structmodule), Dict())
 	
+<<<<<<< HEAD
 	default_values_conn = get_func_defaults(plantparams.default_values, connecting_module)
 	order_info = :original_order in (connecting_module |> methods |> only |> Base.kwarg_decl) ?
 		Dict{Symbol, Any}(:original_order => original_order) : Dict()
+=======
+	default_conn_info = merge(
+		get(default_params, Symbol(connector_func), ()),
+		get(default_u0s, Symbol(connector_func), ())
+	)
+	conn_info = merge(default_conn_info, connection_specific_values)
+>>>>>>> c71c803cbf5e84f69a5edcf0ed7a38b1cb5d4b7b
 
 	conn_info = merge(default_values_conn, connection_specific_values, order_info)
 
