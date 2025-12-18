@@ -13,3 +13,5 @@ To use `PlantModules.jl`, install the package as follows:
 using Pkg; Pkg.add("PlantModules.jl")
 ```
 To learn how to use the package, please visit the [Examples]("./tutorials").
+
+Please note that the package is in an early version and the documentation is still under active construction.

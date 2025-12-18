@@ -406,9 +406,7 @@ transpiration_rate = LinearInterpolation(
 );
 
 # ╔═╡ 6af34100-de2a-4e1d-83a0-02842001fa70
-#=╠═╡
 plot(transpiration_rate, xlabel = "Time (h)", ylabel = "Transpiration (g / hr / cm^2)")
-  ╠═╡ =#
 
 # ╔═╡ d0479f27-4c54-4561-83b5-a43ad1557f01
 md"""
@@ -535,7 +533,7 @@ system = generate_system(plantstructure, plantcoupling, plantparams);
 tspan = (0.0, 24.0);
 
 # ╔═╡ 7f99ec81-41c9-45bf-9e7d-2ab7dada677d
-prob = ODEProblem(system, [], tspan, sparse = true);
+prob = ODEProblem(system, [], tspan, sparse = true, use_scc = false);
 
 # ╔═╡ eab82d37-dc14-4afb-8791-cf6b08e31307
 md"""
@@ -563,9 +561,7 @@ When we either want to plot very specific variables, or if we want to use `Model
 """
 
 # ╔═╡ eefbf375-b604-4a67-8861-0a428b088ee3
-#=╠═╡
 air_water_inflow = get_subsystem_variables(system, plantstructure, :ΣF, :Air)[1]
-  ╠═╡ =#
 
 # ╔═╡ 38841aaf-d87b-48f2-9b5a-d800828a8791
 md"""
@@ -576,11 +572,9 @@ We can then define a function that changes the transpiration from the units used
 transpiration_unit_conversion(var) = var * 1e3 / (total_needle_area * (1e-2)^2) / 3600;
 
 # ╔═╡ 9e8bd19a-2790-41dd-8655-0120271c1d39
-#=╠═╡
 plot(sol, idxs = [transpiration_unit_conversion(air_water_inflow)], label = false,
 	xlabel = "Time of day (h)", ylabel = "Transpiration (mg / m^2 / s)",
 	xticks = 0:3:24, ylims = (0, 10), yticks = 0:2:10, color = :black)
-  ╠═╡ =#
 
 # ╔═╡ e2ce9fbb-ff2a-4894-98e3-308d8b93c392
 md"### Water tension"
@@ -591,7 +585,6 @@ We use the same approach to select the pressure variable from `Stem` nodes at sp
 """
 
 # ╔═╡ b3186620-808b-481e-89f6-a037223ed990
-#=╠═╡
 begin
 	stem_pressures = get_subsystem_variables(system, plantstructure, :P, :Stem)
 	pressure_segment_heights = [10.0, crown_base_height, 1200.0]
@@ -602,7 +595,6 @@ begin
 		 linewidth = [1 2 3], ylabel = "Water tension (MPa)",
 		 label = ["Base of stem" "Crown base" "Top of tree"])
 end
-  ╠═╡ =#
 
 # ╔═╡ 28184995-7163-40ee-a773-eb414ecf2f28
 md"### Diameter variation"
@@ -613,7 +605,6 @@ Finally, we can compare our simulation with actual measurements.
 """
 
 # ╔═╡ 6b2ad036-b6f1-4753-a3f0-4a6d4dc6b7fd
-#=╠═╡
 begin
     dimension_variables = get_subsystem_variables(system, plantstructure, :D, :Stem)
 
@@ -641,7 +632,6 @@ begin
 		 size = (800, 600), margins = 5*Plots.mm, ylims = (-0.07, 0.01), 
 		 yticks = -0.07:0.01:0.01, xticks = 0:3:24, xlabel = "Time of day (h)")
 end
-  ╠═╡ =#
 
 # ╔═╡ 70df3d1e-82ad-4365-97ab-0e31283058c2
 md"## Uncertainty analysis"
@@ -655,9 +645,7 @@ Perämäki et al. give a value **range** for the radial elasticity and the speci
 md"We will choose the diameter of the stem segment at 250 cm as our output variable of interest."
 
 # ╔═╡ c0749089-7c61-42ba-a9ce-26d448e82840
-#=╠═╡
 D1_at_250cm = dimension_variables[diameter_segment_nrs[2]][1];
-  ╠═╡ =#
 
 # ╔═╡ b9c6f2cb-98a9-42a1-8cb4-8c82a756099a
 md"""
@@ -684,7 +672,6 @@ Recreating the system and problem with `generate_system` and `ODEProblem` is a c
 """
 
 # ╔═╡ d99adee7-c13a-44b2-8d8b-7e3d396751e3
-#=╠═╡
 begin
 	p_montecarlo = plot()
 					   
@@ -709,7 +696,6 @@ begin
 		yticks = -0.12:0.01:0.01, xticks = 0:3:24
 	)
 end
-  ╠═╡ =#
 
 # ╔═╡ 81907a2e-c545-4ec4-8818-05ec81d190f2
 md"### Local sensitivity"
@@ -725,49 +711,28 @@ We begin by defining a function that returns our output variable of interest giv
 """
 
 # ╔═╡ 0d9a929f-8659-42ef-b718-52cb14dc87ed
-#=╠═╡
 K_s_vars = get_subsystem_variables(system, plantstructure, :K_s, [:Stem, :Branch]);
-  ╠═╡ =#
 
 # ╔═╡ 5adf23c5-0187-4ad1-8d03-f525481f5859
-#=╠═╡
 function get_diameter(new_K_s)
     newprob = remake(prob, p = Pair.(K_s_vars, [new_K_s]))
 	newsol = solve(newprob, FBDF(), saveat = 0.1)
     return newsol[D1_at_250cm]
 end
-  ╠═╡ =#
 
 # ╔═╡ 4d2ab9a6-43d9-4ade-9b43-0360b308fb1d
 md"We can then call `ForwardDiff.derivative` on this function to get the derivative around a given value. We choose the value used in the simulation."
 
-# ╔═╡ 6603664d-331f-4494-bac7-4b9fbf5ce8fa
-md"""
-!!! warning
-	The line below commits type piracy (defining a method for a type we did not define), which is generally a bad idea. However, at the time of writing the line is required to work around a `ModelingToolkit` bug that otherwise causes the automatic differentiation to produce an error. This bug will likely be resolved soon.
-"""
-
-# ╔═╡ 97e43120-bec1-45b3-9db5-8ea693f4c5e2
-# ╠═╡ disabled = true
-#=╠═╡
-Base.Float64(x::ForwardDiff.Dual) = x.value
-  ╠═╡ =#
-
 # ╔═╡ af7133d5-c742-4a3f-ac94-25b3becd4b1b
-# ╠═╡ disabled = true
-#=╠═╡
 K_sensitivity = ForwardDiff.derivative(get_diameter, K_s_stem);
-  ╠═╡ =#
 
 # ╔═╡ 3e157c84-738c-41a5-8210-42ad3773e246
-#=╠═╡
 plot(
 	tspan[1]:0.1:tspan[2], K_sensitivity, 
 	xticks = 0:3:24, xlabel = "Time of day (h)", legend = false, 
 	title = "Derivative of stem radius w.r.t. the hydraulic conductivity", 
 	size = (800, 600), margins = 5*Plots.mm
 )
-  ╠═╡ =#
 
 # ╔═╡ f090a016-0f63-401b-b81a-8338213ca7cb
 md"""
@@ -860,8 +825,8 @@ The plot shows that an increase in hydraulic conductivity will have a positive i
 # ╟─5025d163-dfc3-4a3f-b1eb-3d902f1d2c98
 # ╠═4ee50611-6032-476d-ad2f-9393ad0b2200
 # ╠═b810c5c6-97c7-4293-ae77-0c399d6f56b2
-# ╠═7f99ec81-41c9-45bf-9e7d-2ab7dada677d
 # ╟─eab82d37-dc14-4afb-8791-cf6b08e31307
+# ╠═7f99ec81-41c9-45bf-9e7d-2ab7dada677d
 # ╠═b24016d3-cd1d-4ba8-b7a6-2ee8b41db1f1
 # ╟─087fa5db-83a0-4a47-b52a-7ddc6259a281
 # ╟─81aff1dd-ba69-498e-aa9c-775b76b42d2f
@@ -894,8 +859,6 @@ The plot shows that an increase in hydraulic conductivity will have a positive i
 # ╠═0d9a929f-8659-42ef-b718-52cb14dc87ed
 # ╠═5adf23c5-0187-4ad1-8d03-f525481f5859
 # ╟─4d2ab9a6-43d9-4ade-9b43-0360b308fb1d
-# ╟─6603664d-331f-4494-bac7-4b9fbf5ce8fa
-# ╠═97e43120-bec1-45b3-9db5-8ea693f4c5e2
 # ╠═af7133d5-c742-4a3f-ac94-25b3becd4b1b
 # ╠═3e157c84-738c-41a5-8210-42ad3773e246
 # ╟─f090a016-0f63-401b-b81a-8338213ca7cb

@@ -1,2 +1,3 @@
 using LiveServer
-serve(; dir="docs/build", launch_browser=true)
+cd(@__DIR__)
+serve(; dir="build", launch_browser=true)

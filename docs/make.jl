@@ -8,10 +8,14 @@ using Pkg; Pkg.activate(".")
 using Documenter, PlantModules
 using PlutoStaticHTML
 
-cd("./src/tutorials")
-bopts = BuildOptions(".", output_format = documenter_output)
-build_notebooks(bopts)
-cd(@__DIR__)
+rebuild_notebooks = false
+
+if rebuild_notebooks
+    cd("./src/tutorials")
+    bopts = BuildOptions(".", output_format = documenter_output)
+    build_notebooks(bopts)
+    cd(@__DIR__)
+end
 
 pages = [
     "Introduction" => "index.md",
