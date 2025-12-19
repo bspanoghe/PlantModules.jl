@@ -7,8 +7,8 @@ function lotka_volterra(; name, α, β, δ, γ, N, P)
     @parameters α = α β = β δ = δ γ = γ
     @variables N(t) = N P(t) = P ΣF_N(t) ΣF_P(t)
     eqs = [
-        d(N) ~ α*N - β*N*P + ΣF_N,
-        d(P) ~ δ*N*P - γ*P + ΣF_P
+        d(N) ~ α * N - β * N * P + ΣF_N,
+        d(P) ~ δ * N * P - γ * P + ΣF_P,
     ]
     return System(eqs, t; name)
 end
@@ -17,7 +17,7 @@ function fountain_of_rabbits(; name, η, N, P)
     @variables N(t) = N P(t) = P ΣF_N(t) ΣF_P(t)
     eqs = [
         d(N) ~ η + ΣF_N,
-        d(P) ~ ΣF_P
+        d(P) ~ ΣF_P,
     ]
     return System(eqs, t; name)
 end
@@ -28,7 +28,7 @@ function wandering_animals(; name, κ)
 
     eqs = [
         F_N ~ κ * (N_2 - N_1),
-        F_P ~ κ * (P_2 - P_1)
+        F_P ~ κ * (P_2 - P_1),
     ]
 
     wandering_eqs(node_MTK, nb_node_MTK, connection_MTK) = [
@@ -57,7 +57,7 @@ connecting_modules = Dict(
 
 connecting_eqs(node_MTK, connection_MTKs) = [
     node_MTK.ΣF_N ~ sum([connection_MTK.F_N for connection_MTK in connection_MTKs]),
-    node_MTK.ΣF_P ~ sum([connection_MTK.F_P for connection_MTK in connection_MTKs])
+    node_MTK.ΣF_P ~ sum([connection_MTK.F_P for connection_MTK in connection_MTKs]),
 ]
 
 plantcoupling = PlantCoupling(; module_coupling, connecting_modules, connecting_eqs)
@@ -104,8 +104,10 @@ connecting_module, original_order = PlantModules.get_connecting_module(node, nb_
 @test original_order == true
 
 ## get_connection_info
-connection_MTK, connection_equations = PlantModules.get_connection_info(node, nb_node, connecting_module,
-	original_order, plantparams, MTK_system_dict)
+connection_MTK, connection_equations = PlantModules.get_connection_info(
+    node, nb_node, connecting_module,
+    original_order, plantparams, MTK_system_dict
+)
 
 @test connection_MTK isa ModelingToolkit.System
 @test only(values(get_defaults(connection_MTK))) == 0.05
@@ -115,7 +117,7 @@ connection_MTK, connection_equations = PlantModules.get_connection_info(node, nb
 structmodule = :Forest
 func_module = lotka_volterra
 nodevalues = PlantModules.getnodevalues(node, structmodule, func_module, plantparams)
-@test issetequal(nodevalues, [:α => 1.5, :β => 1.9, :γ => 0.8,  :δ => 1.8, :N => 20, :P => 10])
+@test issetequal(nodevalues, [:α => 1.5, :β => 1.9, :γ => 0.8, :δ => 1.8, :N => 20, :P => 10])
 
 structmodule = :Cave
 func_module = fountain_of_rabbits

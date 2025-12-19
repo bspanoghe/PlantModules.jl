@@ -13,7 +13,7 @@ Only variables of given names and subsystem types are changed.
 - `value`: The new variable value.
 """
 function remake_graphsystem(prob::AbstractSciMLProblem, sys::System, structure, varnames, subsystem_types, value)
-        # can get even more efficient: https://docs.sciml.ai/ModelingToolkit/dev/examples/remake/
+    # can get even more efficient: https://docs.sciml.ai/ModelingToolkit/dev/examples/remake/
     remakevars = get_subsystem_variables(sys, structure, varnames, subsystem_types)
     ps = copy(parameter_values(prob))
     setter = setp(prob, remakevars)
@@ -32,7 +32,7 @@ function remake_graphsystem!(prob::AbstractSciMLProblem, sys::System, structure,
     ps = parameter_values(prob)
     setter = setp(prob, remakevars)
     setter(ps, fill(value, length(remakevars)))
-    remake(prob, p = ps)
+    return remake(prob, p = ps)
 end
 
 """
@@ -74,18 +74,18 @@ end
 function getsysnames(nodes, connection::Tuple, structure)
     is_valid_node = [
         [connection_check(node, connection[i]) for node in nodes] # see `plantstructure.jl` for `connection_check`
-        for i in eachindex(connection)
+            for i in eachindex(connection)
     ]
     if !any(Iterators.flatten(is_valid_node))
         error("No nodes found in the graph that correspond to connection $connection.")
     end
 
     sysnames = [
-        string(getstructmod(node1)) * string(getid(node1)) * "_" * 
+        string(getstructmod(node1)) * string(getid(node1)) * "_" *
             string(getstructmod(node2)) * string(getid(node2))
-        for node1 in nodes[is_valid_node[1]]
-        for node2 in nodes[is_valid_node[2]]
-        if node2 in getneighbors(node1, structure)
+            for node1 in nodes[is_valid_node[1]]
+            for node2 in nodes[is_valid_node[2]]
+            if node2 in getneighbors(node1, structure)
     ]
     isempty(sysnames) && error("No nodes found in the graph that correspond to connection $connection.")
     return sysnames
@@ -94,6 +94,6 @@ end
 function getsubsystem(sys::System, sysname)
     parentsystem = get_parent(sys) # system before simplification
     subsystem = [subsys for subsys in get_systems(parentsystem) if get_name(subsys) == Symbol(sysname)][1]
-    
+
     return subsystem
 end

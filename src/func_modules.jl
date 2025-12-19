@@ -27,16 +27,16 @@ This module still requires a module describing the osmotically active metabolite
 - `h`: The height above a chosen reference level [cm].
 """
 function hydraulic_module(; name, shape::ModuleShape, ϕ_D, E_D, Γ, T, D, Ψ, M, h)
-    D, ϕ_D, E_D = [correctdimensionality(shape, var) for var in [D, ϕ_D, E_D]] 
-        # turns scalar values into vectors of correct length
+    D, ϕ_D, E_D = [correctdimensionality(shape, var) for var in [D, ϕ_D, E_D]]
+    # turns scalar values into vectors of correct length
 
     num_D = getdimensionality(shape)
-    
+
     R = 8.314 # MPa * cm^3 / K / mol
     ρ_w = 1.0 # g / cm^3
-    g = 9.8 * 1e-5 # hN / g
+    g = 9.8 * 1.0e-5 # hN / g
     Pₕ = ρ_w * g * h # MPa
-    P = Ψ + R*T*M - Pₕ # MPa
+    P = Ψ + R * T * M - Pₕ # MPa
 
     @constants (
         R = R, [description = "Ideal gas constant"], #, unit = u"MPa * cm^3 / K / mol"], # Pa = J/m^3 => J = Pa * m^3 = MPa * cm^3
@@ -63,11 +63,11 @@ function hydraulic_module(; name, shape::ModuleShape, ϕ_D, E_D, Γ, T, D, Ψ, M
     )
     eqs = [
         Ψ ~ P + Π + Pₕ, # Water potential consists of a solute- and a pressure component
-        Π ~ -R*T*M, # Solute component is determined by concentration of dissolved metabolites
+        Π ~ -R * T * M, # Solute component is determined by concentration of dissolved metabolites
         d(W) ~ ΣF, # Water content changes due to flux (depending on water potentials as defined in connections)
-        V ~ W / ρ_w, # Volume is directly related to water content  
+        V ~ W / ρ_w, # Volume is directly related to water content
         V ~ volume(shape, D), # Volume is also directly related to compartment dimensions
-        [d(D[i]) ~ D[i] * ϕ_D[i]*P_unit*logsumexp((P - Γ)/P_unit, α = 40) + D[i] * d(P)/E_D[i] for i in eachindex(D)]..., # Compartment dimensions can only change due to a change in pressure
+        [d(D[i]) ~ D[i] * ϕ_D[i] * P_unit * logsumexp((P - Γ) / P_unit, α = 40) + D[i] * d(P) / E_D[i] for i in eachindex(D)]..., # Compartment dimensions can only change due to a change in pressure
     ]
 
     return System(eqs, t; name)
@@ -134,16 +134,16 @@ function simple_photosynthesis_module(; name, shape, t_sunrise, t_sunset, A_max,
         t_sunset = t_sunset, [description = "Time of sunset (hours past midnight)"], #, unit = u"hr"],
         A_max = A_max, [description = "Maximum carbon assimilation rate"], #, unit = u"mol / cm^2 / hr"],
         M_c = M_c, [description = "Rate of carbon consumption"], #, unit = u"hr^-1"],
-	)
-	@variables (
+    )
+    @variables (
         M(t) = M, [description = "Osmotically active metabolite content"], #, unit = u"mol / cm^3"],
-		A(t), [description = "Carbon assimilation rate"], #, unit = u"mol / cm^2 / hr"],
-		D(t)[1:getdimensionality(shape)], [description = "Dimensions of compartment"], #, unit = u"cm"],
+        A(t), [description = "Carbon assimilation rate"], #, unit = u"mol / cm^2 / hr"],
+        D(t)[1:getdimensionality(shape)], [description = "Dimensions of compartment"], #, unit = u"cm"],
     )
 
     eqs = [
-		A ~ smooth_daynight(t/t_unit, t_sunrise/t_unit, t_sunset/t_unit, zero(A_max), A_max, smoothing = 1.0)
-        d(M) ~ A * surface_area(shape, D)/2 / volume(shape, D) - M_c * M
+        A ~ smooth_daynight(t / t_unit, t_sunrise / t_unit, t_sunset / t_unit, zero(A_max), A_max, smoothing = 1.0)
+        d(M) ~ A * surface_area(shape, D) / 2 / volume(shape, D) - M_c * M
     ]
     return System(eqs, t; name)
 end
@@ -167,7 +167,7 @@ function constant_carbon_module(; name, M)
     )
 
     eqs = [
-        M ~ M_value
+        M ~ M_value,
     ]
     return System(eqs, t; name)
 end
@@ -184,19 +184,19 @@ Return a ModelingToolkit System describing the relationship between the total wa
 - `T`: The temperature [K].
 """
 function Ψ_air_module(; name, T)
-	@variables (
+    @variables (
         Ψ(t), [description = "Total water potential"], #, unit = u"MPa"],
         W_r(t), [description = "Relative water content"], #, unit = u"g / g"],
     )
-	@parameters T = T [description = "Temperature"] #, unit = u"K"]
-	@constants (
+    @parameters T = T [description = "Temperature"] #, unit = u"K"]
+    @constants (
         R = 8.314, [description = "Ideal gas constant"], #, unit = u"MPa * cm^3 / K / mol"],
         V_w = 18, [description = "Molar volume of water"], #, unit = u"cm^3/mol"]
     )
 
-	eqs = [Ψ ~ R * T / V_w * log(W_r)] # Spanner equation (see e.g. https://academic.oup.com/insilicoplants/article/4/1/diab038/6510844)
+    eqs = [Ψ ~ R * T / V_w * log(W_r)] # Spanner equation (see e.g. https://academic.oup.com/insilicoplants/article/4/1/diab038/6510844)
 
-	return System(eqs, t; name)
+    return System(eqs, t; name)
 end
 
 """
@@ -208,20 +208,20 @@ Return a ModelingToolkit System describing an empirical relationship between the
 None.
 """
 function Ψ_soil_module(; name)
-	@variables (
+    @variables (
         Ψ(t), [description = "Total water potential"], #, unit = u"MPa"],
         W_r(t), [description = "Relative water content"], #, unit = u"g / g"],
     )
     @constants Ψ_unit = 1 [description = "Dummy constant for correcting units"] #, unit = u"MPa"]
 
-	eqs = [Ψ ~ Ψ_unit * soilfunc(W_r)]
+    eqs = [Ψ ~ Ψ_unit * soilfunc(W_r)]
 
-	return System(eqs, t; name)
+    return System(eqs, t; name)
 end
 
-soilfunc(W_r; a = 3.5, b = 5.5) = -(a/W_r) * exp(-b*W_r) # empirical equation for soil water potential
-    # default values fit to loam soil data from Chen et al. (1997) 
-    # link: https://doi.org/10.1093/treephys/17.12.797
+soilfunc(W_r; a = 3.5, b = 5.5) = -(a / W_r) * exp(-b * W_r) # empirical equation for soil water potential
+# default values fit to loam soil data from Chen et al. (1997)
+# link: https://doi.org/10.1093/treephys/17.12.797
 
 # ## Hydraulic conductivity
 
@@ -243,11 +243,11 @@ function K_module(; name, shape::ModuleShape, K_s)
     )
     @variables (
         K(t), [description = "Hydraulic conductivity of compartment"], #, unit = u"g / hr / MPa"],
-		D(t)[1:num_D], [description = "Dimensions of compartment"], #, unit = u"cm"],
+        D(t)[1:num_D], [description = "Dimensions of compartment"], #, unit = u"cm"],
     )
 
     eqs = [
-		K ~ K_s * cross_area(shape, D)
+        K ~ K_s * cross_area(shape, D),
     ]
 
     return System(eqs, t; name)
@@ -272,7 +272,7 @@ function constant_K_module(; name, K)
     )
 
     eqs = [
-		K ~ K_value
+        K ~ K_value,
     ]
 
     return System(eqs, t; name)
@@ -305,13 +305,13 @@ function hydraulic_connection(; name)
 
     eqs = [
         F ~ K * (Ψ_2 - Ψ_1),
-        K ~ min(K_1, K_2)
+        K ~ min(K_1, K_2),
     ]
 
-    get_connection_eqset(node_MTK, nb_node_MTK, connection_MTK) = [ 
+    get_connection_eqset(node_MTK, nb_node_MTK, connection_MTK) = [
         connection_MTK.Ψ_1 ~ node_MTK.Ψ,
         connection_MTK.Ψ_2 ~ nb_node_MTK.Ψ,
-		connection_MTK.K_1 ~ node_MTK.K,
+        connection_MTK.K_1 ~ node_MTK.K,
         connection_MTK.K_2 ~ nb_node_MTK.K,
     ]
     return System(eqs, t; name), get_connection_eqset
@@ -350,18 +350,18 @@ function daynight_hydraulic_connection(; name, t_sunrise, t_sunset, η_night)
     )
 
     eqs = [
-        F ~ K * (Ψ_2 - Ψ_1) * smooth_daynight(t/t_unit, t_sunrise/t_unit, t_sunset/t_unit, η_night),
-        K ~ min(K_1, K_2)
+        F ~ K * (Ψ_2 - Ψ_1) * smooth_daynight(t / t_unit, t_sunrise / t_unit, t_sunset / t_unit, η_night),
+        K ~ min(K_1, K_2),
     ]
 
-    get_connection_eqset(node_MTK, nb_node_MTK, connection_MTK) = 
-        [ 
-            connection_MTK.Ψ_1 ~ node_MTK.Ψ,
-            connection_MTK.Ψ_2 ~ nb_node_MTK.Ψ,
-            connection_MTK.K_1 ~ node_MTK.K,
-            connection_MTK.K_2 ~ nb_node_MTK.K,
-        ]
-    
+    get_connection_eqset(node_MTK, nb_node_MTK, connection_MTK) =
+        [
+        connection_MTK.Ψ_1 ~ node_MTK.Ψ,
+        connection_MTK.Ψ_2 ~ nb_node_MTK.Ψ,
+        connection_MTK.K_1 ~ node_MTK.K,
+        connection_MTK.K_2 ~ nb_node_MTK.K,
+    ]
+
     return System(eqs, t; name), get_connection_eqset
 end
 
@@ -388,10 +388,10 @@ function constant_hydraulic_connection(; name, K)
     )
 
     eqs = [
-        F ~ K * (Ψ_2 - Ψ_1)
+        F ~ K * (Ψ_2 - Ψ_1),
     ]
 
-    get_connection_eqset(node_MTK, nb_node_MTK, connection_MTK) = [ 
+    get_connection_eqset(node_MTK, nb_node_MTK, connection_MTK) = [
         connection_MTK.Ψ_1 ~ node_MTK.Ψ,
         connection_MTK.Ψ_2 ~ nb_node_MTK.Ψ,
     ]
@@ -401,14 +401,14 @@ end
 # # Node behaviour in function of all their connections
 
 multi_connection_eqs(node_MTK, connection_MTKs) = [
-    node_MTK.ΣF ~ sum([connection_MTK.F for connection_MTK in connection_MTKs])
-        # "node's Net water influx equals the sum of all connected water flows"
+    node_MTK.ΣF ~ sum([connection_MTK.F for connection_MTK in connection_MTKs]),
+    # "node's Net water influx equals the sum of all connected water flows"
 ]
 
 # # Default values
 
 default_values = Dict(
     :shape => Cylinder(), :ϕ_D => 0.02, :E_D => 50.0, :Γ => 0.3, :T => 298.15, :D => [0.5, 5.0],
-    :Ψ => 0.0, :M => 300e-6, :h => 0.0, :W_max => 1e6, :W_r => 0.8, :K_s => 10.0, :K => 1e3,
-    :t_sunrise => 8, :t_sunset => 20, :η_night => 0.1, :A_max => 2e-6, :M_c => 0.05
+    :Ψ => 0.0, :M => 300.0e-6, :h => 0.0, :W_max => 1.0e6, :W_r => 0.8, :K_s => 10.0, :K => 1.0e3,
+    :t_sunrise => 8, :t_sunset => 20, :η_night => 0.1, :A_max => 2.0e-6, :M_c => 0.05
 )

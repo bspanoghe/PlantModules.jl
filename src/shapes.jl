@@ -56,14 +56,16 @@ If `var` is an array, either return the same vector if the dimensions match or t
 """
 function correctdimensionality(s::ModuleShape, var)
     @info "A scalar value was found for a variable that needs to be defined for every dimensions of the shape (D, ϕ_D, E_D)." *
-    " This value will be used for every dimension." maxlog = 1
+        " This value will be used for every dimension." maxlog = 1
     return fill(var, getdimensionality(s))
 end
 
 function correctdimensionality(s::ModuleShape, var::AbstractArray)
     if length(var) != getdimensionality(s)
-        error("Volumes of shape $s must have $(getdimensionality(s)) dimension$(getdimensionality(s) > 1 ? "s" : "")" *
-            " for all dimensional variables (by default: dimensions `D`, extensibility `ϕ_D`, elasticity `E_D`).")
+        error(
+            "Volumes of shape $s must have $(getdimensionality(s)) dimension$(getdimensionality(s) > 1 ? "s" : "")" *
+                " for all dimensional variables (by default: dimensions `D`, extensibility `ϕ_D`, elasticity `E_D`)."
+        )
     end
     return var
 end
@@ -79,7 +81,7 @@ volume(s::ModuleShape, ::AbstractArray) = error("Function not yet defined for sh
 
 Calculate the volume of a sphere.
 """
-volume(::Sphere, D::AbstractArray) = 4/3 * pi * D[1]^3 # Write dimensions in the order: radius
+volume(::Sphere, D::AbstractArray) = 4 / 3 * pi * D[1]^3 # Write dimensions in the order: radius
 """
     volume(::Cylinder, D::AbstractArray)
 
@@ -142,4 +144,4 @@ surface_area(::Cylinder, D::AbstractArray) = 2 * (D[1]^2 * pi) + (2 * D[1] * pi)
 
 Calculate the surface area of a cuboid.
 """
-surface_area(::Cuboid, D::AbstractArray) = 2 * (D[1]*D[2] + D[1]*D[3] + D[2]*D[3])
+surface_area(::Cuboid, D::AbstractArray) = 2 * (D[1] * D[2] + D[1] * D[3] + D[2] * D[3])

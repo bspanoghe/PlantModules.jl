@@ -12,8 +12,8 @@ function plotstructure(plantstructure::PlantStructure; kwargs...)
     colordict = [name => idx for (idx, name) in enumerate(unique(names))] |> Dict
     markercolor = [colordict[name] for name in names]
     curves = false
-    
-    graphplot(plantstructure; names, markercolor, curves, kwargs...)
+
+    return graphplot(plantstructure; names, markercolor, curves, kwargs...)
 end
 
 plotstructure(graph; kwargs...) = plotstructure(PlantStructure(graph); kwargs...)
@@ -27,27 +27,27 @@ Return a plot for every functional variable for every node of the given graph fo
 Optionally, the user can give the name of a functional variable to only return a plot of this variable,
 give the name of a structural module to limit considered nodes to those of this type, or both.
 """
-function plotgraph(sol::ODESolution, graph; varname = missing,  structmod = missing, kwargs...)
+function plotgraph(sol::ODESolution, graph; varname = missing, structmod = missing, kwargs...)
     indep_values = copy(sol[get_iv(sol.prob.f.sys)]) # values of indepedent variable
     append!(indep_values, NaN) # NaN used to cause linebreaks in plot
-    
+
     varlist, node_structmods, varname_dict = _getvariables(sol, graph, varname, structmod)
 
     varlocs = getvarlocs(node_structmods, varname_dict, varlist) # e.g.: varlocs[:Stem][:W] => [10, 15, 16]
     varvalues = sol[reduce(vcat, varlist)] |> x -> reduce(hcat, x) |> x -> [x fill(NaN, size(x, 1))]
-    
+
     plots = AbstractPlot[]
-    
+
     for _varname in unique(vcat(values(varname_dict)...))
         for _structmod in keys(varlocs)
             @assert _varname in keys(varlocs[_structmod]) "$(_structmod) does not have the variable $(_varname) defined."
         end
         curr_varlocs = [varlocs[_structmod][_varname] for _structmod in keys(varlocs)] # vector per structmod with indexes of var values
-        
+
         ys = varvalues[vcat(curr_varlocs...), :]' |> x -> vcat(x...)
         xs = repeat(indep_values, length(ys) ÷ length(indep_values))
-        groups = [fill(_structmod, length(indep_values)*group_size) for (_structmod, group_size) in zip(keys(varlocs), length.(curr_varlocs))] |> x -> vcat(x...)
-    
+        groups = [fill(_structmod, length(indep_values) * group_size) for (_structmod, group_size) in zip(keys(varlocs), length.(curr_varlocs))] |> x -> vcat(x...)
+
         push!(plots, plantplot(xs, ys, group = groups, title = "$_varname"; kwargs...))
     end
 
@@ -74,13 +74,13 @@ function plotnode(sol::ODESolution, node; varname = missing, kwargs...)
 
     for (i, _varname) in enumerate(varname_dict[structmod])
         curr_varlocs = [varlocs[structmod][_varname]] # vector per structmod with indexes of var values
-        
+
         ys = varvalues[vcat(curr_varlocs...), :]' |> x -> vcat(x...)
         xs = repeat(indep_values, length(ys) ÷ length(indep_values))
-    
+
         plots[i] = plantplot(xs, ys, title = "$_varname"; kwargs...)
     end
-  
+
     return length(plots) == 1 ? only(plots) : plots
 end
 
@@ -112,7 +112,7 @@ function _getnodevariables(sol::ODESolution, graphnodes::Vector, varname, struct
     varname_dict = get_varname_dict(node_structmods, nodesystems, varname)
     varlist = [
         getproperty(nodesystems[nidx], _varname)
-        for nidx in eachindex(nodesystems) for _varname in varname_dict[node_structmods[nidx]]
+            for nidx in eachindex(nodesystems) for _varname in varname_dict[node_structmods[nidx]]
     ]
     isempty(varlist) && error("Variable $varname not found in graph.")
 
@@ -145,15 +145,15 @@ function getnodesystem(sol::ODESolution, node)
     system = sol.prob.f.sys
     parentsystem = get_parent(system) # system before simplification
     nodesystem = [subsys for subsys in get_systems(parentsystem) if get_name(subsys) == Symbol(nodename)][1]
-    
+
     return nodesystem
 end
 
 # returns what variables should be plotted per structmod
 # e.g.: :Stem => [:W, :P, :M]
 function get_varname_dict(node_structmods, nodesystems, varname)
-    varname_dict = Dict{Symbol, Vector{Symbol}}() 
-        
+    varname_dict = Dict{Symbol, Vector{Symbol}}()
+
     for structmod_idx in unique(i -> node_structmods[i], eachindex(node_structmods))
         structmod = node_structmods[structmod_idx]
         varname_dict[structmod] = [get_MTKunknown_symbol(unknown) for unknown in get_unknowns(nodesystems[structmod_idx])] |> unique
@@ -169,12 +169,13 @@ get_MTKunknown_symbol(s::SymbolicUtils.Symbolic) = s.metadata[ModelingToolkit.Va
 # filter varname_dict so only variable names specified by user remain, e.g. `Stem => [:W, :V]` => `Stem => [:V]`
 filter_varname_dict!(varname_dict, varname::Missing, structmod) = nothing
 function filter_varname_dict!(varname_dict, varname::Symbol, structmod)
-    varname_dict[structmod] = [vn for vn in varname_dict[structmod] if vn == varname]
+    return varname_dict[structmod] = [vn for vn in varname_dict[structmod] if vn == varname]
 end
 function filter_varname_dict!(varname_dict, varnames::Vector{Symbol}, structmod)
     for varname in varnames # user specified e.g. varname = :W
         varname_dict[structmod] = [vn for vn in varname_dict[structmod] if vn in varnames]
     end
+    return
 end
 
 # get rows of varlist that correspond with given structmod and varname
@@ -188,12 +189,12 @@ function getvarlocs(structmods, varnames, varlist)
         if !haskey(varlocs, _structmod)
             varlocs[_structmod] = Dict{Symbol, Vector{Int64}}()
         end
-    
+
         for _varname in varnames[_structmod]
             structlocs = get!(varlocs[_structmod], _varname, Int64[])
-    
+
             nc += 1
-            varidxs = collect(get(cumulvarlengths, nc-1, 0)+1:cumulvarlengths[nc])
+            varidxs = collect((get(cumulvarlengths, nc - 1, 0) + 1):cumulvarlengths[nc])
             append!(structlocs, varidxs)
         end
     end
@@ -259,7 +260,7 @@ end
 # @recipe function f(sp::StructurePlot)
 #     plantsystem = sp.args[1]
 #     adj_matrix = get_adj_matrix(plantsystem)
-#     weight_matrix = get_weight_matrix(plantsystem)    
+#     weight_matrix = get_weight_matrix(plantsystem)
 #     positions = GraphRecipes.NetworkLayout.stress(adj_matrix, weights = weight_matrix)
 #     edge_positions = get_edge_positions(positions, plantsystem)
 

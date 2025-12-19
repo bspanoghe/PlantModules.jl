@@ -29,9 +29,9 @@ pages = [
     # "Compartment shapes" => "shapes.jl",
 ]
 
-makedocs(; 
-    sitename = "PlantModules", 
-    pages, 
+makedocs(;
+    sitename = "PlantModules",
+    pages,
     modules = [PlantModules],
     format = Documenter.HTML(size_threshold = 2000 * 1024),
     warnonly = true

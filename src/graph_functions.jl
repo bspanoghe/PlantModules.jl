@@ -56,20 +56,22 @@ getid(node::Dict) = node[:id]
 # ### GraphNode / StaticGraph (nodes combined into graph)
 
 getnodes(graph::PlantGraphs.StaticGraph) = values(graph.nodes) |> collect
-getneighbors(node::PlantGraphs.GraphNode, graph::PlantGraphs.StaticGraph) = 
-	[
-		graph[nb_id]
-	for nb_id in (ismissing(node.parent_id) ? node.children_id :
-		vcat(collect(node.children_id), node.parent_id))
+getneighbors(node::PlantGraphs.GraphNode, graph::PlantGraphs.StaticGraph) =
+    [
+    graph[nb_id]
+        for nb_id in (
+            ismissing(node.parent_id) ? node.children_id :
+            vcat(collect(node.children_id), node.parent_id)
+        )
 ]
 function getattributes(node::PlantGraphs.GraphNode)
-	fields = fieldnames(typeof(node.data))
-	
-	if isempty(fields)
-		return Dict([])
-	end
+    fields = fieldnames(typeof(node.data))
 
-	return Dict([field => getfield(node.data, field) for field in fields])
+    if isempty(fields)
+        return Dict([])
+    end
+
+    return Dict([field => getfield(node.data, field) for field in fields])
 end
 getstructmod(node::PlantGraphs.GraphNode) = typeof(node.data).name.name
 getid(node::PlantGraphs.GraphNode) = node.self_id
@@ -84,13 +86,13 @@ getneighbors(node::PlantGraphs.GraphNode, graph::PlantGraphs.Graph) = getneighbo
 getnodes(node::PlantGraphs.Node) = [node]
 getneighbors(::PlantGraphs.Node, ::PlantGraphs.Node) = [] # node in a graph consisting of one node has no neighbours
 function getattributes(node::PlantGraphs.Node)
-	fields = fieldnames(typeof(node))
-	
-	if isempty(fields)
-		return Dict([])
-	end
+    fields = fieldnames(typeof(node))
 
-	return Dict([field => getfield(node, field) for field in fields])
+    if isempty(fields)
+        return Dict([])
+    end
+
+    return Dict([field => getfield(node, field) for field in fields])
 end
 getstructmod(node::PlantGraphs.Node) = typeof(node).name.name
 getid(node::PlantGraphs.Node) = 1 # The entire graph only consists of one node if the input type is Node
@@ -108,7 +110,7 @@ getid(node::MyPGNode) = 1
 
 getnodes(graph::MultiScaleTreeGraph.Node) = MultiScaleTreeGraph.descendants(graph, self = true)
 getneighbors(node::MultiScaleTreeGraph.Node, _) = isnothing(MultiScaleTreeGraph.parent(node)) ?
-	MultiScaleTreeGraph.children(node) : vcat(MultiScaleTreeGraph.parent(node), MultiScaleTreeGraph.children(node))
+    MultiScaleTreeGraph.children(node) : vcat(MultiScaleTreeGraph.parent(node), MultiScaleTreeGraph.children(node))
 getattributes(node::MultiScaleTreeGraph.Node) = MultiScaleTreeGraph.node_attributes(node)
 getstructmod(node::MultiScaleTreeGraph.Node) = MultiScaleTreeGraph.node_mtg(node).symbol |> Symbol
 getid(node::MultiScaleTreeGraph.Node) = MultiScaleTreeGraph.node_id(node)
