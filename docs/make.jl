@@ -8,7 +8,7 @@ using Pkg; Pkg.activate(".")
 using Documenter, PlantModules
 using PlutoStaticHTML
 
-rebuild_notebooks = false
+rebuild_notebooks = true
 
 if rebuild_notebooks
     cd("./src/tutorials")
@@ -37,4 +37,4 @@ makedocs(;
     warnonly = true
 )
 
-# deploydocs(repo = "https://github.com/bspanoghe/PlantModules.jl")
+deploydocs(repo = "github.com/bspanoghe/PlantModules.jl.git")

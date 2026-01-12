@@ -13,3 +13,6 @@ PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
 
 [sources]
 PlantModules = {path = ".."}
+
+[compat]
+Documenter = "1.16"
