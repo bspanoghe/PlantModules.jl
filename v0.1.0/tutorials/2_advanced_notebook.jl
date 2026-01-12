@@ -1,0 +1,864 @@
+### A Pluto.jl notebook ###
+# v0.20.21
+
+using Markdown
+using InteractiveUtils
+
+# ╔═╡ 3fc5da40-acde-4398-8a53-99794e42ba94
+# ╠═╡ show_logs = false
+using Pkg; Pkg.activate("../..")
+
+# ╔═╡ 04361839-2e2f-4475-8830-277c4b07e3f6
+# ╠═╡ show_logs = false
+using PlantModules
+
+# ╔═╡ 45991fe2-1dae-4633-b3c2-81b3e076c1eb
+using PlantGraphs, ModelingToolkit, OrdinaryDiffEq, Plots
+
+# ╔═╡ 8adf74c7-7fe0-42fd-bde5-9942f30fea36
+using DataInterpolations, ForwardDiff
+
+# ╔═╡ df79e96c-a021-4a24-ae8c-4090d014c1f8
+using PlutoUI; TableOfContents()
+
+# ╔═╡ e04d4d44-3795-49d0-91d3-645ff3c8265e
+md"# Tutorial 2: Package validation"
+
+# ╔═╡ 61d4d897-e1ad-4f04-b0be-1df409c4e69f
+md"""
+In this tutorial, we cover some of the more advanced functionality from the package in order to recreate an hydraulic tree growth model from literature. The following topics are discussed:
+- Defining a new geometrical shape for the structural modules.
+- Defining a large plant structure with the use of graph rewriting (which can be considered a generalisation of L-systems).
+- Defining new functional modules.
+    - Using time-series data in a functional module.
+    - Defining a new, asymmetric connection module.
+- Using the advanced visualisation functionality to compare simulation outputs with data.
+"""
+
+# ╔═╡ 21271cd8-eef1-485a-978d-f46afdb753b6
+md"## Setup"
+
+# ╔═╡ b2f4ec18-5447-4999-9da6-52ca770a8120
+md"## Context"
+
+# ╔═╡ ac068794-a6cc-4563-899a-4b5ca1b2c22b
+md"""
+In this tutorial, we recreate [the dynamic sap flow model by Perämäki et al. (2001)](https://doi.org/10.1093/treephys/21.12-13.889) in `PlantModules.jl`. The model simulates stem diameter variation in Scots pine trees caused by transpiration-driven changes in water tension and wood elasticity. The tree is modelled as a series of cylindrical stem and branch segments with a constant length and a radius that decreases as they move farther from the base of the tree. Water flow is modelled as a linear function of the water pressure difference between segments, including the effects of gravity, and the cross-sectional area connecting two segments. For boundary conditions, the outermost branch segments have a set transpiration rate per unit needle area based on measurements, and the base stem segment has a water inflow based on the water potential difference with the soil, of which the water potential is also based on measurements.
+
+This model is an interesting case study for a few reasons:
+- It is also based on hydraulics-based plant growth, so we can use the hydraulics-based core functionality from the package.
+- The structure is composed of reasonably large number of segments from two different types, which lends itself well to a modular modeling approach.
+- There are plenty of interesting things happening both in the structural and functional definition that allow us to showcase the extensibility of the package.
+- The paper includes input- and output data, allowing for model validation.
+"""
+
+# ╔═╡ 78f2ca6c-9a4e-4b3f-b0f5-d7df2a78fa36
+md"## Preparatory calculations"
+
+# ╔═╡ 5a0bf882-68e2-4ad3-ae1f-43cac5d8f890
+md"""
+In order to replicate the model from the paper, we start by defining the structural and functional parameters used there. The paper was transparent enough that all functional parameters can simply be copied (with some unit conversions), though the structure of the tree was not provided exactly, so some estimations had to be made. The most influential of these on the model output is the fraction of the stem radius which consists of water-conducting sapwood (in contrast to the non-conducting heartwood), which was estimated visually.
+"""
+
+# ╔═╡ 1371c204-ba0a-4f18-9df3-d2614277bc11
+begin
+    # dimensions of compartments
+
+    ## stem segments
+    segment_length = 0.2 * 1e2 # cm; from m (input)
+    tree_length = 13.2 * 1e2 # cm; from m (input)
+    n_segments = tree_length ÷ segment_length
+
+    ## stem radius at tree base
+    stem_r0 = 0.2 * 1e2 / 2 # cm; from the diameter in m (input)
+    radial_fraction_sapwood = 0.25 # (estimate)
+    sapwood_r0 = stem_r0 * radial_fraction_sapwood
+
+    ## crown
+    crown_base_height = 6.0 * 1e2 # cm; from m (input)
+    crown_length = tree_length - crown_base_height
+    n_crown_segments = crown_length ÷ segment_length
+    crown_start_age = (n_segments - n_crown_segments)
+
+    ## branching
+    branching_frequency = 3 # (estimate)
+    n_branches = n_crown_segments ÷ branching_frequency
+
+    Δr = sapwood_r0/(n_branches + 1) 
+		# how much the radius of a stem segment decreases whenever the stem branches
+		# we assume the tree decreases linearly in radius from the given starting radius at the bottom to a radius of near 0 at the top
+		# (+1 to prevent stem radius from hitting 0)
+
+    ## branch radius
+    	# calculate using da vinci's rule: total cross area remains constant
+		# before and after branching
+    function branch_radius(r, Δr)
+        area_0 = r^2*pi
+        area_new = (r - Δr)^2*pi
+        area_branch = area_0 - area_new
+        return sqrt(area_branch / pi)
+    end
+
+    ## needle areas
+    total_needle_area = 50.8 * 1e2^2 # cm^2; from m^2 (input)
+    needle_areas = [i * total_needle_area / sum(1:n_branches)
+					for i in n_branches:-1:1]
+
+    ## branchgrowth frequency
+    branchgrowth_frequency = 3 
+		# how many steps it takes branches to grow a new segment (estimate)
+
+    ## root dimensions
+    total_root_area = 96.1 * 1e2^2 # cm^2; from m^2 (input)
+
+    # parameters
+
+    ## hydraulic conductivities
+    permeability = 2.5e-12 * 1e2^2 # cm^2; from m^2 (input)
+    η = 1.0 * 1e-9 * (1/3600) # MPa hr; from mPa s (dynamic viscosity of water)
+    l = segment_length # cm
+    ρ_w = 1.0 # g / cm^3 (density of water)
+    K_s_stem = ρ_w * permeability / η / l # g / hr / MPa / cm^2
+
+    L_p = 3.2e-8 * 1e2 * 3600 # cm / hr / MPa; from m / s / MPa (input)
+    K_roots = ρ_w * L_p * total_root_area # g / hr / MPa
+
+    ## elastic modulus
+	E_D_r_stem = 0.15 * 1e3 # MPa; from GPa (input)
+    E_D_stem = [E_D_r_stem, 17.5 * E_D_r_stem] # Perämäki et al. use a constant ratio of 1/17.5 between the radial and longitudinal elastic moduli
+end;
+
+# ╔═╡ fdedf540-9c04-476f-9ffb-d7bc82e81f79
+md"## Structural definition"
+
+# ╔═╡ e26238dd-d323-4161-9e95-bece1af1b3c5
+md"""
+We introduce two new possibilities for the definition of plant structure. 
+
+Firstly, we need to define a new shape for our structural modules: the stem and branches consist of a hollow cylinder of growing, water-conducting sapwood with an "inert" core of heartwood in the middle. The base hydraulics module models a growing, water-conducting element, so we want to only model the sapwood.
+
+Secondly, the model structure described in the paper consists of a reasonably large amount of segments (over a hundred) that adhere to some basic rules, so we define the structure by use of graph rewriting, using the functionality from [PlantGraphs.jl](https://github.com/VirtualPlantLab/PlantGraphs.jl).
+"""
+
+# ╔═╡ 97b3b0b1-0408-46ba-96e0-01eadab25ea0
+md"### Defining a new shape"
+
+# ╔═╡ 479acd0d-ce44-411d-97bf-e12a49004a5d
+md"""
+In order to define a new shape, we define a new composite type as a subtype of the `PlantModules.ModuleShape` abstract type. Afterwards, we extend the following functions for the shape `MyShape` with dimensions the vector `D`, also listed in the `PlantModules.ModuleShape` docstring:
+- `getdimensionality(m::MyShape)`: Return how many dimensions define the shape. 
+- `volume(m::MyShape, D)`: Calculate the volume of the shape. 
+- `cross_area(m::MyShape, D)`: Calculate the cross-sectional area of the shape. 
+- `surface_area(m::MyShape, D)`: Calculate the surface area of the shape.
+  - This one is used for the photosynthesis module, which we won't be using this tutorial, so we don't need to extend it.
+"""
+
+# ╔═╡ 2a4b2b06-a057-4fef-b8fe-30700b39b564
+"""
+    HollowCylinder <: ModuleShape
+
+A compartment shape representing a hollow cylinder. It is defined by two dimensions: the radius and the length, and the attribute `frac_sapwood`, denoting the fraction of the radius that is conducting sapwood.
+"""
+struct HollowCylinder <: PlantModules.ModuleShape
+    frac_sapwood::Float64
+end
+
+# ╔═╡ 6d1a8b68-e8d3-43d9-84a3-8b3fdd600913
+PlantModules.getdimensionality(::HollowCylinder) = 2
+
+# ╔═╡ 1ca717b5-7c67-4727-a984-7fd6914a3257
+PlantModules.cross_area(hc::HollowCylinder, D::AbstractArray) = D[1]^2 * π * (2 / hc.frac_sapwood - 1)
+
+# ╔═╡ c0ce423e-ddec-4a2f-b724-8d55d3d05073
+PlantModules.volume(hc::HollowCylinder, D::AbstractArray) = cross_area(hc, D) * D[2]
+
+# ╔═╡ 17a090c0-f673-4c2d-b1e4-8f9f8a360179
+PlantModules.surface_area(hc::HollowCylinder, D::AbstractArray) = 2 * (D[1]/frac_sapwood) * π * D[2]
+
+# ╔═╡ d59a64b2-9fdf-4723-b764-b27330a050fc
+md"### Plant structural module types"
+
+# ╔═╡ c7150b44-966b-4c61-b66d-b8080cd51acd
+md"""
+The plant structural modules are defined with an attribute for their dimensions and their height, as these are variables that need to differ between nodes. We define separate modules for the outermost segments of both the stem and the branches: this makes the graph rewriting easier, and the tips of the branches have a different functional behaviour from the rest of the branch, as all transpiration is assigned to them. The branch tips have a `needle_area` attribute which describes the total area of needles on that branch, which is used to calculate its transpiration.
+"""
+
+# ╔═╡ d7ea529f-4fe2-4daf-9c18-bb4621f0c86d
+struct Stem <: PlantGraphs.Node
+    D::Vector
+    h
+end
+
+# ╔═╡ ee63840c-392c-4e4a-88d9-a41ccb88fa6f
+struct Branch <: PlantGraphs.Node
+    D::Vector
+    h
+end
+
+# ╔═╡ dc48821b-ffb3-4599-b744-b69364e7ad6f
+struct StemTip <: PlantGraphs.Node
+    D::Vector
+    h
+    branch_nr
+    age
+end
+
+# ╔═╡ 578a128c-37e7-4b4d-8ba1-513565027110
+struct BranchTip <: PlantGraphs.Node
+    D::Vector
+    h
+    age
+    needle_area
+end
+
+# ╔═╡ e319323b-6d26-410b-8574-411686d4067c
+md"### Growing the plant"
+
+# ╔═╡ b7d2469c-642e-435d-a399-5406c55e01c4
+md"""
+Graph rewriting is done by defining a set of rules that dictate how the graph needs to be rewritten every step and an initial graph. The rewriting rules are then applied a number of time to achieve the final graph.
+
+[PlantGraphs.jl](https://github.com/VirtualPlantLab/PlantGraphs.jl) implements their rules with three arguments:
+- The node type the rule applies to.
+- A function describing the condition for when to apply the rule.
+- A function describing how the node is transformed when the rule is applied.
+
+This section is very context-specific and not functionality provided by this package, so we refer to the [PlantGraphs.jl](https://github.com/VirtualPlantLab/PlantGraphs.jl) docs for specifics.
+"""
+
+# ╔═╡ 5f36f5e6-0245-4d61-aa19-239329af4fae
+md"#### Rules"
+
+# ╔═╡ 54ad8f3b-0a4f-449e-8f03-69e6dbab0400
+md"""
+The outermost stem segment grows another thinner stem segment and a branch every `branching_frequency` steps, if the stem is old enough to form a crown:
+"""
+
+# ╔═╡ e9c997bb-3daa-4546-b83e-0e7c534359ab
+branching_rule = Rule( 
+    StemTip,
+    lhs = st -> data(st).age >= crown_start_age && data(st).age % 
+		branching_frequency == 0,
+    rhs = st -> Stem(data(st).D, data(st).h) + (
+        BranchTip([branch_radius(data(st).D[1], Δr), segment_length], 
+				  data(st).h, 0, needle_areas[data(st).branch_nr]),
+        StemTip(data(st).D - [Δr, 0.0], data(st).h + segment_length, 
+				data(st).branch_nr + 1, data(st).age + 1)
+    )
+);
+
+# ╔═╡ 842a9074-3991-4284-bbf6-68cc37577bd8
+md"The outermost stem segment grows another stem segment if not branching:"
+
+# ╔═╡ a3575ab2-7ac7-4d5b-b705-9d2eee7eec0e
+vertical_growth_rule = Rule( 
+    StemTip,
+    lhs = st -> !(data(st).age >= crown_start_age && data(st).age % 
+		branching_frequency == 0),
+    rhs = st -> Stem(data(st).D, data(st).h) + 
+		StemTip(data(st).D, data(st).h + segment_length, 
+				data(st).branch_nr, data(st).age + 1)
+);
+
+# ╔═╡ 6c9f3f1c-1d41-4540-8b27-83a457928d2e
+md"The outermost branch segments grown another branch segment every `branchgrowth_frequency` steps:"
+
+# ╔═╡ ac3335b1-088c-4663-82b2-53f4fe0f1893
+branchgrowth_rule = Rule(
+    BranchTip,
+    lhs = br -> data(br).age % branchgrowth_frequency == 0,
+    rhs = br -> Branch(data(br).D, data(br).h) +
+        BranchTip(data(br).D, data(br).h, data(br).age + 1, 
+				  data(br).needle_area)
+);
+
+# ╔═╡ 3a397c17-bc2e-4b30-a48b-a63585d984ef
+md"The outermost branch segments also age if they are not growing:"
+
+# ╔═╡ f93b1b41-5b37-485c-bfc0-92e0390bd60a
+branchage_rule = Rule(
+    BranchTip,
+    lhs = br -> !(data(br).age % branchgrowth_frequency == 0),
+    rhs = br -> BranchTip(data(br).D, data(br).h, data(br).age + 1, 
+						  data(br).needle_area)
+);
+
+# ╔═╡ ccb00a00-398a-4b8f-bb7e-f35e5abf86e7
+md"#### Instantiation & rewriting"
+
+# ╔═╡ e4380613-b5ee-4eb8-9aab-7b15df42925a
+md"Finally, we define our initial graph and apply the rewriting rules. For the final step, we remove the `StemTip` node, as we don't require it."
+
+# ╔═╡ 00a7dc82-7a5a-4953-9d6f-4bbbdca181bd
+axiom = StemTip([sapwood_r0, segment_length], segment_length/2, 1, 0);
+
+# ╔═╡ 999107ec-0d08-484f-a9cf-5073590eb65f
+begin
+	plant = Graph(axiom = axiom, rules = 
+	    (vertical_growth_rule, branching_rule, branchage_rule, branchgrowth_rule)
+	)
+	for _ in 1:(n_segments)
+	    rewrite!(plant)
+	end
+	PlantGraphs.prune!(plant.graph, getid([node for node in getnodes(plant) if getstructmod(node) == :StemTip][1])) # remove StemTip
+end
+
+# ╔═╡ c383e15e-2adb-4dfa-af86-6980da48aa23
+plotstructure(plant)
+
+# ╔═╡ 0b74c50b-6fc8-4d50-9424-581968108fc7
+md"### Connecting to the environment"
+
+# ╔═╡ a5cbaceb-3387-4431-b4bd-b26867406721
+md"""
+We will again be using a single soil and air compartment, so there is little new in connecting the plant graph to the environment. However, for the visualisation of the resulting structure, removing the names of the structural modules with `names = ""` can give a clearer visualisation.
+"""
+
+# ╔═╡ 58001eea-6986-495d-8278-88080bf09a18
+struct Soil <: PlantGraphs.Node end
+
+# ╔═╡ 2cd061a1-0625-456a-9055-7de04f614384
+struct Air <: PlantGraphs.Node end
+
+# ╔═╡ 5830341b-92c7-45e9-9dcc-aca44570e667
+graphs = [plant, Soil(), Air()];
+
+# ╔═╡ b1bed12d-a8db-452c-9863-920344829a7e
+intergraph_connections = [(1, 2) => (getnodes(plant)[1], :Soil), (1, 3) => (:BranchTip, :Air)];
+
+# ╔═╡ 47a61b32-92e0-4100-a4fd-7a37c08d38a8
+plantstructure = PlantStructure(graphs, intergraph_connections);
+
+# ╔═╡ ad16819d-1b9e-45c3-8aa7-cca15f63ced7
+plotstructure(plantstructure, names = "")
+
+# ╔═╡ 6741bdad-518a-45e9-b127-863c6e9a36c5
+md"## Function definition"
+
+# ╔═╡ 58859042-be76-4e9f-a564-5d75d75d466b
+md"### New functional modules"
+
+# ╔═╡ 275b2d3b-9f36-4897-8c2a-328b4c2781e2
+md"""
+As mentioned before, the model has a set transpiration from the branch tips to the air, defined per unit needle area, and a total needle area for every branch tip.
+To implement this, we need two new modules:
+- A module for the branch tips describing their total needle area.
+- A connection module between branch tips and the air that describes the transpiration in function of a given time-series for transpiration (per unit needle area) and the needle area of the branch tip segment.
+
+Functionality is defined in terms of [`ModelingToolkit.jl`](https://docs.sciml.ai/ModelingToolkit/stable/) Systems, so we recommend unfamiliar users to look at their docs, specifically the [non-DSL way of defining systems](https://docs.sciml.ai/ModelingToolkit/stable/tutorials/programmatically_generating/#The-Non-DSL-(non-@mtkmodel)-Way-of-Defining-an-System).
+"""
+
+# ╔═╡ b592211a-4db5-4797-869a-e358960a9836
+md"We need our independent variable and derivative operator to be consistent with those used by the other functional modules, so we import then from the package first:"
+
+# ╔═╡ 521ab69d-1346-427e-8f3f-66f869c7c568
+import PlantModules: t, d
+
+# ╔═╡ 8f280922-e866-4d2e-8ec1-6f59fa7d5102
+md"#### Needle area module"
+
+# ╔═╡ 6853391b-7018-4d47-a7f3-0199d65c56dd
+md"The needle area of a branch is considered to be constant through time, so the functional module is pretty straightforward. The only tricky part is that we need to define it as a constant-valued variable rather than a parameter. This is because we need to reference this needle area in the transpiration connection, and we can only reference variables, not parameters."
+
+# ╔═╡ 5bde3460-f174-4277-af4d-e46025cb9298
+function needle_area_module(; name, needle_area)
+    @parameters begin
+        needle_area_val = needle_area, 
+			[description = "Value of total needle area on branch"]
+    end 
+    @variables begin
+        needle_area(t), [description = "Total needle area on branch"]
+    end
+    eqs = [needle_area ~ needle_area_val]
+    return System(eqs, t; name)
+end;
+
+# ╔═╡ bd152224-7f9b-4d1f-8649-550552fbf032
+md"#### Fixed transpiration"
+
+# ╔═╡ c18de4ad-dfcf-49de-9905-9b158ae0eae4
+md"Next is the transpiration connection. We have time-series data for the transpiration per unit needle area, which we read in first."
+
+# ╔═╡ 3b765f93-ed77-467b-a5ba-91d98f4a233a
+readcsv(filepath) = readlines(filepath) .|>
+	x -> split(x, ", ") .|> x -> parse(Float64, x);
+
+# ╔═╡ deca4956-03d8-417a-8752-0a87fd6e26a0
+transpiration_data = readcsv("./data/transpiration_data.csv");
+
+# ╔═╡ 7b03d4c9-f749-4ad1-bc74-bd7188a4176d
+begin
+	transp_times = first.(transpiration_data)
+	transp_values = last.(transpiration_data)
+	scatter(transp_times, transp_values, xlabel = "Time (h)", ylabel = "Transpiration (mg / s / m^2)", legend = false)
+end
+
+# ╔═╡ f6a5af8d-0871-4964-b217-66ed2c0d92ac
+md"To use the data in a functional module, we first need to correct the units to match the ones of our hydraulic module. Secondly, we need to turn it into a function that will return the transpiration at _any_ timepoint, so some interpolation is required. We use a simple LinearInterpolation from the [`DataInterpolations.jl`](https://docs.sciml.ai/DataInterpolations/stable/) package for this."
+
+# ╔═╡ 1ecddda6-df86-4725-8fcb-3139938ea3e9
+correct_transpiration_units(x) = x * 1e-3 * 3600 * (1e-2)^2; # Unit conversion from (mg / s / m^2) to (g / hr / cm^2)
+
+# ╔═╡ 730ec309-f5c9-487f-b7b7-5fe47d8fb496
+transpiration_rate = LinearInterpolation(
+	correct_transpiration_units.(transp_values), 
+	transp_times
+);
+
+# ╔═╡ 6af34100-de2a-4e1d-83a0-02842001fa70
+plot(transpiration_rate, xlabel = "Time (h)", ylabel = "Transpiration (g / hr / cm^2)")
+
+# ╔═╡ d0479f27-4c54-4561-83b5-a43ad1557f01
+md"""
+The actual module definition of the fixed transpiration connection is rather complicated. We have two main complications: Firstly, this specific connection has no inherent directionality, so we need to define it manually. Secondly, we need to relate the variables used in the connection to the variables of the nodes it connects.
+"""
+
+# ╔═╡ 914cba27-068f-4fa1-bc5d-5d7dbaa2645a
+md"""
+First, the specification of directionality. Let's compare with the usual hydraulic connection, for which water flow is defined in function of the water potential difference of the nodes it connects. Take the example of a connection between leaves and the air. If we consider the connection from the leaves' perspective or the air's perspective, we will both times have the same water potential difference but with a different sign. From both perspectives we will therefore also have the same water flow but with a different sign. This is perfect because our water flow from the air to the leaves needs to be the exact opposite of the flow from the leaves to the air. Because the flow direction is determined by the water potentials of the nodes it connects, we don't have to specify it ourselves.
+
+Our fixed transpiration rate function, in contrast, does not give any indication what direction the water flow needs to go in, only the value. That is why we need to manually specify this when we define the connection. We can do this by using the special `original_order` keyword argument, which has the value `true` when the order between the structural modules of the node and the neighboring node is the same as originally specified by the user in the `connecting_modules` dictionary, and `false` otherwise. We'll here choose the order "branch first, air second". In this case, the water flow needs to be negative when the nodes are in the original order (water flows away from the tree during transpiration), and positive when not.
+"""
+
+# ╔═╡ 8ee56176-a3a0-447f-a275-36e337a325a5
+md"""
+The second complication is inherent to all connection modules: we need to specify how the variables from our connection (i.e. the graph edge) relate to those of the structural modules it connects (i.e. the graph nodes). This is done by defining a function with the following inputs:
+- `node_MTK`: The functional module of the first node in the connection.
+- `nb_node_MTK`: The functional module of the second node in the connection.
+- `connection_MTK`: The functional module of the connection itself.
+- `original_order` (optional): Whether the first and second nodes are in the original order specified in the `connecting_modules` dictionary.
+
+This function is then returned as the second output of our connection function. For our model, the variable that needs to be connected is the needle area. As it is only defined for the `BranchTip` nodes and not the `Air` node, we need to use the `original_order` argument to make sure the variable is connected to the system of the `BranchTip` node.
+
+For completeness' sake: The water flux variable `F` also needs to be connected to the node systems. However, the way we usually want to connect water fluxes to the nodes is by defining the net water influx of a node as the sum of *all* connected water fluxes. Because the variable of a node is connected to the variables of _multiple_ edge systems, this specification needs to be given separately. We don't need to change how water fluxes relate to the node systems for this model, but it is possible. See the `PlantCoupling` docstring for more details.
+"""
+
+# ╔═╡ 0c9d64be-93b1-4305-8de3-2291e065c303
+function fixed_transpiration_connection(; name, original_order)
+    @variables begin
+        F_s(t), [description = "Specific water flux from compartment 2 
+			to compartment 1"]
+        F(t), [description = "Water flux from compartment 2 to compartment 1"]
+        needle_area(t), [description = "Total needle area on branch"]
+    end
+
+    polarity = original_order ? -1 : 1
+
+    eqs = [
+        F_s ~ transpiration_rate(t),
+        F ~ polarity * F_s * needle_area,
+    ]
+
+    get_connection_eqset(node_MTK, nb_node_MTK, connection_MTK, original_order) = (
+        original_order ? 
+			[connection_MTK.needle_area ~ node_MTK.needle_area] : [connection_MTK.needle_area ~ nb_node_MTK.needle_area]
+    )
+
+    return System(eqs, t; name), get_connection_eqset
+end;
+
+# ╔═╡ 3750e2ee-bec0-4f06-ba0f-4efb1e8b05f9
+md"### Coupling"
+
+# ╔═╡ 33f5bf30-fbac-4b96-bd3d-6aeb100540dd
+md"""
+The coupling of function and structure remains, luckily, straightforward. We only have to pay special attention to the order of the `BranchTip` and `Air` in `connecting_modules`, as this will determine how the `original_order` variable works for our connection module.
+"""
+
+# ╔═╡ 9abaf023-2ce5-4246-a41e-f3d507c77194
+module_coupling = Dict(
+	:Stem => [hydraulic_module, constant_carbon_module, K_module],
+    :Branch => [hydraulic_module, constant_carbon_module, K_module],
+	:BranchTip => [hydraulic_module, needle_area_module,
+				   constant_carbon_module, K_module],
+	:Soil => [environmental_module, Ψ_soil_module, constant_K_module],
+	:Air => [environmental_module],
+);
+
+# ╔═╡ d81913d7-657d-4b81-a83c-e7185d6164bc
+connecting_modules = Dict(
+	(:Soil, :Stem) => constant_hydraulic_connection,
+	(:Stem, :Stem) => hydraulic_connection,
+	(:Stem, :Branch) => hydraulic_connection,
+    (:Branch, :Branch) => hydraulic_connection,
+	(:Branch, :BranchTip) => hydraulic_connection,
+	(:BranchTip, :Air) => fixed_transpiration_connection,
+);
+
+# ╔═╡ a411768f-fb22-4575-9666-b42cc0473d4c
+plantcoupling = PlantCoupling(; module_coupling, connecting_modules);
+
+# ╔═╡ d26b79a0-5331-4714-8110-2e2574f1ef35
+md"### Parameters"
+
+# ╔═╡ e4a0ca52-3679-4d76-b63a-2d9aeaf31e41
+md"""
+The parameter specification mainly comes down to changing the default parameter values to those prescribed by the paper. Note that when we define new parameters or variables they need to be given a module-wide default value, even if those values are never used (here the case for `needle_area`). Some striking parameters are the zeros for the extensibility `ϕ_D` and metabolite concentration `M`: this was chosen because the model only considers elastic diameter changes and no irreversible growth, and does not consider carbon dynamics.
+"""
+
+# ╔═╡ 2ed83b9f-820a-4c0e-9ce4-42fcb35daade
+begin
+    default_changes = Dict(
+		:needle_area => 0.0,
+		:E_D => E_D_stem, :K_s => K_s_stem,
+        :ϕ_D => 0.0, :M => 0.0, 
+		:Ψ => PlantModules.soilfunc(0.9), 
+		:shape => HollowCylinder(radial_fraction_sapwood)
+	)
+
+	module_defaults = Dict(
+        :Soil => Dict(:W_max => 1e6, :W_r => 0.9),
+    )
+
+    connection_values = Dict(
+        (:Soil, :Stem) => Dict(:K => K_roots),
+    )
+
+    plantparams = PlantParameters(; default_changes, module_defaults,
+								  connection_values)
+end;
+
+# ╔═╡ c7f8bc7f-2fcd-4400-a681-699dce7541df
+md"## Running the system"
+
+# ╔═╡ 5025d163-dfc3-4a3f-b1eb-3d902f1d2c98
+md"""
+System generation and running also remains largely the same, with the exception that we specify to `solve` what solver we want. `FBDF` is a good solver for large, stiff systems of DAEs, as can be found on [`DifferentialEquations.jl`'s overview of ODE solvers](https://docs.sciml.ai/DiffEqDocs/stable/solvers/ode_solve/).
+"""
+
+# ╔═╡ 4ee50611-6032-476d-ad2f-9393ad0b2200
+system = generate_system(plantstructure, plantcoupling, plantparams);
+
+# ╔═╡ b810c5c6-97c7-4293-ae77-0c399d6f56b2
+tspan = (0.0, 24.0);
+
+# ╔═╡ 7f99ec81-41c9-45bf-9e7d-2ab7dada677d
+prob = ODEProblem(system, [], tspan, sparse = true, use_scc = false);
+
+# ╔═╡ eab82d37-dc14-4afb-8791-cf6b08e31307
+md"""
+!!! warning
+	Problem construction of DAEs uses `SciMLBase.SCCNonlinearProblem` by default to solve the initialization problem. For the functional modules provided by `PlantModules.jl`, this currently takes much longer than the alternative option `SciMLBase.NonlinearProblem` for large systems. We can specify we want the alternative method for problem initialization using `use_scc = false`.
+"""
+
+# ╔═╡ b24016d3-cd1d-4ba8-b7a6-2ee8b41db1f1
+sol = solve(prob, FBDF());
+
+# ╔═╡ 087fa5db-83a0-4a47-b52a-7ddc6259a281
+md"## Results"
+
+# ╔═╡ 81aff1dd-ba69-498e-aa9c-775b76b42d2f
+md"""
+We now validate our model by comparing it to the simulation results and measured outputs found in the paper. Firstly, we verify that our transpiration was implemented correctly by plotting the total water influx of the air. After converting it to the units used in the paper, we can visually compare the results. Secondly, we compare our simulated water pressures for three different stem segments at different heights to those found in the paper. Finally, we compare our simulated diameter variation through time with the measured diameter variation from the paper.
+"""
+
+# ╔═╡ 305e53bb-f09f-4546-8865-1d2f6f74cae0
+md"### Check transpiration"
+
+# ╔═╡ 0368f643-ed99-475c-ac81-c17f9a82c8d3
+md"""
+When we either want to plot very specific variables, or if we want to use `ModelingToolkit.jl`'s plotting functionality to apply a transformation to variables before visualizing them, the `get_subsystem_variables` function can be used to extract the `Symbolic` representation of specific variables.
+"""
+
+# ╔═╡ eefbf375-b604-4a67-8861-0a428b088ee3
+air_water_inflow = get_subsystem_variables(system, plantstructure, :ΣF, :Air)[1]
+
+# ╔═╡ 38841aaf-d87b-48f2-9b5a-d800828a8791
+md"""
+We can then define a function that changes the transpiration from the units used in our model (g / hr) to those in the paper (mg / m^2 / s).
+"""
+
+# ╔═╡ 426b4aac-a610-488c-820f-198172c1e8b9
+transpiration_unit_conversion(var) = var * 1e3 / (total_needle_area * (1e-2)^2) / 3600;
+
+# ╔═╡ 9e8bd19a-2790-41dd-8655-0120271c1d39
+plot(sol, idxs = [transpiration_unit_conversion(air_water_inflow)], label = false,
+	xlabel = "Time of day (h)", ylabel = "Transpiration (mg / m^2 / s)",
+	xticks = 0:3:24, ylims = (0, 10), yticks = 0:2:10, color = :black)
+
+# ╔═╡ e2ce9fbb-ff2a-4894-98e3-308d8b93c392
+md"### Water tension"
+
+# ╔═╡ 0accbe57-ab1c-435c-9812-0a173decb850
+md"""
+We use the same approach to select the pressure variable from `Stem` nodes at specific heights of the tree.
+"""
+
+# ╔═╡ b3186620-808b-481e-89f6-a037223ed990
+begin
+	stem_pressures = get_subsystem_variables(system, plantstructure, :P, :Stem)
+	pressure_segment_heights = [10.0, crown_base_height, 1200.0]
+	pressure_segment_nrs = ceil.(Int64, pressure_segment_heights / segment_length)
+	
+	plot(sol, idxs = stem_pressures[pressure_segment_nrs], ylims = (-0.4, 0.0),
+		 xticks = 0.0:3.0:24.0, xlabel = "Time of day (h)", color = :black,
+		 linewidth = [1 2 3], ylabel = "Water tension (MPa)",
+		 label = ["Base of stem" "Crown base" "Top of tree"])
+end
+
+# ╔═╡ 28184995-7163-40ee-a773-eb414ecf2f28
+md"### Diameter variation"
+
+# ╔═╡ 59c6e1f7-ce34-4fcb-aa7b-7a650dc0a4d1
+md"""
+Finally, we can compare our simulation with actual measurements.
+"""
+
+# ╔═╡ 6b2ad036-b6f1-4753-a3f0-4a6d4dc6b7fd
+begin
+    dimension_variables = get_subsystem_variables(system, plantstructure, :D, :Stem)
+
+    diameter_change_mm(var, sol) = 2*10*(var - sol[var][1]) 
+		# substract first value and change from radius in cm to diameter in mm
+	diameter_segment_heights = [6.5 * 1e2, 2.5 * 1e2]
+    diameter_segment_nrs = ceil.(Int64, diameter_segment_heights ./ segment_length)
+	
+    diameter_datas = [readcsv("./data/diameter_data_$(idx).csv") 
+					  for idx in ("c", "d")]
+	
+	subplots = [plot(), plot()]
+	for i in eachindex(subplots)
+		plot!(subplots[i], sol, idxs = 
+			  [diameter_change_mm(
+				  dimension_variables[diameter_segment_nrs[i]][1], sol
+			  )],
+			  label = "Simulated", color = :black, linewidth = 1)
+		plot!(subplots[i], first.(diameter_datas[i]), last.(diameter_datas[i]), 
+			  label = "Data", color = :black, linewidth = 2)
+		plot!(subplots[i], 
+			  title = "Stem at height $(diameter_segment_heights[i]) cm")
+	end
+	plot(subplots..., layout = (2, 1), ylabel = "Diameter change (mm)", 
+		 size = (800, 600), margins = 5*Plots.mm, ylims = (-0.07, 0.01), 
+		 yticks = -0.07:0.01:0.01, xticks = 0:3:24, xlabel = "Time of day (h)")
+end
+
+# ╔═╡ 70df3d1e-82ad-4365-97ab-0e31283058c2
+md"## Uncertainty analysis"
+
+# ╔═╡ c3429638-e1f7-4254-93ff-c77762642b44
+md"""
+Perämäki et al. give a value **range** for the radial elasticity and the specific hydraulic conductivity of the tree segments. To inspect the effect of the uncertainty on these parameters on the results of our simulation, we conduct two types of uncertainty analysis here.
+"""
+
+# ╔═╡ d9045d2a-2343-4848-a854-07942ba8bbd4
+md"We will choose the diameter of the stem segment at 250 cm as our output variable of interest."
+
+# ╔═╡ c0749089-7c61-42ba-a9ce-26d448e82840
+D1_at_250cm = dimension_variables[diameter_segment_nrs[2]][1];
+
+# ╔═╡ b9c6f2cb-98a9-42a1-8cb4-8c82a756099a
+md"""
+### Monte Carlo
+"""
+
+# ╔═╡ 861dff9d-0c94-4edf-927b-7de9a75beaff
+md"""
+First we perform a simple Monte Carlo experiment to visualize the effect of different values of the radial elasticity on the stem diameter variation.
+"""
+
+# ╔═╡ 04b603d0-2580-421c-bb77-0defc55d1e4b
+md"We start by defining the radial elasticity's range of values and a function to sample from said range."
+
+# ╔═╡ 9771ad64-1821-4f3e-bf63-6176ad7dce79
+E_D_r_range = [0.03 * 1e3, 0.27 * 1e3] # MPa (from GPa)
+
+# ╔═╡ 97356ed2-d3cc-4007-b2d2-9e326be6c90c
+sample_range(a, b) = (b-a) * rand() + a
+
+# ╔═╡ 2c88b40c-c4cc-49bb-b287-60851ad86db7
+md"""
+Recreating the system and problem with `generate_system` and `ODEProblem` is a costly way to change the parameter values of the problem. We can circumvent this by using `ModelingToolkit.jl`'s `remake` function to change the parameter values of the problem directly. `PlantModules.jl`'s defines the helper function `remake_graphsystem` to make the remaking easier for systems with many subsystems.
+"""
+
+# ╔═╡ d99adee7-c13a-44b2-8d8b-7e3d396751e3
+begin
+	p_montecarlo = plot()
+					   
+	for _ in 1:20
+	    E_D_r_sample = sample_range(E_D_r_range[1], E_D_r_range[2])
+	    E_D_sample = [E_D_r_sample, 17.5 * E_D_r_sample] 
+			# Perämäki et al. use a constant ratio of 1/17.5 between the radial and longitudinal elastic moduli
+	
+	    prob2 = remake_graphsystem(
+			prob, system, plantstructure, :E_D, 
+			[:Stem, :Branch, :BranchTip], E_D_sample
+		)
+	    sol2 = solve(prob2, FBDF(), reltol = 1e-1) 
+			# We use a higher relative tolerance for faster solving. Note that this can cause a SingularException error now and again but the faster solving time is generally worth it
+
+	    plot!(p_montecarlo, sol2, 
+			  idxs = [diameter_change_mm(D1_at_250cm, sol)], label = false, line_z = E_D_r_sample)
+	end
+	plot!(
+		p_montecarlo, xlabel = "Time of day (h)", ylabel = "Diameter change (mm)",
+		size = (800, 600), margins = 5*Plots.mm, ylims = (-0.12, 0.01), 
+		yticks = -0.12:0.01:0.01, xticks = 0:3:24
+	)
+end
+
+# ╔═╡ 81907a2e-c545-4ec4-8818-05ec81d190f2
+md"### Local sensitivity"
+
+# ╔═╡ fa37132e-bce7-452e-b361-0b372ff867fa
+md"""
+Using `ForwardDiff.jl`, it is possible to perform automatic differentiation to compute gradients through our simulation. We can apply this to investigate the effect of changes in the specific hydraulic conductivity on the stem diameter.
+"""
+
+# ╔═╡ 212c51b0-a498-44bb-b877-dbed23939594
+md"""
+We begin by defining a function that returns our output variable of interest given the value of the specific hydraulic conductivity. `remake_graphsystem` only works when we change the value of a parameter to another one of the same type, which is not the case when we perform automatic differentiation. Instead we retrieve the specific hydraulic conductivities from all our stem and branch subsystems with the `get_subsystem_variables` function and then manually use [pure remake](https://docs.sciml.ai/ModelingToolkit/dev/examples/remake/) to allow replacing parameters with values of different types, at the cost of performance.
+"""
+
+# ╔═╡ 0d9a929f-8659-42ef-b718-52cb14dc87ed
+K_s_vars = get_subsystem_variables(system, plantstructure, :K_s, [:Stem, :Branch]);
+
+# ╔═╡ 5adf23c5-0187-4ad1-8d03-f525481f5859
+function get_diameter(new_K_s)
+    newprob = remake(prob, p = Pair.(K_s_vars, [new_K_s]))
+	newsol = solve(newprob, FBDF(), saveat = 0.1)
+    return newsol[D1_at_250cm]
+end
+
+# ╔═╡ 4d2ab9a6-43d9-4ade-9b43-0360b308fb1d
+md"We can then call `ForwardDiff.derivative` on this function to get the derivative around a given value. We choose the value used in the simulation."
+
+# ╔═╡ af7133d5-c742-4a3f-ac94-25b3becd4b1b
+K_sensitivity = ForwardDiff.derivative(get_diameter, K_s_stem);
+
+# ╔═╡ 3e157c84-738c-41a5-8210-42ad3773e246
+plot(
+	tspan[1]:0.1:tspan[2], K_sensitivity, 
+	xticks = 0:3:24, xlabel = "Time of day (h)", legend = false, 
+	title = "Derivative of stem radius w.r.t. the hydraulic conductivity", 
+	size = (800, 600), margins = 5*Plots.mm
+)
+
+# ╔═╡ f090a016-0f63-401b-b81a-8338213ca7cb
+md"""
+The plot shows that an increase in hydraulic conductivity will have a positive impact on the diameter and that the magnitude of the effect follows the same pattern as [the transpiration throughout the day](#Check-transpiration), which intuitively makes sense!
+"""
+
+# ╔═╡ Cell order:
+# ╟─e04d4d44-3795-49d0-91d3-645ff3c8265e
+# ╟─61d4d897-e1ad-4f04-b0be-1df409c4e69f
+# ╟─21271cd8-eef1-485a-978d-f46afdb753b6
+# ╠═3fc5da40-acde-4398-8a53-99794e42ba94
+# ╠═04361839-2e2f-4475-8830-277c4b07e3f6
+# ╠═45991fe2-1dae-4633-b3c2-81b3e076c1eb
+# ╠═8adf74c7-7fe0-42fd-bde5-9942f30fea36
+# ╠═df79e96c-a021-4a24-ae8c-4090d014c1f8
+# ╟─b2f4ec18-5447-4999-9da6-52ca770a8120
+# ╟─ac068794-a6cc-4563-899a-4b5ca1b2c22b
+# ╟─78f2ca6c-9a4e-4b3f-b0f5-d7df2a78fa36
+# ╟─5a0bf882-68e2-4ad3-ae1f-43cac5d8f890
+# ╠═1371c204-ba0a-4f18-9df3-d2614277bc11
+# ╟─fdedf540-9c04-476f-9ffb-d7bc82e81f79
+# ╟─e26238dd-d323-4161-9e95-bece1af1b3c5
+# ╟─97b3b0b1-0408-46ba-96e0-01eadab25ea0
+# ╟─479acd0d-ce44-411d-97bf-e12a49004a5d
+# ╠═2a4b2b06-a057-4fef-b8fe-30700b39b564
+# ╠═6d1a8b68-e8d3-43d9-84a3-8b3fdd600913
+# ╠═1ca717b5-7c67-4727-a984-7fd6914a3257
+# ╠═c0ce423e-ddec-4a2f-b724-8d55d3d05073
+# ╠═17a090c0-f673-4c2d-b1e4-8f9f8a360179
+# ╟─d59a64b2-9fdf-4723-b764-b27330a050fc
+# ╟─c7150b44-966b-4c61-b66d-b8080cd51acd
+# ╠═d7ea529f-4fe2-4daf-9c18-bb4621f0c86d
+# ╠═ee63840c-392c-4e4a-88d9-a41ccb88fa6f
+# ╠═dc48821b-ffb3-4599-b744-b69364e7ad6f
+# ╠═578a128c-37e7-4b4d-8ba1-513565027110
+# ╟─e319323b-6d26-410b-8574-411686d4067c
+# ╟─b7d2469c-642e-435d-a399-5406c55e01c4
+# ╟─5f36f5e6-0245-4d61-aa19-239329af4fae
+# ╟─54ad8f3b-0a4f-449e-8f03-69e6dbab0400
+# ╠═e9c997bb-3daa-4546-b83e-0e7c534359ab
+# ╟─842a9074-3991-4284-bbf6-68cc37577bd8
+# ╠═a3575ab2-7ac7-4d5b-b705-9d2eee7eec0e
+# ╟─6c9f3f1c-1d41-4540-8b27-83a457928d2e
+# ╠═ac3335b1-088c-4663-82b2-53f4fe0f1893
+# ╟─3a397c17-bc2e-4b30-a48b-a63585d984ef
+# ╠═f93b1b41-5b37-485c-bfc0-92e0390bd60a
+# ╟─ccb00a00-398a-4b8f-bb7e-f35e5abf86e7
+# ╟─e4380613-b5ee-4eb8-9aab-7b15df42925a
+# ╠═00a7dc82-7a5a-4953-9d6f-4bbbdca181bd
+# ╠═999107ec-0d08-484f-a9cf-5073590eb65f
+# ╠═c383e15e-2adb-4dfa-af86-6980da48aa23
+# ╟─0b74c50b-6fc8-4d50-9424-581968108fc7
+# ╟─a5cbaceb-3387-4431-b4bd-b26867406721
+# ╠═58001eea-6986-495d-8278-88080bf09a18
+# ╠═2cd061a1-0625-456a-9055-7de04f614384
+# ╠═5830341b-92c7-45e9-9dcc-aca44570e667
+# ╠═b1bed12d-a8db-452c-9863-920344829a7e
+# ╠═47a61b32-92e0-4100-a4fd-7a37c08d38a8
+# ╠═ad16819d-1b9e-45c3-8aa7-cca15f63ced7
+# ╟─6741bdad-518a-45e9-b127-863c6e9a36c5
+# ╟─58859042-be76-4e9f-a564-5d75d75d466b
+# ╟─275b2d3b-9f36-4897-8c2a-328b4c2781e2
+# ╟─b592211a-4db5-4797-869a-e358960a9836
+# ╠═521ab69d-1346-427e-8f3f-66f869c7c568
+# ╟─8f280922-e866-4d2e-8ec1-6f59fa7d5102
+# ╟─6853391b-7018-4d47-a7f3-0199d65c56dd
+# ╠═5bde3460-f174-4277-af4d-e46025cb9298
+# ╟─bd152224-7f9b-4d1f-8649-550552fbf032
+# ╟─c18de4ad-dfcf-49de-9905-9b158ae0eae4
+# ╠═3b765f93-ed77-467b-a5ba-91d98f4a233a
+# ╠═deca4956-03d8-417a-8752-0a87fd6e26a0
+# ╠═7b03d4c9-f749-4ad1-bc74-bd7188a4176d
+# ╟─f6a5af8d-0871-4964-b217-66ed2c0d92ac
+# ╠═1ecddda6-df86-4725-8fcb-3139938ea3e9
+# ╠═730ec309-f5c9-487f-b7b7-5fe47d8fb496
+# ╟─6af34100-de2a-4e1d-83a0-02842001fa70
+# ╟─d0479f27-4c54-4561-83b5-a43ad1557f01
+# ╟─914cba27-068f-4fa1-bc5d-5d7dbaa2645a
+# ╟─8ee56176-a3a0-447f-a275-36e337a325a5
+# ╠═0c9d64be-93b1-4305-8de3-2291e065c303
+# ╟─3750e2ee-bec0-4f06-ba0f-4efb1e8b05f9
+# ╟─33f5bf30-fbac-4b96-bd3d-6aeb100540dd
+# ╠═9abaf023-2ce5-4246-a41e-f3d507c77194
+# ╠═d81913d7-657d-4b81-a83c-e7185d6164bc
+# ╠═a411768f-fb22-4575-9666-b42cc0473d4c
+# ╟─d26b79a0-5331-4714-8110-2e2574f1ef35
+# ╟─e4a0ca52-3679-4d76-b63a-2d9aeaf31e41
+# ╠═2ed83b9f-820a-4c0e-9ce4-42fcb35daade
+# ╟─c7f8bc7f-2fcd-4400-a681-699dce7541df
+# ╟─5025d163-dfc3-4a3f-b1eb-3d902f1d2c98
+# ╠═4ee50611-6032-476d-ad2f-9393ad0b2200
+# ╠═b810c5c6-97c7-4293-ae77-0c399d6f56b2
+# ╟─eab82d37-dc14-4afb-8791-cf6b08e31307
+# ╠═7f99ec81-41c9-45bf-9e7d-2ab7dada677d
+# ╠═b24016d3-cd1d-4ba8-b7a6-2ee8b41db1f1
+# ╟─087fa5db-83a0-4a47-b52a-7ddc6259a281
+# ╟─81aff1dd-ba69-498e-aa9c-775b76b42d2f
+# ╟─305e53bb-f09f-4546-8865-1d2f6f74cae0
+# ╟─0368f643-ed99-475c-ac81-c17f9a82c8d3
+# ╠═eefbf375-b604-4a67-8861-0a428b088ee3
+# ╟─38841aaf-d87b-48f2-9b5a-d800828a8791
+# ╠═426b4aac-a610-488c-820f-198172c1e8b9
+# ╠═9e8bd19a-2790-41dd-8655-0120271c1d39
+# ╟─e2ce9fbb-ff2a-4894-98e3-308d8b93c392
+# ╟─0accbe57-ab1c-435c-9812-0a173decb850
+# ╠═b3186620-808b-481e-89f6-a037223ed990
+# ╟─28184995-7163-40ee-a773-eb414ecf2f28
+# ╟─59c6e1f7-ce34-4fcb-aa7b-7a650dc0a4d1
+# ╠═6b2ad036-b6f1-4753-a3f0-4a6d4dc6b7fd
+# ╟─70df3d1e-82ad-4365-97ab-0e31283058c2
+# ╟─c3429638-e1f7-4254-93ff-c77762642b44
+# ╟─d9045d2a-2343-4848-a854-07942ba8bbd4
+# ╠═c0749089-7c61-42ba-a9ce-26d448e82840
+# ╟─b9c6f2cb-98a9-42a1-8cb4-8c82a756099a
+# ╟─861dff9d-0c94-4edf-927b-7de9a75beaff
+# ╟─04b603d0-2580-421c-bb77-0defc55d1e4b
+# ╠═9771ad64-1821-4f3e-bf63-6176ad7dce79
+# ╠═97356ed2-d3cc-4007-b2d2-9e326be6c90c
+# ╟─2c88b40c-c4cc-49bb-b287-60851ad86db7
+# ╠═d99adee7-c13a-44b2-8d8b-7e3d396751e3
+# ╟─81907a2e-c545-4ec4-8818-05ec81d190f2
+# ╟─fa37132e-bce7-452e-b361-0b372ff867fa
+# ╟─212c51b0-a498-44bb-b877-dbed23939594
+# ╠═0d9a929f-8659-42ef-b718-52cb14dc87ed
+# ╠═5adf23c5-0187-4ad1-8d03-f525481f5859
+# ╟─4d2ab9a6-43d9-4ade-9b43-0360b308fb1d
+# ╠═af7133d5-c742-4a3f-ac94-25b3becd4b1b
+# ╠═3e157c84-738c-41a5-8210-42ad3773e246
+# ╟─f090a016-0f63-401b-b81a-8338213ca7cb
