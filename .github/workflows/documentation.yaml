@@ -21,8 +21,8 @@ jobs:
         with:
           version: '1'
       - uses: julia-actions/cache@v2
-      # - name: Develop local package
-      #   run: julia -e 'using Pkg; Pkg.develop(path="."); Pkg.instantiate()'
+      - name: Develop local package
+        run: julia -e 'using Pkg; Pkg.develop(path="."); Pkg.instantiate()'
       - name: Install docs dependencies
         shell: julia --color=yes --project=docs {0}
         run: |
