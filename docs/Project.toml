@@ -16,3 +16,4 @@ PlantModules = {path = ".."}
 
 [compat]
 Documenter = "1.16"
+ModelingToolkit = "10"
