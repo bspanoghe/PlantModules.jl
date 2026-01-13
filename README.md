@@ -1,3 +1,6 @@
+[![](https://img.shields.io/badge/docs-stable-blue.svg)](https://bspanoghe.github.io/PlantModules.jl/stable)
+[![](https://img.shields.io/badge/docs-dev-blue.svg)](https://bspanoghe.github.io/PlantModules.jl/dev)
+
 # PlantModules.jl
 
 A pure Julia package for defining Functional-Structural Plant Models (FSPMs).
