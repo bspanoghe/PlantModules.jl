@@ -16,6 +16,7 @@ Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
 [compat]
 ModelingToolkit = "10"
 Graphs = "1"
+OrdinaryDiffEq = "6.104"
 
 [extras]
 OrdinaryDiffEq = "1dea7af3-3e70-54e6-95c3-0bf5283fa5ed"
