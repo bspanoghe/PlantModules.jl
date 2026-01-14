@@ -5,7 +5,7 @@
 
 Visualise the structure of a plant system.
 
-This function is a thin wrapper around [`GraphRecipes.graphplot`](@ref) with some keyword arguments specified for plant structures.
+This function is a thin wrapper around [`Plots.graphplot`](https://docs.juliaplots.org/stable/GraphRecipes/introduction/) with some keyword arguments specified for plant structures.
 """
 function plotstructure(plantstructure::PlantStructure; kwargs...)
     names = getstructmod.(getnodes(plantstructure))
