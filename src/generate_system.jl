@@ -80,7 +80,7 @@ end
 	generate_system(plantstructure::PlantStructure, plantparams::PlantParameters,
 		plantcoupling::PlantCoupling; checkunits::Bool = true)
 
-Create a ModelingToolkit.jl [`System`](@ref) that describes the functional behaviour of the input graph structure.
+Create a [`ModelingToolkit.System`](@extref) that describes the functional behaviour of the input graph structure.
 
 # Arguments
 - `plantstructure`: A graph specifying how the structural modules are connected.

@@ -3,7 +3,7 @@ The following variables are used in the pre-implemented functionality used by th
 | Name                  | Units                                                | Description                                 | Default value | Reference       |
 | --------------------- | ---------------------------------------------------- | ------------------------------------------- | ------------- | --------------- |
 | t                     | h                                                    | Time                                        | N/A           | N/A             |
-| $\Psi$                | MPa                                                  | Total water potential                       | 0.0           | DeSchepper[^52] |
+| $\Psi$                | MPa                                                  | Total water potential                       | 0.0           | DeSchepper[^deschepper] |
 | $\Pi$                 | MPa                                                  | Osmotic water potential                     | N/A           | N/A             |
 | $P$                   | MPa                                                  | Hydrostatic potential                       | N/A           | N/A             |
 | M                     | mol cm$^{-3}$                                        | Osmotically active metabolite content       | 300e-6        | None            |
@@ -13,9 +13,9 @@ The following variables are used in the pre-implemented functionality used by th
 | $\Sigma$F             | g h$^{-1}$                                           | Net water influx                            | N/A           | N/A             |
 |                       |                                                      |                                             |               |                 |
 | shape                 | /                                                    | Shape of compartment                        | Cylinder      | None            |
-| $\phi_D$              | MPa$^{-1}$ h$^{-1}$                                  | Dimensional extensibility                   | 0.02          | DeSchepper[^52] |
-| $\epsilon_D$          | MPa                                                  | Dimensional elastic modulus                 | 50            | DeSchepper[^52] |
-| $\Gamma$              | MPa                                                  | Yield turgor pressure                       | 0.3           | DeSchepper[^52] |
+| $\phi_D$              | MPa$^{-1}$ h$^{-1}$                                  | Dimensional extensibility                   | 0.02          | DeSchepper[^deschepper] |
+| $\epsilon_D$          | MPa                                                  | Dimensional elastic modulus                 | 50            | DeSchepper[^deschepper] |
+| $\Gamma$              | MPa                                                  | Yield turgor pressure                       | 0.3           | DeSchepper[^deschepper] |
 | $T$                   | K                                                    | Temperature                                 | 298.15        | None            |
 | $W_{\text{max}}$      | g                                                    | Water capacity of environmental compartment | 1e6           | None            |
 | $W_r$                 | g g$^{-1}$                                           | Relative water content                      | 0.8           | None            |
@@ -24,7 +24,11 @@ The following variables are used in the pre-implemented functionality used by th
 | $A_{\text{max}}$      | mol cm$^{-1}$ h$^{-1}$                               | Maximum carbon assimilation rate            | 2e-6          | None            |
 | $M_c$                 | h$^{-1}$                                             | Rate of carbon consumption                  | 0.05          | None            |
 | $K_s$                 | g h$^{-1}$ MPa$^{-1}$ cm$^{-2}$                      | Specific hydraulic conductivity             | 10            | None            |
-| $K$                   | g h$^{-1}$ MPa$^{-1}$                                | Hydraulic conductivity                      | 1000          | DeSchepper[^52] |
-| $\eta_{\text{night}}$ | g h$^{-1}$ MPa$^{-1}$ (g h$^{-1}$ MPa$^{-1}$)$^{-1}$ | Relative hydraulic conductivity at night    | 0.1           | Caird[^54]      |
+| $K$                   | g h$^{-1}$ MPa$^{-1}$                                | Hydraulic conductivity                      | 1000          | DeSchepper[^deschepper] |
+| $\eta_{\text{night}}$ | g h$^{-1}$ MPa$^{-1}$ (g h$^{-1}$ MPa$^{-1}$)$^{-1}$ | Relative hydraulic conductivity at night    | 0.1           | Caird[^caird]      |
 | $P\_h$                | MPa                                                  | Gravitational water potential               | N/A           | None            |
 | $h$                   | cm                                                   | Height above ground                         | 0.0           | None            |
+
+[^deschepper]: De Schepper, V. and Steppe, K. (2010). Development and verification of a water and sugar transport model using measured stem diameter variations. Journal of Experimental Botany, 61(8):2083–2099. Publisher: Oxford Academic.
+
+[^caird]: Caird, M. A., Richards, J. H., and Donovan, L. A. (2007). Nighttime stomatal conductance and transpiration in C3 and C4 plants. Plant Physiology, 143(1):4–10. Publisher: Oxford Academic.

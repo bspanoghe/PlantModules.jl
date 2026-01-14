@@ -1,12 +1,9 @@
-# https://docs.julialang.org/en/v1/manual/documentation/
-# https://documenter.juliadocs.org/stable/
-# https://adrianhill.de/julia-ml-course/docs/
-
 cd(@__DIR__)
 
 using Pkg; Pkg.activate(".")
-using Documenter, PlantModules
+using Documenter, DocumenterInterLinks
 using PlutoStaticHTML
+using PlantModules
 
 rebuild_notebooks = true
 
@@ -24,15 +21,17 @@ pages = [
     "API" => "api.md",
     "List of variables" => "variables.md",
     "Theoretical overview" => "theory.md",
-    # "Plotting" => "plotting.md",
-    # "Graphs" => "graphs.jl",
-    # "Compartment shapes" => "shapes.jl",
 ]
+
+links = InterLinks(
+    "ModelingToolkit" => "https://docs.sciml.ai/ModelingToolkit/stable/"
+)
 
 makedocs(;
     sitename = "PlantModules",
     pages,
     modules = [PlantModules],
+    plugins = [links],
     format = Documenter.HTML(size_threshold = 2000 * 1024),
     warnonly = true
 )

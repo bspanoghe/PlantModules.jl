@@ -24,11 +24,16 @@ getattributes
 getstructmod
 getid
 
+getroot
+getvariables
+getchildren
+getparent
 ```
 
 # Shape functions
 ```@docs
 getdimensionality
+correctdimensionality
 volume
 cross_area
 surface_area

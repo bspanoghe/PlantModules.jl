@@ -19,7 +19,8 @@ using RecipesBase, GraphRecipes # visualisation
 export generate_system, PlantStructure, PlantCoupling, PlantParameters # generate system
 export ModuleShape, Sphere, Cylinder, Cuboid # shapes
 export getnodes, getneighbors, getattributes, getstructmod, getid # graph functions
-export getdimensionality, volume, cross_area, surface_area # shape functions
+export getroot, getvariables, getchildren, getparent # directed graph functions
+export getdimensionality, correctdimensionality, volume, cross_area, surface_area # shape functions
 export logsumexp, smooth_daynight # smooth functions
 export hydraulic_module, environmental_module, constant_carbon_module, simple_photosynthesis_module, Ψ_soil_module, Ψ_air_module, K_module, constant_K_module # node modules
 export hydraulic_connection, constant_hydraulic_connection, daynight_hydraulic_connection # edge modules
