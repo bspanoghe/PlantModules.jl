@@ -1,7 +1,7 @@
 name = "PlantModules"
 uuid = "c420d4a8-207b-40ca-9fc4-c574d258dc7a"
-authors = ["Michiel Stock", "Tom De Swaef", "Bram Spanoghe"]
 version = "0.1.0"
+authors = ["Bram Spanoghe", "Michiel Stock", "Tom De Swaef"]
 
 [deps]
 GraphRecipes = "bd48cda9-67a9-57be-86fa-5b3c104eda73"
@@ -11,11 +11,10 @@ MultiScaleTreeGraph = "dd4a991b-8a45-4075-bede-262ee62d5583"
 PlantGraphs = "615ad455-9aac-4340-9247-71ef610f781a"
 RecipesBase = "3cdcf5f2-1ef4-517c-9805-6587b60abb01"
 SciMLBase = "0bca4576-84f4-4d90-8ffe-ffa030f20462"
-Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
 
 [compat]
-ModelingToolkit = "10"
 Graphs = "1"
+ModelingToolkit = "10"
 OrdinaryDiffEq = "6.104"
 
 [extras]

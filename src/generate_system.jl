@@ -193,53 +193,6 @@ function overwrite!(dicts::Dict...)
     return maindict
 end
 
-# extended version of ModelingToolkit.extend to include unitful checks
-function extend(
-        sys::ModelingToolkit.AbstractSystem, basesys::ModelingToolkit.AbstractSystem, checkunits::Bool; name::Symbol = nameof(sys),
-        gui_metadata = get_gui_metadata(sys)
-    )
-
-    T = SciMLBase.parameterless_type(basesys)
-    ivs = independent_variables(basesys)
-    if !(sys isa T)
-        if length(ivs) == 0
-            sys = convert_system(T, sys)
-        elseif length(ivs) == 1
-            sys = convert_system(T, sys, ivs[1])
-        else
-            throw("Extending multivariate systems is not supported")
-        end
-    end
-
-    eqs = union(get_eqs(basesys), get_eqs(sys))
-    sts = union(get_unknowns(basesys), get_unknowns(sys))
-    ps = union(get_ps(basesys), get_ps(sys))
-    base_deps = get_parameter_dependencies(basesys)
-    deps = get_parameter_dependencies(sys)
-    dep_ps = isnothing(base_deps) ? deps :
-        isnothing(deps) ? base_deps : union(base_deps, deps)
-    obs = union(get_observed(basesys), get_observed(sys))
-    cevs = union(get_continuous_events(basesys), get_continuous_events(sys))
-    devs = union(get_discrete_events(basesys), get_discrete_events(sys))
-    defs = merge(get_defaults(basesys), get_defaults(sys)) # prefer `sys`
-    syss = union(get_systems(basesys), get_systems(sys))
-
-    return if length(ivs) == 0
-        T(
-            eqs, sts, ps, observed = obs, defaults = defs, name = name, systems = syss,
-            continuous_events = cevs, discrete_events = devs, gui_metadata = gui_metadata,
-            parameter_dependencies = dep_ps, checks = checkunits
-        )
-    elseif length(ivs) == 1
-        T(
-            eqs, ivs[1], sts, ps, observed = obs, defaults = defs, name = name,
-            systems = syss, continuous_events = cevs, discrete_events = devs,
-            gui_metadata = gui_metadata, parameter_dependencies = dep_ps,
-            checks = checkunits
-        )
-    end
-end
-
 # Get the MTK system of the edge between the two nodes, and whether it exists in correct order
 function get_connecting_module(node, nb_node, plantcoupling)
     structmodule = PlantModules.getstructmod(node)
