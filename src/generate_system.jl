@@ -78,7 +78,7 @@ end
 
 """
 	generate_system(plantstructure::PlantStructure, plantparams::PlantParameters,
-		plantcoupling::PlantCoupling; checkunits::Bool = true)
+		plantcoupling::PlantCoupling)
 
 Create a [`ModelingToolkit.System`](@extref) that describes the functional behaviour of the input graph structure.
 
@@ -86,14 +86,12 @@ Create a [`ModelingToolkit.System`](@extref) that describes the functional behav
 - `plantstructure`: A graph specifying how the structural modules are connected.
 - `plantparams`: Additional functional information about the connections between structural modules. See [`PlantParameters`](@ref).
 - `plantcoupling`: Coupling between functional and structural modules. See [`PlantCoupling`](@ref).
-- `checkunits`: Should the model check the units of the given equations? Defaults to `true`.
 """
 function generate_system(
-        plantstructure, plantcoupling::PlantCoupling, plantparams::PlantParameters;
-        checkunits::Bool = true
+        plantstructure, plantcoupling::PlantCoupling, plantparams::PlantParameters
     )
 
-    MTK_system_dict = get_MTK_system_dict(plantstructure, plantparams, plantcoupling, checkunits)
+    MTK_system_dict = get_MTK_system_dict(plantstructure, plantparams, plantcoupling)
     # Vector of a dict (node id => node MTK system)
     MTK_systems = collect(values(MTK_system_dict)) # node MTK systems
 
@@ -117,7 +115,7 @@ function generate_system(
     end
 
     model = compose(
-        System(connection_eqsets, get_iv(MTK_systems[1]), name = :system, checks = checkunits),
+        System(connection_eqsets, get_iv(MTK_systems[1]), name = :system),
         MTK_systems..., connection_MTKs...
     ) # combine all subsystems together with equations linking nodes with edges
 
@@ -127,15 +125,15 @@ function generate_system(
 end
 
 # get node idx => node MTK system
-function get_MTK_system_dict(plantstructure, plantparams, plantcoupling, checkunits)
+function get_MTK_system_dict(plantstructure, plantparams, plantcoupling)
     return [
-        PlantModules.getid(node) => getMTKsystem(node, plantparams, plantcoupling, checkunits)
+        PlantModules.getid(node) => getMTKsystem(node, plantparams, plantcoupling)
             for node in PlantModules.getnodes(plantstructure)
     ] |> Dict
 end
 
 # Get MTK system corresponding with node
-function getMTKsystem(node, plantparams, plantcoupling, checkunits)
+function getMTKsystem(node, plantparams, plantcoupling)
     structmodule = PlantModules.getstructmod(node)
     (!haskey(plantcoupling.module_coupling, structmodule) || isempty(plantcoupling.module_coupling[structmodule])) &&
         error("No functional module defined for structural module `$structmodule`.")
@@ -155,7 +153,7 @@ function getMTKsystem(node, plantparams, plantcoupling, checkunits)
     MTKsystem = component_systems[1]
 
     for comp_sys in component_systems[2:end]
-        MTKsystem = extend(MTKsystem, comp_sys, checkunits)
+        MTKsystem = extend(MTKsystem, comp_sys)
     end
 
     return MTKsystem

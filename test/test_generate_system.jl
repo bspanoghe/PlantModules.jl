@@ -89,12 +89,11 @@ nb_node = cave_node
 
 ## getMTKsystem
 
-checkunits = false
-sys1 = PlantModules.getMTKsystem(forest_node_1, plantparams, plantcoupling, checkunits)
+sys1 = PlantModules.getMTKsystem(forest_node_1, plantparams, plantcoupling)
 @test get_name(sys1) == Symbol(string(PlantModules.getstructmod(forest_node_1)) * string(PlantModules.getid(forest_node_1)))
 
 ## get_MTK_system_dict
-MTK_system_dict = PlantModules.get_MTK_system_dict(plantstructure, plantparams, plantcoupling, checkunits)
+MTK_system_dict = PlantModules.get_MTK_system_dict(plantstructure, plantparams, plantcoupling)
 @test length(MTK_system_dict) == 7
 @test MTK_system_dict[1] isa ModelingToolkit.System
 
