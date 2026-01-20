@@ -7,9 +7,9 @@
 5. All Julia: As a pure Julia implementation, it integrates seamlessly with many other Julia packages such as the plant modeling framework [VirtualPlantLab.jl](https://github.com/VirtualPlantLab/VirtualPlantLab.jl).
 
 ## Installation
-The package is currently not yet in the Julia registry. Therefore, installation of the package can be done as follows, in the Julia REPL:
+The package can be installed as follows, in the Julia REPL:
 ```julia
-] add https://github.com/bspanoghe/PlantModules.jl.git
+] add PlantModules
 ```
 
 ## Usage
