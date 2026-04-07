@@ -1,3 +1,4 @@
+using Pkg; Pkg.activate()
 using Plots, LaTeXStrings
 
 hardmax(x) = max(0, x)
@@ -16,13 +17,14 @@ begin
 
     plot(title = "Comparison of thresholding functions", xlims = (-0.5, 0.5), 
         size = (800, 600), xlabel = L"x")
-    plot!(hardmax, color = :black, label = L"\mathrm{max}(x, 0)", linewidth = 2)
+    plot!(hardmax, color = :black, label = L"\mathrm{max}(x, 0)", linewidth = 4)
 
     αs = [4, 40, 400]
     for (i, α) in enumerate(αs)
-        plot!(x -> LSE(x; α), color = cpalette[i], linestyle = :dash, label = L"\mathrm{LSE}_{%$(α)}(x, 0)")
+        plot!(x -> LSE(x; α), color = cpalette[i], linestyle = :dashdotdot, linewidth = 3, label = L"\mathrm{LSE}_{%$(α)}(x, 0)")
     end
+    plot!()
 end
-plot!()
+
 
 # savefig(plotdir * "fig_plantmodules_max.pdf")
