@@ -532,14 +532,14 @@ system = generate_system(plantstructure, plantcoupling, plantparams);
 # ╔═╡ b810c5c6-97c7-4293-ae77-0c399d6f56b2
 tspan = (0.0, 24.0);
 
-# ╔═╡ 7f99ec81-41c9-45bf-9e7d-2ab7dada677d
-prob = ODEProblem(system, [], tspan, sparse = true, use_scc = false);
-
 # ╔═╡ eab82d37-dc14-4afb-8791-cf6b08e31307
 md"""
 !!! warning
 	Problem construction of DAEs uses `SciMLBase.SCCNonlinearProblem` by default to solve the initialization problem. For the functional modules provided by `PlantModules.jl`, this currently takes much longer than the alternative option `SciMLBase.NonlinearProblem` for large systems. We can specify we want the alternative method for problem initialization using `use_scc = false`.
 """
+
+# ╔═╡ 7f99ec81-41c9-45bf-9e7d-2ab7dada677d
+prob = ODEProblem(system, [], tspan, sparse = true, use_scc = false);
 
 # ╔═╡ b24016d3-cd1d-4ba8-b7a6-2ee8b41db1f1
 sol = solve(prob, FBDF());
@@ -632,6 +632,34 @@ begin
 		 size = (800, 600), margins = 5*Plots.mm, ylims = (-0.07, 0.01), 
 		 yticks = -0.07:0.01:0.01, xticks = 0:3:24, xlabel = "Time of day (h)")
 end
+
+# ╔═╡ fa6874d4-9a95-4971-980f-71358a67a93e
+md"### RMSE"
+
+# ╔═╡ e9a480f3-8827-4a24-92ae-d1787b03750e
+RMSE(ys_obs, ys_pred) = ys_obs - ys_pred |> (x -> x.^2) |>
+	(x -> sum(x)/length(x)) |> sqrt
+
+# ╔═╡ 066acf8c-4aba-41e4-9b53-9d1cc5e49b64
+segment_nr = 1
+
+# ╔═╡ c6049be0-90a5-4329-bc2d-c1ef24961901
+times = first.(diameter_datas[segment_nr])
+
+# ╔═╡ c08fc0a6-7fee-4f6d-b440-e49eba957909
+sol_corrtimes = solve(prob, FBDF(), saveat = times);
+
+# ╔═╡ cf514fc3-b5aa-4cb6-a95b-9ee3b2681101
+ys_pred = sol_corrtimes[diameter_change_mm(dimension_variables[diameter_segment_nrs[segment_nr]][1], sol_corrtimes)]
+
+# ╔═╡ 9692f32f-a05b-4f1a-a98d-51d67230a292
+ys_obs = last.(diameter_datas[segment_nr])
+
+# ╔═╡ 9d1a3395-8213-4771-85bf-d760d4950ce7
+plot(times, [ys_pred ys_obs])
+
+# ╔═╡ 86858191-b667-48c1-a5f5-5c4a27c7b1c1
+RMSE(ys_obs, ys_pred)
 
 # ╔═╡ 70df3d1e-82ad-4365-97ab-0e31283058c2
 md"## Uncertainty analysis"
@@ -842,6 +870,15 @@ The plot shows that an increase in hydraulic conductivity will have a positive i
 # ╟─28184995-7163-40ee-a773-eb414ecf2f28
 # ╟─59c6e1f7-ce34-4fcb-aa7b-7a650dc0a4d1
 # ╠═6b2ad036-b6f1-4753-a3f0-4a6d4dc6b7fd
+# ╟─fa6874d4-9a95-4971-980f-71358a67a93e
+# ╠═e9a480f3-8827-4a24-92ae-d1787b03750e
+# ╠═066acf8c-4aba-41e4-9b53-9d1cc5e49b64
+# ╠═c6049be0-90a5-4329-bc2d-c1ef24961901
+# ╠═c08fc0a6-7fee-4f6d-b440-e49eba957909
+# ╠═cf514fc3-b5aa-4cb6-a95b-9ee3b2681101
+# ╠═9692f32f-a05b-4f1a-a98d-51d67230a292
+# ╠═9d1a3395-8213-4771-85bf-d760d4950ce7
+# ╠═86858191-b667-48c1-a5f5-5c4a27c7b1c1
 # ╟─70df3d1e-82ad-4365-97ab-0e31283058c2
 # ╟─c3429638-e1f7-4254-93ff-c77762642b44
 # ╟─d9045d2a-2343-4848-a854-07942ba8bbd4
