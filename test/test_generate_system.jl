@@ -108,8 +108,10 @@ connection_MTK, connection_equations = PlantModules.get_connection_info(
     original_order, plantparams, MTK_system_dict
 )
 
+initial_conditions(connection_MTK)
+
 @test connection_MTK isa ModelingToolkit.System
-@test only(values(get_defaults(connection_MTK))) == 0.05
+@test getfield(only(values(initial_conditions(connection_MTK))), :data).val == 0.05 #! update to avoid MTK internals
 @test connection_equations isa Vector{Equation}
 
 ## getnodevalues
