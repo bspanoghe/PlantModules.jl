@@ -144,6 +144,9 @@ function getnodesystem(sol::ODESolution, node)
 
     system = sol.prob.f.sys
     parentsystem = get_parent(system) # system before simplification
+    if !isnothing(get_parent(parentsystem))
+        parentsystem = get_parent(parentsystem) #! you have to do this twice since MTKv11
+    end
     nodesystem = [subsys for subsys in get_systems(parentsystem) if get_name(subsys) == Symbol(nodename)][1]
 
     return nodesystem
@@ -164,7 +167,7 @@ function get_varname_dict(node_structmods, nodesystems, varname)
 end
 
 # Get the symbol representation of a MTK unknown (variable)
-get_MTKunknown_symbol(s::SymbolicUtils.Symbolic) = s.metadata[ModelingToolkit.VariableSource][2]
+get_MTKunknown_symbol(s) = s.metadata[ModelingToolkit.VariableSource][2]
 
 # filter varname_dict so only variable names specified by user remain, e.g. `Stem => [:W, :V]` => `Stem => [:V]`
 filter_varname_dict!(varname_dict, varname::Missing, structmod) = nothing
