@@ -93,6 +93,9 @@ end
 
 function getsubsystem(sys::System, sysname)
     parentsystem = get_parent(sys) # system before simplification
+    if !isnothing(get_parent(parentsystem))
+        parentsystem = get_parent(parentsystem) #! you have to do this twice since MTKv11
+    end
     subsystem = [subsys for subsys in get_systems(parentsystem) if get_name(subsys) == Symbol(sysname)][1]
 
     return subsystem
