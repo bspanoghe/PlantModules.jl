@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.20.21
+# v0.20.23
 
 using Markdown
 using InteractiveUtils
@@ -331,7 +331,7 @@ intergraph_connections = [(1, 2) => (getnodes(plant)[1], :Soil), (1, 3) => (:Bra
 plantstructure = PlantStructure(graphs, intergraph_connections);
 
 # ╔═╡ ad16819d-1b9e-45c3-8aa7-cca15f63ced7
-plotstructure(plantstructure, names = "")
+plotstructure(plantstructure)
 
 # ╔═╡ 6741bdad-518a-45e9-b127-863c6e9a36c5
 md"## Function definition"
