@@ -26,18 +26,6 @@ function get_adj_matrix(ps::PlantStructure)
     return adj_matrix
 end
 
-function get_weight_matrix(ps::PlantStructure)
-    vertices = PlantModules.vertices(ps)
-    num_neighbors = [length(PlantModules.neighbors(ps, vertex)) for vertex in vertices]
-
-    weight_matrix = [
-        1 / max(num_neighbors[i], num_neighbors[j])
-        for i in vertices, j in vertices
-    ]
-
-    return weight_matrix
-end
-
 function get_edge_positions(positions, ps::PlantStructure)
     position_xs = first.(positions)
     position_ys = last.(positions)
@@ -60,8 +48,7 @@ end
 
     # calculate positions
     adj_matrix = get_adj_matrix(plantsystem)
-    weight_matrix = get_weight_matrix(plantsystem)
-    positions = NetworkLayout.stress(adj_matrix, weights = weight_matrix)
+    positions = NetworkLayout.stress(adj_matrix)
     edge_positions = get_edge_positions(positions, plantsystem)
     xs = first.(positions)
     ys = last.(positions)
@@ -93,7 +80,7 @@ end
         seriestype := :scatter
         label := false
         markercolor --> markercolor
-        markersize := 16
+        markersize := 10
         markershape := :hexagon
         (xs, ys)
     end
