@@ -13,6 +13,7 @@ using Pkg; Pkg.activate("../..")
 using PlantModules
 
 # ╔═╡ 45991fe2-1dae-4633-b3c2-81b3e076c1eb
+# ╠═╡ show_logs = false
 using PlantGraphs, ModelingToolkit, OrdinaryDiffEq, Plots
 
 # ╔═╡ 8adf74c7-7fe0-42fd-bde5-9942f30fea36
@@ -533,12 +534,13 @@ system = generate_system(plantstructure, plantcoupling, plantparams);
 tspan = (0.0, 24.0);
 
 # ╔═╡ 7f99ec81-41c9-45bf-9e7d-2ab7dada677d
-prob = ODEProblem(system, [], tspan, sparse = true, use_scc = false);
+prob = ODEProblem(system, [], tspan, sparse = true);
 
 # ╔═╡ eab82d37-dc14-4afb-8791-cf6b08e31307
 md"""
-!!! warning
-	Problem construction of DAEs uses `SciMLBase.SCCNonlinearProblem` by default to solve the initialization problem. For the functional modules provided by `PlantModules.jl`, this currently takes much longer than the alternative option `SciMLBase.NonlinearProblem` for large systems. We can specify we want the alternative method for problem initialization using `use_scc = false`.
+!!! warning "Note for ModelingToolkit versions <11"
+
+	Problem construction of DAEs uses `SciMLBase.SCCNonlinearProblem` by default to solve the initialization problem. For the functional modules provided by `PlantModules.jl`, this takes much longer than the alternative option `SciMLBase.NonlinearProblem` for large systems. We can specify we want the alternative method for problem initialization using `use_scc = false`.
 """
 
 # ╔═╡ b24016d3-cd1d-4ba8-b7a6-2ee8b41db1f1
@@ -825,8 +827,8 @@ The plot shows that an increase in hydraulic conductivity will have a positive i
 # ╟─5025d163-dfc3-4a3f-b1eb-3d902f1d2c98
 # ╠═4ee50611-6032-476d-ad2f-9393ad0b2200
 # ╠═b810c5c6-97c7-4293-ae77-0c399d6f56b2
-# ╟─eab82d37-dc14-4afb-8791-cf6b08e31307
 # ╠═7f99ec81-41c9-45bf-9e7d-2ab7dada677d
+# ╟─eab82d37-dc14-4afb-8791-cf6b08e31307
 # ╠═b24016d3-cd1d-4ba8-b7a6-2ee8b41db1f1
 # ╟─087fa5db-83a0-4a47-b52a-7ddc6259a281
 # ╟─81aff1dd-ba69-498e-aa9c-775b76b42d2f

@@ -233,10 +233,8 @@ end
 ## Pry the ODE system corresponding with given node out of the ODE solution
 function getnodesystem(sol::ODESolution, node)
     nodename = string(PlantModules.getstructmod(node)) * string(PlantModules.getid(node))
-
-    system = sol.prob.f.sys
-    parentsystem = get_parent(system) # system before simplification
-    nodesystem = [subsys for subsys in get_systems(parentsystem) if get_name(subsys) == Symbol(nodename)][1]
+    sys = sol.prob.f.sys
+    nodesystem = getsubsystem(sys, nodename)
 
     return nodesystem
 end
@@ -256,7 +254,11 @@ function get_varname_dict(node_structmods, nodesystems, varname)
 end
 
 # Get the symbol representation of a MTK unknown (variable)
-get_MTKunknown_symbol(s::SymbolicUtils.Symbolic) = s.metadata[ModelingToolkit.VariableSource][2]
+get_MTKunknown_symbol(s) = (
+    operation(s) == getindex ? 
+	Symbol(operation(arguments(s)[findfirst(x -> iscall(x), arguments(s))])) :
+	Symbol(operation(s))
+)
 
 # filter varname_dict so only variable names specified by user remain, e.g. `Stem => [:W, :V]` => `Stem => [:V]`
 filter_varname_dict!(varname_dict, varname::Missing, structmod) = nothing
