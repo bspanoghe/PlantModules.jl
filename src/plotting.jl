@@ -1,22 +1,114 @@
 # # Plot plant structure
 
 """
-    plotstructure(plantstructure::PlantStructure)
+    plotstructure(plantstructure::PlantStructure; kwargs...)
 
 Visualise the structure of a plant system.
-
-This function is a thin wrapper around [`Plots.graphplot`](https://docs.juliaplots.org/stable/GraphRecipes/introduction/) with some keyword arguments specified for plant structures.
 """
 function plotstructure(plantstructure::PlantStructure; kwargs...)
-    names = getstructmod.(getnodes(plantstructure))
-    colordict = [name => idx for (idx, name) in enumerate(unique(names))] |> Dict
-    markercolor = [colordict[name] for name in names]
-    curves = false
-
-    return graphplot(plantstructure; names, markercolor, curves, kwargs...)
+    return structureplot(plantstructure; kwargs...)
 end
 
 plotstructure(graph; kwargs...) = plotstructure(PlantStructure(graph); kwargs...)
+
+
+@userplot StructurePlot
+
+function get_adj_matrix(ps::PlantStructure)
+    vs = PlantModules.vertices(ps)
+    n = length(vs)
+    adj_matrix = zeros(Bool, n, n)
+    for vertex in vs
+        neighbors = PlantModules.neighbors(ps, vertex)
+        adj_matrix[vertex, neighbors] .= true
+        adj_matrix[neighbors,  vertex] .= true
+    end
+    return adj_matrix
+end
+
+function get_weight_matrix(ps::PlantStructure)
+    vertices = PlantModules.vertices(ps)
+    num_neighbors = [length(PlantModules.neighbors(ps, vertex)) for vertex in vertices]
+
+    weight_matrix = [
+        1 / max(num_neighbors[i], num_neighbors[j])
+        for i in vertices, j in vertices
+    ]
+
+    return weight_matrix
+end
+
+function get_edge_positions(positions, ps::PlantStructure)
+    position_xs = first.(positions)
+    position_ys = last.(positions)
+
+    edge_xs = []
+    edge_ys = []
+
+    for vertex in PlantModules.vertices(ps)
+        for neighbor in PlantModules.neighbors(ps, vertex)
+            push!(edge_xs, [position_xs[vertex], position_xs[neighbor], missing])
+            push!(edge_ys, [position_ys[vertex], position_ys[neighbor], missing])
+        end
+    end
+
+    return (edge_xs, edge_ys)
+end
+
+@recipe function f(sp::StructurePlot)
+    plantsystem = sp.args[1]
+
+    # calculate positions
+    adj_matrix = get_adj_matrix(plantsystem)
+    weight_matrix = get_weight_matrix(plantsystem)
+    positions = NetworkLayout.stress(adj_matrix, weights = weight_matrix)
+    edge_positions = get_edge_positions(positions, plantsystem)
+    xs = first.(positions)
+    ys = last.(positions)
+
+    # group nodes per structural module
+    names = getstructmod.(getnodes(plantsystem))
+    colordict = [name => idx for (idx, name) in enumerate(unique(names))] |> Dict
+    markercolor = [colordict[name] for name in names]
+
+    # set global plot attributes
+    xmin, xmax = extrema(xs)
+    Δx = xmax - xmin
+    ymin, ymax = extrema(ys)
+    Δy = ymax - ymin
+
+    xlims --> (xmin - 0.1*Δx, xmax + 0.1*Δx)
+    ylims --> (ymin - 0.1*Δy, ymax + 0.1*Δy)
+
+    # plot edges
+    @series begin 
+        seriestype := :path
+        linecolor := :black
+        label := false
+        edge_positions
+    end
+
+    # plot nodes
+    @series begin 
+        seriestype := :scatter
+        label := false
+        markercolor --> markercolor
+        markersize := 16
+        markershape := :hexagon
+        (xs, ys)
+    end
+
+    # create legend
+    @series begin 
+        seriestype := :scatter
+        label := unique(names) .|> string |> permutedims
+        markercolor := [colordict[name] for name in unique(names)] |> permutedims
+        markersize := 6
+        markershape := :hexagon
+        (fill(NaN, (1, length(unique(names)))))
+    end
+end
+
 
 # # Plot MTK solutions
 
@@ -211,76 +303,3 @@ end
         (xs, ys)
     end
 end
-
-#TODO: make own graph drawing recipe that works better for visualising tree graphs with cycles added at the ends
-
-# @userplot StructurePlot
-
-# function get_adj_matrix(ps::PlantStructure)
-#     vs = PlantModules.vertices(ps)
-#     n = length(vs)
-#     adj_matrix = zeros(Bool, n, n)
-#     for vertex in vs
-#         neighbors = PlantModules.neighbors(ps, vertex)
-#         adj_matrix[vertex, neighbors] .= true
-#         adj_matrix[neighbors,  vertex] .= true
-#     end
-#     return adj_matrix
-# end
-
-# function get_weight_matrix(ps::PlantStructure)
-#     vertices = PlantModules.vertices(ps)
-#     num_neighbors = [length(PlantModules.neighbors(ps, vertex)) for vertex in vertices]
-
-#     weight_matrix = [
-#         1 / max(num_neighbors[i], num_neighbors[j])
-#         for i in vertices, j in vertices
-#     ]
-
-#     return weight_matrix
-# end
-
-# function get_edge_positions(positions, ps::PlantStructure)
-#     position_xs = first.(positions)
-#     position_ys = last.(positions)
-
-#     edge_xs = []
-#     edge_ys = []
-
-#     for vertex in PlantModules.vertices(ps)
-#         for neighbor in PlantModules.neighbors(ps, vertex)
-#             push!(edge_xs, [position_xs[vertex], position_xs[neighbor], missing])
-#             push!(edge_ys, [position_ys[vertex], position_ys[neighbor], missing])
-#         end
-#     end
-
-#     return (edge_xs, edge_ys)
-# end
-
-# @recipe function f(sp::StructurePlot)
-#     plantsystem = sp.args[1]
-#     adj_matrix = get_adj_matrix(plantsystem)
-#     weight_matrix = get_weight_matrix(plantsystem)
-#     positions = GraphRecipes.NetworkLayout.stress(adj_matrix, weights = weight_matrix)
-#     edge_positions = get_edge_positions(positions, plantsystem)
-
-#     names = PlantModules.getstructmod.(PlantModules.getnodes(plantsystem))
-#     colordict = [name => idx for (idx, name) in enumerate(unique(names))] |> Dict
-#     markercolor = [colordict[name] for name in names]
-
-#     @series begin
-#         seriestype := :path
-#         linecolor := :black
-#         label := false
-#         edge_positions
-#     end
-
-#     @series begin
-#         seriestype := :scatter
-#         label := false
-#         markercolor := markercolor
-#         markersize := 8
-#         markershape := :hexagon
-#         (first.(positions), last.(positions))
-#     end
-# end
