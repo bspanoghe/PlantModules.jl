@@ -4,17 +4,23 @@
 using Markdown
 using InteractiveUtils
 
-# ╔═╡ ddb74042-dbe4-4a1d-94e7-81f4af878af6
-using Pkg; Pkg.activate("../..")
+# ╔═╡ efdd1bf3-ee36-447d-9741-eee35583c125
+using Pkg
 
-# ╔═╡ 76faf1ec-1c1e-46af-929c-ad0ab80485c6
-using PlantModules
+# ╔═╡ 98cb54a9-bfa8-4f9a-bdd3-f211a98c975b
+begin
+	Pkg.activate()
+	using Revise
+end
 
-# ╔═╡ 5f1e0631-1df3-4ae4-8650-736556ad7f10
-using ModelingToolkit, OrdinaryDiffEq, Plots
-
-# ╔═╡ 368f9b09-1c40-421e-9557-9641d0b3bf5c
-using VirtualPlantLab, ColorTypes, GLMakie
+# ╔═╡ 399e95e9-be88-4a0b-8c88-03d74fe0d76b
+begin
+	Pkg.activate("../..")
+	using PlantModules
+	using ModelingToolkit, OrdinaryDiffEq, Plots
+	using VirtualPlantLab, GLMakie
+	import VirtualPlantLab: Mesh
+end
 
 # ╔═╡ 2dfdb97f-361c-47bd-b65a-41b02bc8bc57
 md"# Tutorial 3: Functional-structural growth modelling"
@@ -50,26 +56,33 @@ md"## Original tutorial"
 md"### Structural module definition"
 
 # ╔═╡ b27f3786-84b0-469f-ab0c-a60f02030efd
-struct Meristem <: VirtualPlantLab.Node end
+Base.@kwdef struct Meristem <: VirtualPlantLab.Node 
+	D = [0.5] # 
+end
 
 # ╔═╡ b99eb3ee-26dc-4396-9a61-aba45f7462cf
-struct Bud <: VirtualPlantLab.Node end
+Base.@kwdef struct Bud <: VirtualPlantLab.Node
+	D = [0.5]
+end
 
 # ╔═╡ 43bb6044-e567-4f20-8be0-5108f5deead8
-struct Node <: VirtualPlantLab.Node end
+Base.@kwdef struct Node <: VirtualPlantLab.Node
+	D = [0.5]
+end
 
 # ╔═╡ 4ea2dfcf-cc13-46f1-8f70-f42af7a43a09
-struct BudNode <: VirtualPlantLab.Node end
+Base.@kwdef struct BudNode <: VirtualPlantLab.Node
+	D = [0.5]
+end
 
 # ╔═╡ fc109086-c42c-474d-8ab0-4add40a07eed
 Base.@kwdef mutable struct Internode <: VirtualPlantLab.Node
-	length::Float64 = 0.10 # Internodes start at 10 cm
+	D = [0.5, 10] # internodes are cylinders starting at 0.5 cm radius, 10 cm length
 end
 
 # ╔═╡ 2ff96078-4a91-427b-8c39-689d47600c05
 Base.@kwdef struct Leaf <: VirtualPlantLab.Node
-	length::Float64 = 0.20 # Leaves are 20 cm long
-	width::Float64  = 0.1 # Leaves are 10 cm wide
+	D = [20, 10, 0.05] # leaves are cuboids starting at 20 cm long, 10 cm wide and 0.05 cm thick
 end
 
 # ╔═╡ fea00274-c739-48cb-8085-4f5713ebeb9c
@@ -91,28 +104,25 @@ md"### Visualisation functions"
 function VirtualPlantLab.feed!(turtle::Turtle, i::Internode, vars)
     # Rotate turtle around the head to implement elliptical phyllotaxis
     rh!(turtle, vars.phyllotaxis)
-    HollowCylinder!(turtle, length = i.length, height = i.length/15, width = i.length/15,
-                move = true, colors = RGB(0.5,0.4,0.0))
+    HollowCylinder!(
+		turtle, length = i.D[2], height = i.D[1],
+		width = i.D[1], move = true, colors = RGB(0.5,0.4,0.0)
+	)
     return nothing
 end
 
 # ╔═╡ e062618b-3913-4dd8-8ef4-fdcba785fa61
-# Create geometry + color for the leaves
 function VirtualPlantLab.feed!(turtle::Turtle, l::Leaf, vars)
-    # Rotate turtle around the arm for insertion angle
     ra!(turtle, -vars.leaf_angle)
-    # Generate the leaf
-    Ellipse!(turtle, length = l.length, width = l.width, move = false,
-             colors = RGB(0.2, 0.6, 0.2))
-    # Rotate turtle back to original direction
+    Ellipse!(turtle, length = l.D[1], width = l.D[2], move = false,
+			 colors = RGB(0.2, 0.6, 0.2))
     ra!(turtle, vars.leaf_angle)
+	
     return nothing
 end
 
 # ╔═╡ d6fa9897-05ae-4388-a299-c08cb62c1414
-# Insertion angle for the bud nodes
 function VirtualPlantLab.feed!(turtle::Turtle, b::BudNode, vars)
-    # Rotate turtle around the arm for insertion angle
     ra!(turtle, -vars.branch_angle)
 end
 
@@ -121,25 +131,21 @@ md"### Structural growth rules"
 
 # ╔═╡ eb87190d-26e5-4e37-bb09-15b1e89da868
 meristem_rule = Rule(
-	TreeTypes.Meristem,
-	rhs = mer -> TreeTypes.Node() + 
-		(TreeTypes.Bud(), TreeTypes.Leaf()) +
-		TreeTypes.Internode() + TreeTypes.Meristem()
+	Meristem,
+	rhs = mer -> Node() + (Bud(), Leaf()) + Internode() + Meristem()
 )
 
 # ╔═╡ d0e32e1a-733e-4791-82ec-c4a20745a351
 function prob_break(bud)
-    # We move to parent node in the branch where the bud was created
-    node =  parent(bud)
-    # We count the number of internodes between node and the first Meristem
-    # moving down the graph
-    check, steps = has_descendant(node, condition = n -> data(n) isa TreeTypes.Meristem)
-    steps = Int(ceil(steps/2)) # Because it will count both the nodes and the internodes
-    # Compute probability of bud break and determine whether it happens
+    node = parent(bud)
+    check, steps = has_descendant(
+		node, 
+		condition = n -> data(n) isa Meristem
+	)
+    steps = Int(ceil(steps/2))
     if check
         prob =  min(1.0, steps*graph_data(bud).budbreak)
         return rand() < prob
-    # If there is no meristem, an error happened since the model does not allow for this
     else
         error("No meristem found in branch")
     end
@@ -147,25 +153,24 @@ end
 
 # ╔═╡ fb31e01e-efda-4e72-828c-efd5a286d673
 branch_rule = Rule(
-	TreeTypes.Bud,
+	Bud,
 	lhs = prob_break,
-	rhs = bud -> TreeTypes.BudNode() +
-		TreeTypes.Internode() + TreeTypes.Meristem()
+	rhs = bud -> BudNode() + Internode() + Meristem()
 )
 
 # ╔═╡ 421e7e84-3c51-4e64-adc4-2a98a4536844
-axiom = TreeTypes.Internode() + TreeTypes.Meristem()
+axiom = Internode() + Meristem()
 
 # ╔═╡ 04d3fc8a-2ab7-4085-8fd6-4ab3f09eeebe
-tree = Graph(axiom = axiom, rules = (meristem_rule, branch_rule), data = TreeTypes.treeparams())
+tree = Graph(axiom = axiom, rules = (meristem_rule, branch_rule), data = treeparams())
 
 # ╔═╡ 1da39117-7f6d-4907-aad7-bcc0d0fc4be4
-getInternode = Query(TreeTypes.Internode)
+getInternode = Query(Internode)
 
 # ╔═╡ 1bb9f437-44fb-4a7c-9eee-2730d1487e87
 function elongate!(tree, query)
     for x in apply(tree, query)
-        x.length = x.length*(1.0 + data(tree).growth)
+        x.D = x.D .* [1.0 , 1.0 + data(tree).growth]
     end
 end
 
@@ -185,7 +190,7 @@ function simulate(tree, query, nsteps)
 end
 
 # ╔═╡ e6bdd4a1-135d-4c1b-be8e-24d5e1a3f3b1
-newtree = simulate(tree, getInternode, 15)
+newtree = simulate(tree, getInternode, 5)
 
 # ╔═╡ e0ca99d2-84e1-47e3-93bc-324465f5abd3
 render(Mesh(newtree))
@@ -206,42 +211,80 @@ struct Air <: VirtualPlantLab.Node end
 graphs = [newtree, Soil(), Air()];
 
 # ╔═╡ 6461c5f0-5860-433d-8627-53a14dd342e4
-intergraph_connections = [(1, 2) => (getnodes(plant)[1], :Soil), (1, 3) => (:BranchTip, :Air)];
+intergraph_connections = [(1, 2) => (getnodes(newtree)[1], :Soil), (1, 3) => (:Leaf, :Air)];
 
 # ╔═╡ 52aa8d2e-16f5-49fc-86fd-0f1c3a325b3d
 plantstructure = PlantStructure(graphs, intergraph_connections);
 
+# ╔═╡ 6338dd2a-be06-418f-ab48-c85865cd1e1f
+PlantModules.neighbors(g::PlantStructure{T}, v::Integer) where {T} = (haskey(g.neighbordict, v) || error("Vertex $v has no neighbors"); g.neighbordict[v])
+
 # ╔═╡ ca063cc1-cd0e-48de-b65b-0e42c0f0df65
-plotstructure(plantstructure, names = "")
+plotstructure(plantstructure)
 
 # ╔═╡ ac0e93c0-2662-4ea4-bcc3-3067aec41d28
 md"### Functional definition"
 
+# ╔═╡ 62257b82-ac54-4360-951c-9192edb619a3
+md"#### Coupling"
+
+# ╔═╡ 396c9109-d930-4f89-b280-ab23b918391f
+function empty_hydraulic_connection(; name, K)
+    @variables F(t)
+
+    eqs = [F ~ 0]
+    get_connection_eqset(node_MTK, nb_node_MTK, connection_MTK) = []
+	
+    return System(eqs, t; name), get_connection_eqset
+end
+
 # ╔═╡ 251fd6eb-627b-4560-b692-d02bef8f089c
 module_coupling = Dict(
-	:Meristem => [hydraulic_module, constant_carbon_module, K_module],
+	:Meristem => [],
 	:Bud => [],
-    :Node => [hydraulic_module, constant_carbon_module, K_module],
-	:BudNode => [hydraulic_module, needle_area_module,
-				   constant_carbon_module, K_module],
-	:Internode => [],
-	:Leaf => [],
+    :Node => [hydraulic_module, constant_carbon_module],
+	:BudNode => [hydraulic_module, constant_carbon_module],
+	:Internode => [hydraulic_module, constant_carbon_module, K_module],
+	:Leaf => [hydraulic_module, constant_carbon_module, K_module],
 	:Soil => [environmental_module, Ψ_soil_module, constant_K_module],
-	:Air => [environmental_module],
+	:Air => [environmental_module, Ψ_air_module, constant_K_module],
 );
 
 # ╔═╡ 812ec2a4-b3ec-4240-a7bd-b80ddea7a748
 connecting_modules = Dict(
-	(:Soil, :Stem) => constant_hydraulic_connection,
-	(:Stem, :Stem) => hydraulic_connection,
-	(:Stem, :Branch) => hydraulic_connection,
-    (:Branch, :Branch) => hydraulic_connection,
-	(:Branch, :BranchTip) => hydraulic_connection,
-	(:BranchTip, :Air) => fixed_transpiration_connection,
+	(:Soil, :Internode) => constant_hydraulic_connection,
+	(:Internode, :Node) => hydraulic_connection,
+	(:Node, :Bud) => empty_hydraulic_connection,
+	(:Node, :BudNode) => hydraulic_connection,
+	(:BudNode, :Internode) => hydraulic_connection,
+	(:Node, :Leaf) => hydraulic_connection,
+	(:Internode, :Meristem) => empty_hydraulic_connection,
+	(:Leaf, :Air) => daynight_hydraulic_connection
 );
 
 # ╔═╡ 1f90f558-272b-41b6-a4ba-c7bbcea3cf92
 plantcoupling = PlantCoupling(; module_coupling, connecting_modules);
+
+# ╔═╡ 8f986516-75a7-46b2-86f5-4836d8b54193
+md"#### Parameters"
+
+# ╔═╡ 1d8aba86-aba8-4567-a3f6-648d3b74e8e3
+module_defaults = Dict(
+	:Node => Dict(:shape => PlantModules.Sphere()),
+	:BudNode => Dict(:shape => PlantModules.Sphere()),
+	:Leaf => Dict(:shape => PlantModules.Cuboid()),
+	:Soil => Dict(:W_max => 1e4, :K => 1.0),
+	:Air => Dict(:W_r => 0.7, :K => 1e-3)
+);
+
+# ╔═╡ 2f54285c-50cf-49e4-b2b0-cf9aa5fdf585
+plantparams = PlantParameters(; module_defaults);
+
+# ╔═╡ 25c85fd1-1921-4707-8185-735751c0d914
+md"### Creating the system"
+
+# ╔═╡ 8f635abb-c9ea-45ca-81ae-e679e0ba923d
+system = generate_system(plantstructure, plantcoupling, plantparams);
 
 # ╔═╡ c320aed9-7086-4dcc-8030-b3f281f5a1ec
 md"## Speed benchmarking"
@@ -250,10 +293,9 @@ md"## Speed benchmarking"
 # ╟─2dfdb97f-361c-47bd-b65a-41b02bc8bc57
 # ╟─87a39d4c-6f22-447e-bd45-1f133b5bb7b3
 # ╟─e52a8761-f703-4dec-b02b-62d3cc831b4f
-# ╠═ddb74042-dbe4-4a1d-94e7-81f4af878af6
-# ╠═76faf1ec-1c1e-46af-929c-ad0ab80485c6
-# ╠═5f1e0631-1df3-4ae4-8650-736556ad7f10
-# ╠═368f9b09-1c40-421e-9557-9641d0b3bf5c
+# ╠═efdd1bf3-ee36-447d-9741-eee35583c125
+# ╠═98cb54a9-bfa8-4f9a-bdd3-f211a98c975b
+# ╠═399e95e9-be88-4a0b-8c88-03d74fe0d76b
 # ╟─a36a2a5b-de0b-46a5-a97c-d0c6b1f2f9f4
 # ╟─25160d35-aa6b-4ed5-9199-a54d882dbfc9
 # ╟─441f1768-b9b3-49e1-87ab-060ff720948f
@@ -289,9 +331,17 @@ md"## Speed benchmarking"
 # ╠═3b249efd-55cb-4a65-a245-07296809c6b6
 # ╠═6461c5f0-5860-433d-8627-53a14dd342e4
 # ╠═52aa8d2e-16f5-49fc-86fd-0f1c3a325b3d
+# ╠═6338dd2a-be06-418f-ab48-c85865cd1e1f
 # ╠═ca063cc1-cd0e-48de-b65b-0e42c0f0df65
 # ╟─ac0e93c0-2662-4ea4-bcc3-3067aec41d28
+# ╟─62257b82-ac54-4360-951c-9192edb619a3
+# ╠═396c9109-d930-4f89-b280-ab23b918391f
 # ╠═251fd6eb-627b-4560-b692-d02bef8f089c
 # ╠═812ec2a4-b3ec-4240-a7bd-b80ddea7a748
 # ╠═1f90f558-272b-41b6-a4ba-c7bbcea3cf92
+# ╟─8f986516-75a7-46b2-86f5-4836d8b54193
+# ╠═1d8aba86-aba8-4567-a3f6-648d3b74e8e3
+# ╠═2f54285c-50cf-49e4-b2b0-cf9aa5fdf585
+# ╟─25c85fd1-1921-4707-8185-735751c0d914
+# ╠═8f635abb-c9ea-45ca-81ae-e679e0ba923d
 # ╟─c320aed9-7086-4dcc-8030-b3f281f5a1ec
