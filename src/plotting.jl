@@ -15,14 +15,13 @@ plotstructure(graph; kwargs...) = plotstructure(PlantStructure(graph); kwargs...
 @userplot StructurePlot
 
 function get_adj_matrix(ps::PlantStructure)
-    vs = PlantModules.vertices(ps)
-    n = length(vs)
-    adj_matrix = zeros(Bool, n, n)
-    for vertex in vs
-        neighbors = PlantModules.neighbors(ps, vertex)
-        adj_matrix[vertex, neighbors] .= true
-        adj_matrix[neighbors,  vertex] .= true
-    end
+    vertices = getnodes(ps)
+
+    adj_matrix = [
+        vertices[i] in getneighbors(vertices[j], ps)
+        for i in eachindex(vertices), j in eachindex(vertices)
+    ]
+
     return adj_matrix
 end
 
