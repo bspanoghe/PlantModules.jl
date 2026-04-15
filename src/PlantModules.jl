@@ -5,14 +5,14 @@ using Graphs # used to define plant structure
 import Graphs: edges, edgetype, has_edge, has_vertex, ne, nv, neighbors,
     inneighbors, outneighbors, vertices, is_directed, src, dst # To define own Graphs.jl `AbstractGraph`
 using SciMLBase # interface with ODE solver packages
+import SciMLBase: AbstractSciMLProblem
 using ModelingToolkit # simulation
 import ModelingToolkit: get_eqs, get_unknowns, get_ps, get_observed,
     get_continuous_events, get_discrete_events, get_systems, get_name, get_iv,
     get_gui_metadata, get_parent, get_systems # MTK internals
 import ModelingToolkit: parameter_values, setp # MTK internals for problem remaking
-import ModelingToolkit.SciMLBase.AbstractSciMLProblem
 using PlantGraphs, MultiScaleTreeGraph # graphs
-using RecipesBase, GraphRecipes # visualisation
+using RecipesBase, NetworkLayout # visualisation
 
 # # Exports
 # ## Own functions
