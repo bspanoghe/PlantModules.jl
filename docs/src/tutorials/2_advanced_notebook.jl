@@ -312,7 +312,7 @@ md"### Connecting to the environment"
 
 # ╔═╡ a5cbaceb-3387-4431-b4bd-b26867406721
 md"""
-We will again be using a single soil and air compartment, so there is little new in connecting the plant graph to the environment. However, for the visualisation of the resulting structure, removing the names of the structural modules with `names = ""` can give a clearer visualisation.
+We will again be using a single soil and air compartment, so there is little new in connecting the plant graph to the environment.
 """
 
 # ╔═╡ 58001eea-6986-495d-8278-88080bf09a18
