@@ -69,7 +69,11 @@ end
 vertices(g::PlantStructure) = g.vertices
 edges(g::PlantStructure) = g.edges
 pmvertex(g::PlantStructure{T}, v::T) where {T} = g.pmvertexdict[v]
-neighbors(g::PlantStructure{T}, v::T) where {T} = (haskey(g.neighbordict, v) || error("Vertex $v has no neighbors"); g.neighbordict[v])
+neighbors(g::PlantStructure{T}, v::T) where {T} = (
+    haskey(g.neighbordict, v) || error("Vertex $v has no neighbors");
+    g.neighbordict[v]
+)
+neighbors(g::PlantStructure{T}, v::T) where {T<:Integer} = PlantModules.neighbors(g, v) # for ambiguity issue with Graphs.neighbors
 
 edgetype(g::PlantStructure) = eltype(edges(g))
 inneighbors(g::PlantStructure{T}, v::T) where {T} = neighbors(g, v)
