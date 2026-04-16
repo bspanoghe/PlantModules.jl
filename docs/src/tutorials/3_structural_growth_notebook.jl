@@ -216,9 +216,6 @@ intergraph_connections = [(1, 2) => (getnodes(newtree)[1], :Soil), (1, 3) => (:L
 # ╔═╡ 52aa8d2e-16f5-49fc-86fd-0f1c3a325b3d
 plantstructure = PlantStructure(graphs, intergraph_connections);
 
-# ╔═╡ 6338dd2a-be06-418f-ab48-c85865cd1e1f
-PlantModules.neighbors(g::PlantStructure{T}, v::Integer) where {T} = (haskey(g.neighbordict, v) || error("Vertex $v has no neighbors"); g.neighbordict[v])
-
 # ╔═╡ ca063cc1-cd0e-48de-b65b-0e42c0f0df65
 plotstructure(plantstructure)
 
@@ -228,11 +225,22 @@ md"### Functional definition"
 # ╔═╡ 62257b82-ac54-4360-951c-9192edb619a3
 md"#### Coupling"
 
-# ╔═╡ 396c9109-d930-4f89-b280-ab23b918391f
-function empty_hydraulic_connection(; name, K)
-    @variables F(t)
+# ╔═╡ 767cb212-1e7d-4909-8be2-d873962c6294
+import PlantModules: t, d
 
-    eqs = [F ~ 0]
+# ╔═╡ 9232633a-5df0-4825-b6a9-d7efd5e036d7
+function inactive_hydraulic_module(; name)
+	@variables ΣF(t)
+	eqs = [d(ΣF) ~ 0]
+
+	return System(eqs, t; name)
+end
+
+# ╔═╡ 396c9109-d930-4f89-b280-ab23b918391f
+function inactive_hydraulic_connection(; name)
+    @variables F(t) = 0.0
+
+    eqs = [d(F) ~ 0]
     get_connection_eqset(node_MTK, nb_node_MTK, connection_MTK) = []
 	
     return System(eqs, t; name), get_connection_eqset
@@ -240,10 +248,10 @@ end
 
 # ╔═╡ 251fd6eb-627b-4560-b692-d02bef8f089c
 module_coupling = Dict(
-	:Meristem => [],
-	:Bud => [],
-    :Node => [hydraulic_module, constant_carbon_module],
-	:BudNode => [hydraulic_module, constant_carbon_module],
+	:Meristem => [inactive_hydraulic_module],
+	:Bud => [hydraulic_module, constant_carbon_module, constant_K_module],
+    :Node => [hydraulic_module, constant_carbon_module, constant_K_module],
+	:BudNode => [hydraulic_module, constant_carbon_module, constant_K_module],
 	:Internode => [hydraulic_module, constant_carbon_module, K_module],
 	:Leaf => [hydraulic_module, constant_carbon_module, K_module],
 	:Soil => [environmental_module, Ψ_soil_module, constant_K_module],
@@ -254,11 +262,11 @@ module_coupling = Dict(
 connecting_modules = Dict(
 	(:Soil, :Internode) => constant_hydraulic_connection,
 	(:Internode, :Node) => hydraulic_connection,
-	(:Node, :Bud) => empty_hydraulic_connection,
+	(:Node, :Bud) => hydraulic_connection,
 	(:Node, :BudNode) => hydraulic_connection,
 	(:BudNode, :Internode) => hydraulic_connection,
 	(:Node, :Leaf) => hydraulic_connection,
-	(:Internode, :Meristem) => empty_hydraulic_connection,
+	(:Internode, :Meristem) => inactive_hydraulic_connection,
 	(:Leaf, :Air) => daynight_hydraulic_connection
 );
 
@@ -268,8 +276,12 @@ plantcoupling = PlantCoupling(; module_coupling, connecting_modules);
 # ╔═╡ 8f986516-75a7-46b2-86f5-4836d8b54193
 md"#### Parameters"
 
+# ╔═╡ 6452a19d-fe5a-48b6-8ec8-d8759407a4dc
+default_changes = Dict([:Ψ => PlantModules.soilfunc(0.8)])
+
 # ╔═╡ 1d8aba86-aba8-4567-a3f6-648d3b74e8e3
 module_defaults = Dict(
+	:Bud => Dict(:shape => PlantModules.Sphere()),
 	:Node => Dict(:shape => PlantModules.Sphere()),
 	:BudNode => Dict(:shape => PlantModules.Sphere()),
 	:Leaf => Dict(:shape => PlantModules.Cuboid()),
@@ -278,13 +290,31 @@ module_defaults = Dict(
 );
 
 # ╔═╡ 2f54285c-50cf-49e4-b2b0-cf9aa5fdf585
-plantparams = PlantParameters(; module_defaults);
+plantparams = PlantParameters(; default_changes, module_defaults);
 
 # ╔═╡ 25c85fd1-1921-4707-8185-735751c0d914
 md"### Creating the system"
 
 # ╔═╡ 8f635abb-c9ea-45ca-81ae-e679e0ba923d
 system = generate_system(plantstructure, plantcoupling, plantparams);
+
+# ╔═╡ 7b8bbd0f-c650-49ef-b8d9-c42cd6d8da9e
+prob = ODEProblem(system, [], (0.0, 480.0), sparse = true)
+
+# ╔═╡ 8363c723-74e0-49bf-88ae-e164919f4681
+sol = solve(prob, FBDF())
+
+# ╔═╡ 64724bb9-05c2-448c-8f72-edb88edbce45
+plotgraph(sol, plantstructure, varname = :V, structmod = :Internode)
+
+# ╔═╡ 8743b00d-5699-4201-9a23-0061552495a0
+plotgraph(sol, plantstructure, varname = :Ψ, structmod = [:Internode, :Bud, :Soil])
+
+# ╔═╡ e48e51dc-de57-4186-891f-7c74fae1ebd1
+plotgraph(sol, plantstructure, varname = :W, structmod = :Bud)
+
+# ╔═╡ 853bbb05-d425-4ba4-aa23-c0af0ed4d021
+plotgraph(sol, plantstructure, varname = :W, structmod = :Soil)
 
 # ╔═╡ c320aed9-7086-4dcc-8030-b3f281f5a1ec
 md"## Speed benchmarking"
@@ -331,17 +361,25 @@ md"## Speed benchmarking"
 # ╠═3b249efd-55cb-4a65-a245-07296809c6b6
 # ╠═6461c5f0-5860-433d-8627-53a14dd342e4
 # ╠═52aa8d2e-16f5-49fc-86fd-0f1c3a325b3d
-# ╠═6338dd2a-be06-418f-ab48-c85865cd1e1f
 # ╠═ca063cc1-cd0e-48de-b65b-0e42c0f0df65
 # ╟─ac0e93c0-2662-4ea4-bcc3-3067aec41d28
 # ╟─62257b82-ac54-4360-951c-9192edb619a3
+# ╠═767cb212-1e7d-4909-8be2-d873962c6294
+# ╠═9232633a-5df0-4825-b6a9-d7efd5e036d7
 # ╠═396c9109-d930-4f89-b280-ab23b918391f
 # ╠═251fd6eb-627b-4560-b692-d02bef8f089c
 # ╠═812ec2a4-b3ec-4240-a7bd-b80ddea7a748
 # ╠═1f90f558-272b-41b6-a4ba-c7bbcea3cf92
 # ╟─8f986516-75a7-46b2-86f5-4836d8b54193
+# ╠═6452a19d-fe5a-48b6-8ec8-d8759407a4dc
 # ╠═1d8aba86-aba8-4567-a3f6-648d3b74e8e3
 # ╠═2f54285c-50cf-49e4-b2b0-cf9aa5fdf585
 # ╟─25c85fd1-1921-4707-8185-735751c0d914
 # ╠═8f635abb-c9ea-45ca-81ae-e679e0ba923d
+# ╠═7b8bbd0f-c650-49ef-b8d9-c42cd6d8da9e
+# ╠═8363c723-74e0-49bf-88ae-e164919f4681
+# ╠═64724bb9-05c2-448c-8f72-edb88edbce45
+# ╠═8743b00d-5699-4201-9a23-0061552495a0
+# ╠═e48e51dc-de57-4186-891f-7c74fae1ebd1
+# ╠═853bbb05-d425-4ba4-aa23-c0af0ed4d021
 # ╟─c320aed9-7086-4dcc-8030-b3f281f5a1ec
