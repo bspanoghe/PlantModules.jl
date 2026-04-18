@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.20.21
+# v0.20.23
 
 using Markdown
 using InteractiveUtils
@@ -16,6 +16,7 @@ end
 # ╔═╡ 399e95e9-be88-4a0b-8c88-03d74fe0d76b
 begin
 	Pkg.activate("../..")
+	using PlutoUI; TableOfContents()
 	using PlantModules
 	using ModelingToolkit, OrdinaryDiffEq, Plots
 	using VirtualPlantLab, GLMakie
@@ -298,8 +299,11 @@ md"### Creating the system"
 # ╔═╡ 8f635abb-c9ea-45ca-81ae-e679e0ba923d
 system = generate_system(plantstructure, plantcoupling, plantparams);
 
+# ╔═╡ 9b90ddc4-cee5-4063-9f83-ecbff8c7596c
+tspan = (0.0, 24.0)
+
 # ╔═╡ 7b8bbd0f-c650-49ef-b8d9-c42cd6d8da9e
-prob = ODEProblem(system, [], (0.0, 480.0), sparse = true)
+prob = ODEProblem(system, [], tspan, sparse = true)
 
 # ╔═╡ 8363c723-74e0-49bf-88ae-e164919f4681
 sol = solve(prob, FBDF())
@@ -315,9 +319,6 @@ plotgraph(sol, plantstructure, varname = :W, structmod = :Bud)
 
 # ╔═╡ 853bbb05-d425-4ba4-aa23-c0af0ed4d021
 plotgraph(sol, plantstructure, varname = :W, structmod = :Soil)
-
-# ╔═╡ c320aed9-7086-4dcc-8030-b3f281f5a1ec
-md"## Speed benchmarking"
 
 # ╔═╡ Cell order:
 # ╟─2dfdb97f-361c-47bd-b65a-41b02bc8bc57
@@ -376,10 +377,10 @@ md"## Speed benchmarking"
 # ╠═2f54285c-50cf-49e4-b2b0-cf9aa5fdf585
 # ╟─25c85fd1-1921-4707-8185-735751c0d914
 # ╠═8f635abb-c9ea-45ca-81ae-e679e0ba923d
+# ╠═9b90ddc4-cee5-4063-9f83-ecbff8c7596c
 # ╠═7b8bbd0f-c650-49ef-b8d9-c42cd6d8da9e
 # ╠═8363c723-74e0-49bf-88ae-e164919f4681
 # ╠═64724bb9-05c2-448c-8f72-edb88edbce45
 # ╠═8743b00d-5699-4201-9a23-0061552495a0
 # ╠═e48e51dc-de57-4186-891f-7c74fae1ebd1
 # ╠═853bbb05-d425-4ba4-aa23-c0af0ed4d021
-# ╟─c320aed9-7086-4dcc-8030-b3f281f5a1ec
