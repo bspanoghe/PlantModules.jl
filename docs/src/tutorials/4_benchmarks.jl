@@ -203,7 +203,8 @@ function get_stats(plantstructure)
 	module_defaults = Dict(
 		:Soil => Dict(:W_max => num_evaporating_segments * 1e2, :K => 1.0),
 		:Air => Dict(:W_r => 0.7, :K => 1e-2)
-	);
+	)
+	plantparams = PlantParameters(; module_defaults)
 	
 	system_stats = @timed generate_system(
 		plantstructure, plantcoupling, plantparams
