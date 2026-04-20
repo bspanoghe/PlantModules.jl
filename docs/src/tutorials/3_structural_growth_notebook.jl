@@ -1,39 +1,67 @@
 ### A Pluto.jl notebook ###
-# v0.20.24
+# v0.20.21
 
 using Markdown
 using InteractiveUtils
 
+# ╔═╡ 6dae54ca-aa7f-4504-b985-195099162109
+using Pkg; Pkg.activate("../..")
+
+# ╔═╡ 813b229f-c17e-4a10-9945-dc9ad9066724
+using PlutoUI; TableOfContents()
+
+# ╔═╡ b1f03d85-2fa4-4746-a5d8-606671d8375e
+using PlantModules
+
+# ╔═╡ 2ea18a37-041a-48a4-9af0-d3e2bc109c63
+using ModelingToolkit, OrdinaryDiffEq, Plots
+
+# ╔═╡ 5f494ba3-8c68-4728-9627-3dac9fe7fcd6
+using VirtualPlantLab, GLMakie
+
+# ╔═╡ 986648b3-6c8a-465a-87a0-e0ce5fbbefa8
+using SkyDomes, PlantBiophysics, 
+	PlantBiophysics.PlantMeteo, PlantBiophysics.PlantSimEngine
+
+# ╔═╡ 6b1b3872-8dec-45fa-99d9-9a6903e2170a
+using DataInterpolations
+
 # ╔═╡ 2dfdb97f-361c-47bd-b65a-41b02bc8bc57
-md"# Tutorial 3: Functional-structural growth modelling"
+md"# Tutorial 3: 3D geometry modelling"
 
 # ╔═╡ 87a39d4c-6f22-447e-bd45-1f133b5bb7b3
 md"""
-In the tutorials so far, we have only considered the simulation of water flows for static plant structures. In this tutorial, we will finally create a real FSPM by simulating functional- and structural growth simultaneously, using [`VirtualPlantLab.jl`](https://virtualplantlab.com/stable/) for the simulation of structural growth.
+In this tutorial, we will more advanced functionality relating to the 3D structure of our plant, including the simulation of different soil compartments and ray tracing. As our package relies on [`VirtualPlantLab.jl`](https://virtualplantlab.com/stable/) for most structural modelling functionality, it will play a key role in this notebook.
 """
 
 # ╔═╡ e52a8761-f703-4dec-b02b-62d3cc831b4f
 md"## Setup"
 
-# ╔═╡ 399e95e9-be88-4a0b-8c88-03d74fe0d76b
-using Pkg; Pkg.activate("../..")
-using PlutoUI; TableOfContents()
-using PlantModules
-using ModelingToolkit, OrdinaryDiffEq, Plots
+# ╔═╡ dcb943cf-762f-41dd-9231-e07e9d9cda7e
 import Plots: plot
-using VirtualPlantLab, GLMakie
+
+# ╔═╡ 79690228-9815-4bf4-babf-329050d9aca0
 import VirtualPlantLab: Mesh
+
+# ╔═╡ d40434c5-4fda-4f2b-a37b-28137924a236
 import VirtualPlantLab.PlantGeomPrimitives: Vec
-using SkyDomes, PlantBiophysics, 
-	PlantBiophysics.PlantMeteo, PlantBiophysics.PlantSimEngine
-using DataInterpolations
 
 # ╔═╡ a36a2a5b-de0b-46a5-a97c-d0c6b1f2f9f4
 md"## Context"
 
 # ╔═╡ 25160d35-aa6b-4ed5-9199-a54d882dbfc9
 md"""
-We build further on the [tree growth modelling tutorial](https://virtualplantlab.com/stable/tutorials/from_tree_forest/tree/) from `VirtualPlantLab.jl`. 
+As per typical FSPM fashion, we will again model the growth of a tree. However, this time there will be two novelties:
+- We simulate carbon dynamics in the leaves based on a ray tracer, a carbon assimilation model and a stomatal conductance model, all of which are available in [`VirtualPlantLab`](https://virtualplantlab.com/stable).
+- We simulate water dynamics in a soil discretized into multiple compartments.
+"""
+
+# ╔═╡ d3fdc6b7-e69d-425e-ae3b-99e9497b8cb5
+md"## Structural definition"
+
+# ╔═╡ 54eb2298-38cf-49dc-8ca9-44872f0d2375
+md"""
+We build further on the [tree growth modelling tutorial](https://virtualplantlab.com/stable/tutorials/from_tree_forest/tree/) from `VirtualPlantLab`. 
 
 In the original version, the tree grows by two rewriting steps:
 - Tree meristems grow into phytomers, occuring every rewrite step,
@@ -41,14 +69,10 @@ In the original version, the tree grows by two rewriting steps:
 and one elongation step:
 - Every internode elongates for a set fraction of its current length.
 
-In this tutorial, we will replace the basic exponential elongation with growth based on water relations, and make the structural changes depend on the plant's hydraulic status.
 """
 
-# ╔═╡ 441f1768-b9b3-49e1-87ab-060ff720948f
-md"## Original tutorial"
-
 # ╔═╡ 83fadc9e-74a5-4ddd-915a-0b8692c9280f
-md"### Structural module definition"
+md"### Structural modules"
 
 # ╔═╡ b27f3786-84b0-469f-ab0c-a60f02030efd
 Base.@kwdef struct Meristem <: VirtualPlantLab.Node 
@@ -72,13 +96,13 @@ end
 
 # ╔═╡ fc109086-c42c-474d-8ab0-4add40a07eed
 Base.@kwdef mutable struct Internode <: VirtualPlantLab.Node
-	D = [0.5, 10] # internodes are cylinders starting at 0.5 cm radius, 10 cm length
+	D = [0.5, 10]
 	mat::Lambertian{1} = Lambertian(τ = 0.05, ρ = 0.1)
 end
 
 # ╔═╡ 2ff96078-4a91-427b-8c39-689d47600c05
 Base.@kwdef mutable struct Leaf <: VirtualPlantLab.Node
-	D = [5, 3, 0.05] # leaves are cuboids starting at 5 cm long, 3 cm wide and 0.05 cm thick
+	D = [5, 3, 0.05]
 	mat::Lambertian{1} = Lambertian(τ = 0.05, ρ = 0.1)
 	PAR_samples::Vector{Float64} = Float64[]
 	PAR_func::Function = zero
@@ -235,7 +259,7 @@ end
 function create_soil()
     soil = Rectangle(length = 21.0, width = 21.0)
     rotatey!(soil, π/2) ## To put it in the XY plane
-    VirtualPlantLab.translate!(soil, Vec(0.0, 0.0, 0.0))
+	
     return soil
 end
 
@@ -319,9 +343,6 @@ plot(
 	legend = false
 )
 
-# ╔═╡ bf56547c-3d1d-4134-ba92-5f6c521e1d07
-md"## Extending the model"
-
 # ╔═╡ 7edd2626-a111-45bb-a62c-a526d8698f86
 md"### Defining the environment"
 
@@ -344,7 +365,7 @@ plantstructure = PlantStructure(graphs, intergraph_connections);
 plotstructure(plantstructure)
 
 # ╔═╡ ac0e93c0-2662-4ea4-bcc3-3067aec41d28
-md"### Functional definition"
+md"## Functional definition"
 
 # ╔═╡ 338fcbe4-f8ed-4a5d-a496-34e8199c35fb
 md"#### Functional modules"
@@ -379,7 +400,6 @@ function get_assimilation_rate(PAR_flux, T)
 	m = ModelList(
 		Fvcb(), # calculate CO2 assimilation rate
 		Medlyn(0.03, 0.92), # calculate stomatal conductance, see https://onlinelibrary.wiley.com/doi/epdf/10.1111/j.1365-2486.2010.02375.x
-		# Beer(k), # calculate amount of light intercepted
 		status = (Tₗ = meteo[:T], Cₛ = meteo[:Cₐ], Dₗ = meteo[:VPD], RI_PAR_f = meteo[:Ri_PAR_f], aPPFD = PAR_flux)
 	)
 	run!(m, meteo)
@@ -458,8 +478,8 @@ module_defaults = Dict(
 	:Bud => Dict(:shape => PlantModules.Sphere()),
 	:Node => Dict(:shape => PlantModules.Sphere()),
 	:BudNode => Dict(:shape => PlantModules.Sphere()),
-	:Leaf => Dict(:shape => PlantModules.Cuboid(), :M_c => 0.5),
-	:Soil => Dict(:W_max => 1e4, :K => 1.0),
+	:Leaf => Dict(:shape => PlantModules.Cuboid(), :M_c => 1.0),
+	:Soil => Dict(:W_max => 1e4),
 	:Air => Dict(:W_r => 0.6, :K => 1e-3)
 );
 
@@ -503,10 +523,20 @@ plotgraph(sol, plantstructure, varname = :W, structmod = :Soil)
 # ╟─2dfdb97f-361c-47bd-b65a-41b02bc8bc57
 # ╟─87a39d4c-6f22-447e-bd45-1f133b5bb7b3
 # ╟─e52a8761-f703-4dec-b02b-62d3cc831b4f
-# ╠═399e95e9-be88-4a0b-8c88-03d74fe0d76b
+# ╠═6dae54ca-aa7f-4504-b985-195099162109
+# ╠═813b229f-c17e-4a10-9945-dc9ad9066724
+# ╠═b1f03d85-2fa4-4746-a5d8-606671d8375e
+# ╠═2ea18a37-041a-48a4-9af0-d3e2bc109c63
+# ╠═dcb943cf-762f-41dd-9231-e07e9d9cda7e
+# ╠═5f494ba3-8c68-4728-9627-3dac9fe7fcd6
+# ╠═79690228-9815-4bf4-babf-329050d9aca0
+# ╠═d40434c5-4fda-4f2b-a37b-28137924a236
+# ╠═986648b3-6c8a-465a-87a0-e0ce5fbbefa8
+# ╠═6b1b3872-8dec-45fa-99d9-9a6903e2170a
 # ╟─a36a2a5b-de0b-46a5-a97c-d0c6b1f2f9f4
 # ╟─25160d35-aa6b-4ed5-9199-a54d882dbfc9
-# ╟─441f1768-b9b3-49e1-87ab-060ff720948f
+# ╟─d3fdc6b7-e69d-425e-ae3b-99e9497b8cb5
+# ╠═54eb2298-38cf-49dc-8ca9-44872f0d2375
 # ╟─83fadc9e-74a5-4ddd-915a-0b8692c9280f
 # ╠═b27f3786-84b0-469f-ab0c-a60f02030efd
 # ╠═b99eb3ee-26dc-4396-9a61-aba45f7462cf
@@ -542,7 +572,6 @@ plotgraph(sol, plantstructure, varname = :W, structmod = :Soil)
 # ╠═6848349a-51c4-4f89-98df-16784ea140b6
 # ╠═0d9dcf18-0d23-4aa4-ade6-421b7b2fdb07
 # ╠═b2fcfbb3-968c-4ace-b344-484134c72df4
-# ╟─bf56547c-3d1d-4134-ba92-5f6c521e1d07
 # ╟─7edd2626-a111-45bb-a62c-a526d8698f86
 # ╠═1ced3c28-55be-4f4e-99d0-c38f6cc79396
 # ╠═082576ba-0932-432b-b173-c844fb57bfc0
