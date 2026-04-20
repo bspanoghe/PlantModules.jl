@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.20.24
+# v0.20.21
 
 using Markdown
 using InteractiveUtils
@@ -25,7 +25,7 @@ md"# Package speed benchmarking"
 
 # ╔═╡ 1b98b39f-c3b9-49f2-9f34-ee854b2da83c
 md"""
-In this notebook, we will benchmark the speed of the package. Considering our framework can technically create any DAE-based model, we will limit this benchmark to the core functional modules of `PlantModules.jl`. Addiitonally, we consider two very straightforward plant structures for simplicity's sake.
+In this notebook, we will benchmark the speed of the package. Considering our framework can technically create any DAE-based model, we will limit this benchmark to the core functional modules of `PlantModules.jl`. Additionally, we consider two very straightforward plant structures for simplicity's sake.
 """
 
 # ╔═╡ 02479490-ddee-4f5c-b34a-c6225c449a9e
@@ -165,7 +165,7 @@ The parameter values are defined in function of the size of the plant in order t
 function get_params(plantstructure)
 	num_evaporating_segments = length(getneighbors(getnodes(plantstructure)[end], plantstructure))
 	module_defaults = Dict(
-		:Segment => Dict(:K_s => 1000.0),
+		:Segment => Dict(:K_s => 100.0),
 		:Soil => Dict(:W_max => num_evaporating_segments * 1e2),
 		:Air => Dict(:K => 1e-2, :W_r => 0.7)
 	)
@@ -399,6 +399,9 @@ p_size_branching = plot_size(rewrite_steps_set, stats_branching)
 # ╔═╡ c0cedaa5-5ca2-4479-bead-7ee289cc5fcf
 p_time_branching = plot_time(rewrite_steps_set, stats_branching)
 
+# ╔═╡ 468c4cbe-94b4-474c-ae85-efa8a828b5a2
+plotgraph(stats_branching[end][5].value, get_structure_branching(6)[2], varname = :Ψ, structmod = :Segment)
+
 # ╔═╡ Cell order:
 # ╟─3c306ef3-2546-435e-b1b6-c5325499590e
 # ╟─1b98b39f-c3b9-49f2-9f34-ee854b2da83c
@@ -444,7 +447,7 @@ p_time_branching = plot_time(rewrite_steps_set, stats_branching)
 # ╟─8fb7f517-e071-4c0d-b739-a4825708426a
 # ╠═cea4d360-f9f6-4b48-96fd-7c2cc82a0d77
 # ╟─01be5dc8-8c1f-497b-8f8f-a92ac3c5b29d
-# ╠═61e5f480-bfc8-470d-bc0f-50853b2c08ca
+# ╟─61e5f480-bfc8-470d-bc0f-50853b2c08ca
 # ╟─4d43634f-b03a-4988-997e-d133e74dca2c
 # ╟─aa103b3f-b6d7-498a-9953-8b3e9a20fe5d
 # ╟─49b41f29-0b19-483d-b903-70a254b1f19e
@@ -463,3 +466,4 @@ p_time_branching = plot_time(rewrite_steps_set, stats_branching)
 # ╠═7d3047b5-c8ff-4c07-8b27-e76b18534c29
 # ╠═347160b8-368a-420a-8f65-8b50e4449c2d
 # ╠═c0cedaa5-5ca2-4479-bead-7ee289cc5fcf
+# ╠═468c4cbe-94b4-474c-ae85-efa8a828b5a2
