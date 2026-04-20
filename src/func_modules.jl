@@ -6,7 +6,7 @@ d = Differential(t); # differential operator
 
 # ## Hydraulics
 """
-    hydraulic_module(; name, shape, ϕ_D, E_D, Γ, T, D, Ψ, M)
+    hydraulic_module(; name, shape, ϕ_D, E_D, Γ, T, D, Ψ, M, h, α)
 
 Return a ModelingToolkit System describing the turgor-driven growth of a plant compartment.
 
@@ -19,6 +19,8 @@ This module still requires a module describing the osmotically active metabolite
 - `E_D`: The dimensional elastic modulus [MPa], must be a vector with a value for every dimension of the compartment's shape.
 - `Γ`: The yield turgor pressure [MPa].
 - `T`: The temperature [K].
+- `h`: The node's height above a reference point of choice [cm].
+- `α`: The LogSumExp smoothing parameter [N/A].
 
 ## Initial values
 - `D`: The dimensions [cm], must be a vector with a value for every dimension of the compartment's shape.
@@ -26,7 +28,7 @@ This module still requires a module describing the osmotically active metabolite
 - `M`: The osmotically active metabolite concentration [mol/cm^3].
 - `h`: The height above a chosen reference level [cm].
 """
-function hydraulic_module(; name, shape::ModuleShape, ϕ_D, E_D, Γ, T, D, Ψ, M, h)
+function hydraulic_module(; name, shape::ModuleShape, ϕ_D, E_D, Γ, T, D, Ψ, M, h, α)
     D, ϕ_D, E_D = [correctdimensionality(shape, var) for var in [D, ϕ_D, E_D]]
     # turns scalar values into vectors of correct length
 
@@ -50,6 +52,7 @@ function hydraulic_module(; name, shape::ModuleShape, ϕ_D, E_D, Γ, T, D, Ψ, M
         Γ = Γ, [description = "Yield turgor pressure"], #, unit = u"MPa"],
         Pₕ = Pₕ, [description = "Gravitational water potential"], #, unit = u"MPa"],
         g = g, [description = "Gravitational acceleration"], #, unit = u"hN / g"] # (from N / kg) Pa = N/m^2 => MPa = hN/cm^2
+        α = α, [description = "LogSumExp smoothing parameter"]
     )
     @variables (
         Ψ(t), [description = "Total water potential"], #, unit = u"MPa"],
@@ -409,6 +412,6 @@ multi_connection_eqs(node_MTK, connection_MTKs) = [
 
 default_values = Dict(
     :shape => Cylinder(), :ϕ_D => 0.02, :E_D => 50.0, :Γ => 0.3, :T => 298.15, :D => [0.5, 5.0],
-    :Ψ => 0.0, :M => 300.0e-6, :h => 0.0, :W_max => 1.0e6, :W_r => 0.8, :K_s => 10.0, :K => 1.0e3,
+    :Ψ => 0.0, :M => 300.0e-6, :α => 40.0, :h => 0.0, :W_max => 1.0e6, :W_r => 0.8, :K_s => 10.0, :K => 1.0e3,
     :t_sunrise => 8, :t_sunset => 20, :η_night => 0.1, :A_max => 2.0e-6, :M_c => 0.05
 )
