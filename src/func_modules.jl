@@ -70,7 +70,7 @@ function hydraulic_module(; name, shape::ModuleShape, ϕ_D, E_D, Γ, T, D, Ψ, M
         d(W) ~ ΣF, # Water content changes due to flux (depending on water potentials as defined in connections)
         V ~ W / ρ_w, # Volume is directly related to water content
         V ~ volume(shape, D), # Volume is also directly related to compartment dimensions
-        [d(D[i]) ~ D[i] * ϕ_D[i] * P_unit * logsumexp((P - Γ) / P_unit, α = 40) + D[i] * d(P) / E_D[i] for i in eachindex(D)]..., # Compartment dimensions can only change due to a change in pressure
+        [d(D[i]) ~ D[i] * ϕ_D[i] * P_unit * logsumexp((P - Γ) / P_unit; α) + D[i] * d(P) / E_D[i] for i in eachindex(D)]..., # Compartment dimensions can only change due to a change in pressure
     ]
 
     return System(eqs, t; name)
