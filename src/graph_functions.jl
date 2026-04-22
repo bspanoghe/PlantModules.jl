@@ -51,6 +51,33 @@ getattributes(node::Dict) = node[:attributes]
 getstructmod(node::Dict) = node[:type]
 getid(node::Dict) = node[:id]
 
+# ## Implementation for Base Julia representation as an `Array` of any other implementation type
+
+getnodes(graph::Array) = reshape(graph, :)
+function getneighbors(node, graph::Array)
+    idx = findfirst(n -> getid(n) == getid(node), graph).I
+
+    n = length(idx)
+	nb_offsets = [zeros(Int64, n) for _ in 1:2*n]
+	for i in 1:n
+		nb_offsets[2*i-1][i] = 1
+		nb_offsets[2*i][i] = -1
+	end
+
+	nb_indices = [idx .+ nb_offset for nb_offset in nb_offsets]
+
+    neighbors = [
+        graph[nb_index...]
+        for nb_index in nb_indices
+        if checkbounds(Bool, graph, nb_index...)
+    ]
+
+    return neighbors
+end
+# getattributes
+# getstructmod
+# getid
+
 # ## Implementation for PlantGraphs.jl
 
 # ### GraphNode / StaticGraph (nodes combined into graph)
@@ -92,10 +119,13 @@ function getattributes(node::PlantGraphs.Node)
         return Dict([])
     end
 
-    return Dict([field => getfield(node, field) for field in fields])
+    non_id_fields = filter(f -> f != :id, fields) # :id is reserved for the id of the node, not a normal attribute
+
+    return Dict([field => getfield(node, field) for field in non_id_fields])
 end
 getstructmod(node::PlantGraphs.Node) = typeof(node).name.name
-getid(node::PlantGraphs.Node) = 1 # The entire graph only consists of one node if the input type is Node
+getid(node::PlantGraphs.Node) = :id in fieldnames(typeof(node)) ? getfield(node, :id) : 1 
+    # The entire graph only consists of one node if the input type is Node, unless an id field is specified (for use in Arrays)
 
 # ## MyPGNode (own implementation acquired by graph conversion)
 
