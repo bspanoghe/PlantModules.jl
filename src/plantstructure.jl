@@ -99,6 +99,8 @@ function PlantStructure(graphs::Vector, intergraph_connections::Vector; return_i
 
     # connect nodes to single graph
     for (graphnr, graph) in enumerate(graphs)
+        @assert allunique(getid.(getnodes(graph))) "Graph $graphnr: ids of nodes are not unique"
+
         for node in getnodes(graph)
             node_id = id_dict[node]
             push!(vertices, node_id)
