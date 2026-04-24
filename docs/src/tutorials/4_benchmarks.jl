@@ -31,6 +31,9 @@ In this notebook, we will benchmark the speed of the package. Considering our fr
 # ╔═╡ 02479490-ddee-4f5c-b34a-c6225c449a9e
 md"## Setup"
 
+# ╔═╡ 5f51b5e9-ee98-48b6-b7ee-23cd8d438829
+Pkg.status()
+
 # ╔═╡ 92d46933-9ba5-4e10-89ef-2cfa1e88ed6a
 md"## System definition"
 
@@ -162,14 +165,14 @@ The parameter values are defined in function of the size of the plant in order t
 """
 
 # ╔═╡ 51003cf2-0d80-4a40-bb52-cfec7920c798
-function get_params(plantstructure)
+function get_params(plantstructure; default_changes = Dict{Symbol, Float64}())
 	num_evaporating_segments = length(getneighbors(getnodes(plantstructure)[end], plantstructure))
 	module_defaults = Dict(
-		:Segment => Dict(:K_s => 100.0),
+		:Segment => Dict(:K_s => 500.0),
 		:Soil => Dict(:W_max => num_evaporating_segments * 1e2),
 		:Air => Dict(:K => 1e-2, :W_r => 0.7)
 	)
-	plantparams = PlantParameters(; module_defaults)
+	plantparams = PlantParameters(; default_changes, module_defaults)
 
 	return plantparams
 end
@@ -276,16 +279,49 @@ plotgraph(
 # ╔═╡ 4d43634f-b03a-4988-997e-d133e74dca2c
 md"## Benchmarking"
 
-# ╔═╡ aa103b3f-b6d7-498a-9953-8b3e9a20fe5d
+# ╔═╡ db53873c-5213-4b66-bcf1-0213b522cab8
 md"""
-Now let's get to the actual benchmarking. We will perform and time the system generation, problem generation and problem solving for differing numbers of rewrite steps to evaluate how computation time scales with system size.
+Now let's get to the actual benchmarking. We will start off by timing the system generation, problem generation and problem solving for differing numbers of rewrite steps to evaluate how computation time scales with system size. Afterwards, we will compare the solving time in function of the smoothing parameter α, which controls the steepness of the transition between growth and no growth at the yield threshold.
 """
+
+# ╔═╡ d491c24e-46e8-40ca-9f5f-2f76e7e95c06
+function get_stats(plantstructure; tspan = (0.0, 7*24.0))
+	plantparams = get_params(plantstructure)
+	
+	system_stats = @timed generate_system(
+		plantstructure, plantcoupling, plantparams
+	)
+	prob_stats = @timed ODEProblem(
+		system_stats.value, [], tspan, sparse = true
+	)
+	sol_stats = @timed solve(prob_stats.value, FBDF())
+
+	num_nodes = length(getnodes(plantstructure))
+	num_variables = length(unknowns(system_stats.value))
+
+	return num_nodes, num_variables, system_stats, prob_stats, sol_stats
+end
+
+# ╔═╡ 9aac7a47-36ab-48de-b7f0-dd686bde4458
+md"### Per-step breakdown"
 
 # ╔═╡ 49b41f29-0b19-483d-b903-70a254b1f19e
 md"""
 !!! warning
-	Note that all  benchmarks are based on only a single run, which makes them somewhat inconsistent compared to taking the median of a sample of runs. The reason for this is that we also benchmark function compilation time, which only triggers the first time a function method is used, making it non-trivial to get a sample of.
+	Note that all  benchmarks for the per-step breakdown are based on only a single run, which makes them somewhat inconsistent compared to taking the median of a sample of runs. The reason for this is that we also benchmark function compilation time, which only triggers the first time a function method is used, making it non-trivial to get a sample of.
 """
+
+# ╔═╡ 45de608d-9bd1-49c8-8dd3-1d97b47ad2bc
+function benchmark_linear(rewrite_steps)
+	plant, plantstructure = get_structure_linear(rewrite_steps)
+	return get_stats(plantstructure)
+end
+
+# ╔═╡ c484bbd7-6171-4976-8d0a-a92e2bf7980a
+function benchmark_branching(rewrite_steps)
+	plant, plantstructure = get_structure_branching(rewrite_steps)
+	return get_stats(plantstructure)
+end
 
 # ╔═╡ 9900c521-75e0-492c-9010-24034c6ddf62
 function stackedbar(xs, ys; kwargs...)
@@ -342,41 +378,11 @@ function plot_time(rewrite_steps_set, stats)
 	)
 end
 
-# ╔═╡ d491c24e-46e8-40ca-9f5f-2f76e7e95c06
-function get_stats(plantstructure; tspan = (0.0, 7*24.0))
-	plantparams = get_params(plantstructure)
-	
-	system_stats = @timed generate_system(
-		plantstructure, plantcoupling, plantparams
-	)
-	prob_stats = @timed ODEProblem(
-		system_stats.value, [], tspan, sparse = true
-	)
-	sol_stats = @timed solve(prob_stats.value, FBDF())
-
-	num_nodes = length(getnodes(plantstructure))
-	num_variables = length(unknowns(system_stats.value))
-
-	return num_nodes, num_variables, system_stats, prob_stats, sol_stats
-end
-
-# ╔═╡ 45de608d-9bd1-49c8-8dd3-1d97b47ad2bc
-function benchmark_linear(rewrite_steps)
-	plant, plantstructure = get_structure_linear(rewrite_steps)
-	return get_stats(plantstructure)
-end
-
-# ╔═╡ c484bbd7-6171-4976-8d0a-a92e2bf7980a
-function benchmark_branching(rewrite_steps)
-	plant, plantstructure = get_structure_branching(rewrite_steps)
-	return get_stats(plantstructure)
-end
-
 # ╔═╡ 52db86d9-fdff-43b7-978a-19553d218afc
 rewrite_steps_set = [2, 4, 6] # note not to include `rewrite_steps_test`, as the functions have already compiled for this system size
 
 # ╔═╡ f4d4311a-066e-4111-b134-0e465a41970d
-md"### Linear"
+md"#### Linear structure"
 
 # ╔═╡ 1e339ee4-7b19-4bb2-b2f1-7f82d9cd1762
 stats_linear = [benchmark_linear(rewrite_steps) for rewrite_steps in rewrite_steps_set];
@@ -388,7 +394,7 @@ p_size_linear = plot_size(rewrite_steps_set, stats_linear)
 p_time_linear = plot_time(rewrite_steps_set, stats_linear)
 
 # ╔═╡ 27431fdd-8159-4048-aaf7-084489cd9d29
-md"### Branching"
+md"#### Branching structure"
 
 # ╔═╡ 7d3047b5-c8ff-4c07-8b27-e76b18534c29
 stats_branching = [benchmark_branching(rewrite_steps) for rewrite_steps in rewrite_steps_set];
@@ -399,8 +405,59 @@ p_size_branching = plot_size(rewrite_steps_set, stats_branching)
 # ╔═╡ c0cedaa5-5ca2-4479-bead-7ee289cc5fcf
 p_time_branching = plot_time(rewrite_steps_set, stats_branching)
 
-# ╔═╡ 468c4cbe-94b4-474c-ae85-efa8a828b5a2
-plotgraph(stats_branching[end][5].value, get_structure_branching(6)[2], varname = :Ψ, structmod = :Segment)
+# ╔═╡ 467eb700-d7c4-4be7-895b-d8fb81503368
+md"### Influence of the smoothing parameter α"
+
+# ╔═╡ 41d7e92a-57a2-40e0-9f7b-21150f751a91
+mean(xs::AbstractArray) = sum(xs)/length(xs)
+
+# ╔═╡ 4b3d2bcf-e64d-4850-abde-2029cdc70da7
+std(xs::AbstractArray) = sqrt( sum( (xs .- mean(xs)).^2 ) / (length(xs)-1) )
+
+# ╔═╡ dbfbe7ef-dafe-470a-9374-23e24fdf131f
+plant_smoothing, plantstructure_smoothing = get_structure_branching(4);
+
+# ╔═╡ e186373c-fe99-40b9-9ce3-e10befb7f1b2
+function benchmark_solving(plantstructure, default_changes; 
+		n_samples = 10, tspan = (0.0, 7*24.0))
+	
+	plantparams = get_params(plantstructure; default_changes)
+
+	system = generate_system(plantstructure, plantcoupling, plantparams)
+	prob = ODEProblem(system, [], tspan, sparse = true)
+	sol_times = [@elapsed solve(prob, FBDF()) for _ in 1:n_samples]
+
+	return sol_times
+end
+
+# ╔═╡ c17e3656-eb2a-4590-99ba-0e094ae7a8e2
+α_set = [4, 40, 400]
+
+# ╔═╡ 283810bf-9bc5-49d8-8120-35c32a857076
+begin
+	plot(xlims = (-0.5, 0.5), ylims = (0.0, 0.5), title = "Influence of α on thresholding behaviour", xlabel = "x")
+	for α in α_set
+		plot!(x -> logsumexp(x; α), label = "α = $α", linewidth = 3, linestyle = :dashdotdot)
+	end
+	plot!()
+end
+
+# ╔═╡ 9b73b712-0db2-43e2-b595-7cc989959f20
+sol_times_set = [
+	benchmark_solving(plantstructure_smoothing, Dict(:α => α))
+	for α in α_set
+];
+
+# ╔═╡ b568ad1e-b874-44f1-9155-0a0057ae01c4
+begin
+	scatter(
+		α_set, mean.(sol_times_set), yerr = std.(sol_times_set),
+		legend = false, xscale = :log, xticks = [4, 40, 400],
+		xlabel = "Smoothing parameter α", ylabel = "Solving time (s)", 
+		title = "Solving time in function of α",
+		ylims = (0, ceil(maximum(reduce(vcat, sol_times_set)) + 1))
+	)
+end
 
 # ╔═╡ Cell order:
 # ╟─3c306ef3-2546-435e-b1b6-c5325499590e
@@ -411,6 +468,7 @@ plotgraph(stats_branching[end][5].value, get_structure_branching(6)[2], varname 
 # ╠═792edd4e-aec4-48d6-801f-8a48de61e11b
 # ╠═f6ebbd49-68d2-4ae6-92c3-aebe38e5f4ac
 # ╠═1966353a-462a-4784-91fa-8a6929dc81a9
+# ╠═5f51b5e9-ee98-48b6-b7ee-23cd8d438829
 # ╟─92d46933-9ba5-4e10-89ef-2cfa1e88ed6a
 # ╟─bb2dc233-c5cc-49c6-aef1-d46e2f0cff0c
 # ╟─7e67ea9b-2e78-462f-93a4-5bbc3a50e1e8
@@ -449,21 +507,30 @@ plotgraph(stats_branching[end][5].value, get_structure_branching(6)[2], varname 
 # ╟─01be5dc8-8c1f-497b-8f8f-a92ac3c5b29d
 # ╟─61e5f480-bfc8-470d-bc0f-50853b2c08ca
 # ╟─4d43634f-b03a-4988-997e-d133e74dca2c
-# ╟─aa103b3f-b6d7-498a-9953-8b3e9a20fe5d
+# ╟─db53873c-5213-4b66-bcf1-0213b522cab8
+# ╠═d491c24e-46e8-40ca-9f5f-2f76e7e95c06
+# ╟─9aac7a47-36ab-48de-b7f0-dd686bde4458
 # ╟─49b41f29-0b19-483d-b903-70a254b1f19e
+# ╟─45de608d-9bd1-49c8-8dd3-1d97b47ad2bc
+# ╟─c484bbd7-6171-4976-8d0a-a92e2bf7980a
 # ╟─9900c521-75e0-492c-9010-24034c6ddf62
 # ╟─d7a782ee-1d2b-4101-9ad6-dc8747271c49
 # ╟─e191e8cd-94fe-4b90-9a99-b31c6a6251f1
-# ╠═d491c24e-46e8-40ca-9f5f-2f76e7e95c06
-# ╠═45de608d-9bd1-49c8-8dd3-1d97b47ad2bc
-# ╠═c484bbd7-6171-4976-8d0a-a92e2bf7980a
 # ╠═52db86d9-fdff-43b7-978a-19553d218afc
 # ╟─f4d4311a-066e-4111-b134-0e465a41970d
 # ╠═1e339ee4-7b19-4bb2-b2f1-7f82d9cd1762
-# ╠═2a3be0b8-3b02-49d6-ab14-b6c5482891a2
-# ╠═2499e650-b54c-4158-9339-21f846f2695e
+# ╟─2a3be0b8-3b02-49d6-ab14-b6c5482891a2
+# ╟─2499e650-b54c-4158-9339-21f846f2695e
 # ╟─27431fdd-8159-4048-aaf7-084489cd9d29
 # ╠═7d3047b5-c8ff-4c07-8b27-e76b18534c29
-# ╠═347160b8-368a-420a-8f65-8b50e4449c2d
-# ╠═c0cedaa5-5ca2-4479-bead-7ee289cc5fcf
-# ╠═468c4cbe-94b4-474c-ae85-efa8a828b5a2
+# ╟─347160b8-368a-420a-8f65-8b50e4449c2d
+# ╟─c0cedaa5-5ca2-4479-bead-7ee289cc5fcf
+# ╟─467eb700-d7c4-4be7-895b-d8fb81503368
+# ╟─41d7e92a-57a2-40e0-9f7b-21150f751a91
+# ╟─4b3d2bcf-e64d-4850-abde-2029cdc70da7
+# ╠═dbfbe7ef-dafe-470a-9374-23e24fdf131f
+# ╠═e186373c-fe99-40b9-9ce3-e10befb7f1b2
+# ╠═c17e3656-eb2a-4590-99ba-0e094ae7a8e2
+# ╟─283810bf-9bc5-49d8-8120-35c32a857076
+# ╠═9b73b712-0db2-43e2-b595-7cc989959f20
+# ╠═b568ad1e-b874-44f1-9155-0a0057ae01c4
