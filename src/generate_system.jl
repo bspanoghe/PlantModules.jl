@@ -25,11 +25,13 @@ A container for functional parameters. Used in [`generate_system`](@ref).
 - `default_values::Dict{Symbol, <:Any}`: The model-wide default values of parameters and initial values.
 - `module_defaults::Dict{Symbol, Dict}`: Module-specific default values of parameters and initial values.
 - `connection_values::Dict{Tuple{Symbol, Symbol}, Dict}`: Connection-specific values of parameters and initial values.
-"""
+- `sol::Union{Missing, ODESolution}`: Optionally, an ODESolution. The final values of all variables will be used as the new initial values.
+""" 
 struct PlantParameters
     default_values::Dict{Symbol, <:Any}
     module_defaults::Dict{Symbol, Dict}
     connection_values::Dict{Tuple{Symbol, Symbol}, Dict}
+    sol::Union{Missing, ODESolution}
 end
 
 # # Constructors
@@ -66,12 +68,13 @@ Constructor function for `PlantParameters` variables.
 """
 function PlantParameters(;
         default_values::Dict = PlantModules.default_values, module_defaults::Dict = Dict(),
-        connection_values::Dict = Dict(), default_changes::Dict = typeof(default_values)()
+        connection_values::Dict = Dict(), default_changes::Dict = typeof(default_values)(),
+        sol = missing
     )
 
     changed_defaults = merge(default_values, default_changes)
 
-    return PlantParameters(changed_defaults, module_defaults, connection_values)
+    return PlantParameters(changed_defaults, module_defaults, connection_values, sol)
 end
 
 # # Functions
@@ -160,12 +163,15 @@ function getMTKsystem(node, plantparams, plantcoupling)
 end
 
 # get correct parameter/initial values for node between those defined in the model defaults, module defaults and node values
+# if ODE solution is present in plantparams, overwrite all initial values with final values from that solution
 function getnodevalues(node, structmodule, func_module, plantparams)
     node_defaults = get_func_defaults(plantparams.default_values, func_module)
     node_module_defaults = get(plantparams.module_defaults, structmodule, Dict())
     node_attributes = PlantModules.getattributes(node)
 
     nodevalues = overwrite!(deepcopy(node_defaults), node_module_defaults, node_attributes)
+    !ismissing(plantparams.sol) && sol_overwrite!(nodevalues, plantparams.sol, node)
+    
     return nodevalues
 end
 
@@ -189,6 +195,21 @@ function overwrite!(dicts::Dict...)
     end
 
     return maindict
+end
+
+# overwrites values of Dict with final values of the variables in a solution corresponding to a given node
+function sol_overwrite!(dict::Dict, sol::ODESolution, node)
+    nodesystem = getsubsystem(sol.prob.f.sys, getsysname(node)) #! check if this always gets the correct node when the input graph changes
+    nodesystem_parameters = Symbol.(parameters(nodesystem))
+
+    for key in keys(dict)
+        if !(key in nodesystem_parameters) && hasproperty(nodesystem, key) # only overwrite initial values of existing variables
+            final_value = sol[getproperty(nodesystem, key)][end]
+            dict[key] = final_value
+        end
+    end
+
+    return nothing
 end
 
 # Get the MTK system of the edge between the two nodes, and whether it exists in correct order
