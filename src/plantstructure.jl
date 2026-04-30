@@ -169,11 +169,10 @@ end
 
 connection_check(node, connection) = (node == connection) # connection is a node
 connection_check(node, connection::Symbol) = (getstructmod(node) == connection) # connection is a structural module
-connection_check(node, connection::Vector) = node in connection # connection is a collection of nodes
+connection_check(node, connection::AbstractArray) = node in connection # connection is a collection of nodes
 
 ## For a connection with a user-defined filter function
 function _get_intergraph_neighbours(node, nb_graph, connection_func::Function, nb_first::Bool)
-    # Main.@infiltrate getstructmod(node) == :Air
     if nb_first
         nb_nodes = [nb_node for nb_node in getnodes(nb_graph) if connection_func(nb_node, node)]
     else
