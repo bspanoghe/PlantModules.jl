@@ -14,7 +14,7 @@ begin
 end
 
 # ╔═╡ 6dae54ca-aa7f-4504-b985-195099162109
-Pkg.activate("../..")
+Pkg.activate("./docs") #! Pkg.activate("../..")
 
 # ╔═╡ 813b229f-c17e-4a10-9945-dc9ad9066724
 using PlutoUI; TableOfContents()
@@ -340,7 +340,7 @@ function create_sky(day_fraction; mesh, lat = 52.0*π/180.0, DOY = 182)
 		mesh,
 		Idir = 0.0, ## No direct solar radiation
 		Idif = Idif_PAR, ## Daily Diffuse solar radiation
-		nrays_dif = 100_000, ## Total number of rays for diffuse solar radiation
+		nrays_dif = 1_000_000, ## Total number of rays for diffuse solar radiation
 		sky_model = StandardSky, ## Angular distribution of solar radiation
 		dome_method = equal_solid_angles, # Discretization of the sky dome
 		ntheta = 9, ## Number of discretization steps in the zenith angle
@@ -348,7 +348,7 @@ function create_sky(day_fraction; mesh, lat = 52.0*π/180.0, DOY = 182)
 	) 
 	# Add direct source
 	append!(dome, sky(
-			mesh, Idir = Idir_PAR, nrays_dir = 100_000,
+			mesh, Idir = Idir_PAR, nrays_dir = 1_000_000,
 			Idif = 0.0, nrays_diff = 0, theta_dir = sky_light[:theta], phi_dir = sky_light[:phi]
 		)
 	)
@@ -428,12 +428,13 @@ function precalculate_PAR!(tree; Δf = 0.05)
 		if getstructmod(node) == :Leaf
 			PAR_interpolation = LinearInterpolation(
 				data(node).PAR_samples,
-				0.0:Δf:1.0
+				0.0:Δf:1.0,
+				extrapolation = ExtrapolationType.Constant # use constant boundary values for extrapolation (here always 0)
 			);
 			
 			PAR_func(t, t_sunrise, t_sunset) = 
 				(t % 24 - t_sunrise) / (t_sunset - t_sunrise) |>
-				f -> clamp(f, 0, 1) |>
+				f -> clamp(f, 0.0, 1.0) |>
 				PAR_interpolation
 			
 			data(node).PAR_func = PAR_func
@@ -544,7 +545,11 @@ When we want to use more complex functions such as this inside of our functional
 interpolation_range = 0:1000
 
 # ╔═╡ 9b8b866a-b44a-4915-bce5-92cc79c70818
-get_assimilation_rate_interpolation = LinearInterpolation(get_assimilation_rate.(interpolation_range, 293.15), interpolation_range);
+get_assimilation_rate_interpolation = LinearInterpolation(
+	get_assimilation_rate.(interpolation_range, 293.15),
+	interpolation_range,
+	extrapolation = ExtrapolationType.Extension # smoothly extend interpolation for extrapolation
+);
 
 # ╔═╡ 7982a512-5f3a-4c10-bdd9-6c3d6063d544
 md"""
@@ -613,7 +618,8 @@ connecting_modules = Dict(
 	(:BudNode, :Internode) => hydraulic_connection,
 	(:Node, :Leaf) => hydraulic_connection,
 	(:Internode, :Meristem) => inactive_hydraulic_connection,
-	(:Leaf, :Air) => daynight_hydraulic_connection
+	(:Leaf, :Air) => daynight_hydraulic_connection,
+	(:Soil, :Air) => constant_hydraulic_connection
 );
 
 # ╔═╡ 1f90f558-272b-41b6-a4ba-c7bbcea3cf92
@@ -624,11 +630,13 @@ md"### Parameters"
 
 # ╔═╡ 3ef6e16e-10bc-45f4-878e-eef97d0d9829
 md"""
-Parameter specification follows the usual steps of assigning the correct shapes to non-cylindrical structural modules and setting the water capacity `W_max` of our soil, initial relative water content `W_r` of the air, and hydraulic conductivity `K` of the air.
+Parameter specification follows the usual steps of assigning the correct shapes to non-cylindrical structural modules and setting the water capacity `W_max` of our soil, initial relative water content `W_r` of the air, and hydraulic conductivity `K` of the air. We also lower the hydraulic conductivity between soil and air to a more realistic value for direct evaporation from the soil.
 """
 
 # ╔═╡ 6452a19d-fe5a-48b6-8ec8-d8759407a4dc
-default_changes = Dict([:PAR_func => (x...) -> error("A leaf node exists with no defined PAR function.")])
+default_changes = Dict(
+	:PAR_func => (x...) -> error("A leaf node exists with no defined PAR function.")
+)
 
 # ╔═╡ 1d8aba86-aba8-4567-a3f6-648d3b74e8e3
 module_defaults = Dict(
@@ -638,8 +646,13 @@ module_defaults = Dict(
 	:Air => Dict(:W_r => 0.6, :K => 1e-3)
 );
 
+# ╔═╡ fc7dbd2e-f621-4953-bd81-b565d74f0af8
+connection_values = Dict(
+	(:Soil, :Air) => Dict(:K => 1e-2)
+)
+
 # ╔═╡ 2f54285c-50cf-49e4-b2b0-cf9aa5fdf585
-plantparams = PlantParameters(; default_changes, module_defaults);
+plantparams = PlantParameters(; default_changes, module_defaults, connection_values);
 
 # ╔═╡ 25c85fd1-1921-4707-8185-735751c0d914
 md"## Running the model"
@@ -656,7 +669,7 @@ tspan = (0.0, 2*24.0)
 md"## Results"
 
 # ╔═╡ e09c89a9-a8d9-433d-8e19-d873fd636ca8
-n_steps = 5
+n_steps = 3
 
 # ╔═╡ e6bdd4a1-135d-4c1b-be8e-24d5e1a3f3b1
 shoot_graph = get_shoots(n_steps);
@@ -712,7 +725,8 @@ graphs = [shoot_graph, root_graph, soil_graph, Air()];
 intergraph_connections = [
 	(1, 2) => (getnodes(shoot_graph)[1], getnodes(root_graph)[1]),
 	(2, 3) => is_connected_root_soil,
-	(1, 4) => (:Leaf, :Air)
+	(1, 4) => (:Leaf, :Air),
+	(3, 4) => (soil_graph[:, :, 1], :Air)
 ];
 
 # ╔═╡ 52aa8d2e-16f5-49fc-86fd-0f1c3a325b3d
@@ -743,11 +757,49 @@ begin
 	soil_nodes = [node for node in getnodes(plantstructure) 
 				  if getstructmod(node) == :Soil]
 	soil_vars = get_subsystem_variables(system, plantstructure, :W, :Soil)
-
-	plot(sol, 
-		 idxs = [soil_var for (soil_var, soil_node) in zip(soil_vars, soil_nodes) if getattributes(soil_node)[:x] == 0 && getattributes(soil_node)[:y] == 0],
-		 color = [HSV(getattributes(soil_node)[:z], 1, 0.5) for (soil_var, soil_node) in zip(soil_vars, soil_nodes) if getattributes(soil_node)[:x] == 0 && getattributes(soil_node)[:y] == 0] |> x -> reshape(x, 1, :)
+	soil_depths = [getattributes(node)[:z] for node in soil_nodes] |> unique |> sort
+	get_label(z) = (
+		z == soil_depths[1] ? "Bottom layer" :
+			(z == soil_depths[2] ? "Middle layer" : "Top layer")
 	)
+	get_color(z) = (
+		z == soil_depths[1] ? :red :
+			(z == soil_depths[2] ? :orange : :blue)
+	)
+
+	center_idxs = [
+		soil_var 
+		for (soil_var, soil_node) in zip(soil_vars, soil_nodes) 
+		if getattributes(soil_node)[:x] == 0 && getattributes(soil_node)[:y] == 0
+	]
+	center_labels = [
+		get_label(getattributes(soil_node)[:z]) 
+		for soil_node in soil_nodes 
+		if getattributes(soil_node)[:x] == 0 && getattributes(soil_node)[:y] == 0
+	] |> x -> reshape(x, 1, :)
+	center_colors = [
+		get_color(getattributes(soil_node)[:z]) 
+		for (soil_var, soil_node) in zip(soil_vars, soil_nodes) 
+		if getattributes(soil_node)[:x] == 0 && getattributes(soil_node)[:y] == 0
+	] |> x -> reshape(x, 1, :)
+
+	border_idxs = [
+		soil_var
+		for (soil_var, soil_node) in zip(soil_vars, soil_nodes) 
+		if getattributes(soil_node)[:x] != 0 || getattributes(soil_node)[:y] != 0
+	]
+	border_colors = [
+		get_color(getattributes(soil_node)[:z]) 
+		for (soil_var, soil_node) in zip(soil_vars, soil_nodes) 
+		if getattributes(soil_node)[:x] != 0 || getattributes(soil_node)[:y] != 0
+	] |> x -> reshape(x, 1, :)
+
+	p_center = plot(sol, idxs = center_idxs, label = center_labels,
+					color = center_colors, lw = 2, title = "Center slice")
+	p_border = plot(sol, idxs = border_idxs, label = false,
+					color = border_colors, lw = 2, title = "Border slices")
+	
+	plot(p_center, p_border)
 end
 
 # ╔═╡ c7f352e3-71d9-4ea6-a8d2-629c8f14d97a
@@ -758,6 +810,27 @@ plotgraph(sol, plantstructure, varname = :Ψ, structmod = [:Internode, :Bud, :So
 
 # ╔═╡ 6827996d-d0c6-4d00-a13a-32495b2bf6c8
 plotgraph(sol, plantstructure, varname = :P, structmod = [:Internode, :Leaf])
+
+# rewrite!(tree)
+# rewrite!(root_graph)
+graphs = [shoot_graph, root_graph, soil_graph, Air()];
+intergraph_connections = [
+	(1, 2) => (getnodes(shoot_graph)[1], getnodes(root_graph)[1]),
+	(2, 3) => is_connected_root_soil,
+	(1, 4) => (:Leaf, :Air),
+	(3, 4) => (soil_graph[:, :, 1], :Air)
+];
+plantstructure_new = PlantStructure(graphs, intergraph_connections);
+plantparams_new = PlantParameters(; default_changes, module_defaults, connection_values, sol);
+system_new = generate_system(plantstructure_new, plantcoupling, plantparams_new);
+prob_new = ODEProblem(system_new, [], tspan, sparse = true);
+sol_new = solve(prob_new, FBDF());
+
+plot(
+	plotgraph(sol, plantstructure_new, varname = :W, structmod = :Internode),
+	plotgraph(sol_new, plantstructure_new, varname = :W, structmod = :Internode),
+)
+
 
 # ╔═╡ Cell order:
 # ╟─2dfdb97f-361c-47bd-b65a-41b02bc8bc57
@@ -836,7 +909,7 @@ plotgraph(sol, plantstructure, varname = :P, structmod = [:Internode, :Leaf])
 # ╟─57d62420-46a3-4eb9-b49b-7ab16b48f4a0
 # ╠═6848349a-51c4-4f89-98df-16784ea140b6
 # ╟─4962391e-f21d-494b-a3ed-c2f938f25c2f
-# ╟─b2fcfbb3-968c-4ace-b344-484134c72df4
+# ╠═b2fcfbb3-968c-4ace-b344-484134c72df4
 # ╟─ea169cfa-510f-4619-8e63-394ea0a44b09
 # ╠═3b249efd-55cb-4a65-a245-07296809c6b6
 # ╠═69aa64f5-f0ed-4fa0-88bc-59141a8e42b9
@@ -867,6 +940,7 @@ plotgraph(sol, plantstructure, varname = :P, structmod = [:Internode, :Leaf])
 # ╟─3ef6e16e-10bc-45f4-878e-eef97d0d9829
 # ╠═6452a19d-fe5a-48b6-8ec8-d8759407a4dc
 # ╠═1d8aba86-aba8-4567-a3f6-648d3b74e8e3
+# ╠═fc7dbd2e-f621-4953-bd81-b565d74f0af8
 # ╠═2f54285c-50cf-49e4-b2b0-cf9aa5fdf585
 # ╟─25c85fd1-1921-4707-8185-735751c0d914
 # ╟─10236da6-fcef-49bf-9c3c-21f75e83f554
@@ -877,7 +951,7 @@ plotgraph(sol, plantstructure, varname = :P, structmod = [:Internode, :Leaf])
 # ╟─e242feb8-06c5-465b-a561-467f94f14e30
 # ╠═e09c89a9-a8d9-433d-8e19-d873fd636ca8
 # ╟─10172f86-dc0b-45df-af00-a27931dca564
-# ╠═d1469e76-1e73-42f5-afd3-90f1bbfb4dfa
+# ╟─d1469e76-1e73-42f5-afd3-90f1bbfb4dfa
 # ╠═c7f352e3-71d9-4ea6-a8d2-629c8f14d97a
 # ╠═8743b00d-5699-4201-9a23-0061552495a0
 # ╠═6827996d-d0c6-4d00-a13a-32495b2bf6c8
