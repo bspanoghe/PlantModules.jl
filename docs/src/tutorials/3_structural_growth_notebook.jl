@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.20.21
+# v0.20.24
 
 using Markdown
 using InteractiveUtils
@@ -14,7 +14,7 @@ begin
 end
 
 # ╔═╡ 6dae54ca-aa7f-4504-b985-195099162109
-Pkg.activate("./docs") #! Pkg.activate("../..")
+Pkg.activate("../..")
 
 # ╔═╡ 813b229f-c17e-4a10-9945-dc9ad9066724
 using PlutoUI; TableOfContents()
@@ -34,6 +34,12 @@ using SkyDomes, PlantBiophysics,
 
 # ╔═╡ 6b1b3872-8dec-45fa-99d9-9a6903e2170a
 using DataInterpolations
+
+# ╔═╡ 5a5ed972-138a-471a-b36d-2001b7f28944
+begin #!
+	include(homedir() * raw"\Documents\GitHub\Caverns_of_code\Julia\Lifehacks\catpuccin\get_palette.jl") 
+	palette = get_palette("prettycolors")
+end
 
 # ╔═╡ 2dfdb97f-361c-47bd-b65a-41b02bc8bc57
 md"# Tutorial 3: 3D geometry"
@@ -63,9 +69,11 @@ md"## Context"
 
 # ╔═╡ 25160d35-aa6b-4ed5-9199-a54d882dbfc9
 md"""
-As per typical FSPM fashion, we will again model the growth of a tree. However, this time there will be two novelties:
-- We simulate carbon dynamics in the leaves based on a ray tracer, a carbon assimilation model and a stomatal conductance model, all of which are available in [`VirtualPlantLab.jl`](https://virtualplantlab.com/stable).
-- We simulate water dynamics in a soil discretized into multiple compartments.
+In the previous two tutorials, we simulated water dynamics for a plant given a certain, static structure. This tutorial, we will also consider the **structural** growth of a plant. As `PlantModules.jl` has no inherent structural modelling capabilities, we will instead how to integrate with the graph rewriting functionality provided by [`VirtualPlantLab.jl`](https://virtualplantlab.com/stable) to achieve this. Specifically, we will couple our package's functionality to the rewriting process by making the rewrite rules depend on the functional status of the tree.
+
+In addition, this tutorial considers two more geometry-related functionalities typically expected of FSPMs:
+- We simulate carbon dynamics in the leaves based on a ray tracer, a carbon assimilation model and a stomatal conductance model, all of which are available in `VirtualPlantLab.jl`.
+- We discretize the soil into multiple compartments to simulate water transport more realistically.
 """
 
 # ╔═╡ d3fdc6b7-e69d-425e-ae3b-99e9497b8cb5
@@ -93,36 +101,38 @@ md"#### Structural modules"
 
 # ╔═╡ 3632551c-2318-4bdf-b813-436c5da7dc68
 md"""
-The tree consists of the classic set of internodes, nodes and leaves, as well as buds that grow into branches, corresponding nodes left behind by the buds, and meristems that grow into additional phytomers.
+The tree consists of the classic set of internodes, nodes and leaves, as well as buds that grow into branches, corresponding nodes left behind by the buds, and meristems that grow into additional phytomers. 
+
+Some things of note for this tutorial:
+- All plant parts that are plotted need to have their dimensions defined;
+- All plant parts that intercept light in the ray tracing additionally need to have a material defined (see the VPL docs);
+- Plant parts that are part of a rewriting rule depending on the plant's functional status, should have those functional variables defined and be defined to be mutable.
 """
 
 # ╔═╡ b27f3786-84b0-469f-ab0c-a60f02030efd
 Base.@kwdef struct Meristem <: VirtualPlantLab.Node end
 
 # ╔═╡ b99eb3ee-26dc-4396-9a61-aba45f7462cf
-Base.@kwdef struct Bud <: VirtualPlantLab.Node
-	D = [0.5] # a small sphere
+Base.@kwdef mutable struct Bud <: VirtualPlantLab.Node
+	D::Vector{Float64} = [0.5]
+	W::Float64 = PlantModules.volume(PlantModules.Sphere(), [0.5])
 end
 
 # ╔═╡ 43bb6044-e567-4f20-8be0-5108f5deead8
-Base.@kwdef struct Node <: VirtualPlantLab.Node
-	D = [0.5, 0.1] # a very short cylinder
-end
+Base.@kwdef struct Node <: VirtualPlantLab.Node end
 
 # ╔═╡ 4ea2dfcf-cc13-46f1-8f70-f42af7a43a09
-Base.@kwdef struct BudNode <: VirtualPlantLab.Node
-	D = [0.5, 0.1] # a very short cylinder
-end
+Base.@kwdef struct BudNode <: VirtualPlantLab.Node end
 
 # ╔═╡ fc109086-c42c-474d-8ab0-4add40a07eed
 Base.@kwdef mutable struct Internode <: VirtualPlantLab.Node
-	D = [0.5, 10] # a long cylinder
+	D::Vector{Float64} = [0.5, 3.0] # newly grown internodes start small
 	mat::Lambertian{1} = Lambertian(τ = 0.05, ρ = 0.1) # internodes require a material as they interact with light
 end
 
 # ╔═╡ 2ff96078-4a91-427b-8c39-689d47600c05
 Base.@kwdef mutable struct Leaf <: VirtualPlantLab.Node
-	D = [5, 3, 0.05] # a thin cuboid
+	D::Vector{Float64} = [5, 3, 0.05]
 	mat::Lambertian{1} = Lambertian(τ = 0.05, ρ = 0.1) # leaves also interact with light
 	PAR_samples::Vector{Float64} = Float64[]
 	PAR_func::Function = (x...) -> error("A leaf node exists with no defined PAR function.")
@@ -138,6 +148,7 @@ md"Define a `feed!` method for every structural module that needs a defined geom
 function VirtualPlantLab.feed!(turtle::Turtle, i::Internode, vars)
     # Rotate turtle around the head to implement elliptical phyllotaxis
     rh!(turtle, vars.phyllotaxis)
+	# remember to divide by 100 to convert cm to m
     HollowCylinder!(
 		turtle, length = i.D[2] / 100, height = i.D[1] / 100,
 		width = i.D[1] / 100, move = true, colors = RGB(0.5,0.4,0.0), materials = i.mat
@@ -175,7 +186,7 @@ and one elongation step:
 # ╔═╡ 120217e8-c708-4a49-8f2c-1191690ce0db
 Base.@kwdef struct treeparams # parameters used in rewrite rules
 	growth::Float64 = 0.1
-	budbreak::Float64 = 0.25
+	W_burst::Float64 = 1.5 # water content at which bud is guaranteed to burst
 	phyllotaxis::Float64 = 140.0
 	leaf_angle::Float64 = 30.0
 	branch_angle::Float64 = 45.0
@@ -189,18 +200,8 @@ meristem_rule = Rule(
 
 # ╔═╡ d0e32e1a-733e-4791-82ec-c4a20745a351
 function prob_break(bud)
-    node = parent(bud)
-    check, steps = has_descendant(
-		node, 
-		condition = n -> data(n) isa Meristem
-	)
-    steps = Int(ceil(steps/2))
-    if check
-        prob =  min(1.0, steps*graph_data(bud).budbreak)
-        return rand() < prob
-    else
-        error("No meristem found in branch")
-    end
+    prob = data(bud).W / graph_data(bud).W_burst
+	return rand() < prob
 end
 
 # ╔═╡ fb31e01e-efda-4e72-828c-efd5a286d673
@@ -210,35 +211,22 @@ branch_rule = Rule(
 	rhs = bud -> BudNode() + Internode() + Meristem()
 )
 
-# ╔═╡ 1bb9f437-44fb-4a7c-9eee-2730d1487e87
-function elongate!(tree)
-    for x in apply(tree, Query(Internode))
-        x.D = x.D .* [1.0 , 1.0 + data(tree).growth]
-    end
-end
+# ╔═╡ e6bdd4a1-135d-4c1b-be8e-24d5e1a3f3b1
+shoot_graph = Graph(
+	axiom = Internode(D = [0.5, 10.0]) + Node() + (Bud(), Leaf()) + Internode() + Meristem(),
+	rules = (meristem_rule, branch_rule), data = treeparams()
+);
 
-# ╔═╡ 0fda99f0-ac5e-4080-bc44-3378ef41c856
-function growth!(tree)
-    elongate!(tree)
-    rewrite!(tree)
-end
-
-# ╔═╡ 7e7fdcd0-e59e-471a-817a-87a8403440e4
-function get_shoots(nsteps)
-    axiom = Internode() + Meristem();
-	tree = Graph(axiom = axiom,
-				 rules = (meristem_rule, branch_rule), data = treeparams()
-	)
-	
-    for i in 1:nsteps
-        growth!(tree)
-    end
-	
-    return tree
-end
+# ╔═╡ e0ca99d2-84e1-47e3-93bc-324465f5abd3
+render(Mesh(shoot_graph))
 
 # ╔═╡ dd6debaf-62d4-43da-88a9-bebbb303d095
 md"### Roots"
+
+# ╔═╡ 432215ea-eea5-4edb-a21f-4d9909b2c4c4
+md"""
+We model the roots as consisting of a single structural module. At every rewriting step, it either elongates or splits in two with a set probability. As we will have to connect the root segments to the correct soil compartment later on, it's important to track the positions of the root segments. We include positional information in our model by assigning a growing direction to all root segments. When new root segments are produced, their location follows this growing direction with a certain random perturbation.
+"""
 
 # ╔═╡ 27305ba4-1921-46b6-b088-b8e8f061e55a
 Base.@kwdef struct rootparams
@@ -256,12 +244,13 @@ end
 
 # ╔═╡ 6598fa4f-cee1-4476-b1f7-bb5e05efceea
 function move(root, Δdirection_σ)
+	new_D = [0.5, 3.0] # newly grown roots start small
 	new_direction = data(root).direction + Δdirection_σ * randn(3) |>
 		x -> x / sqrt(sum(x.^2)) # normalize to unit length
-	new_coords = data(root).coords + data(root).D[2] * new_direction
+	new_coords = data(root).coords + new_D[2] * new_direction
 	
 	moved_root = Root(
-		data(root).D,
+		new_D,
 		new_coords,
 		new_direction
 	)
@@ -285,12 +274,27 @@ root_rule = Rule(
 	)
 )
 
+# ╔═╡ 829d6e13-39da-4abc-ba42-eed11f9c9f70
+root_graph = Graph(
+	axiom = sum([Root([0.5, 10.0], [0.0, 0.0, i*-10.0], [0.0, 0.0, -1.0]) for i in 1:11]),
+	rules = (root_rule), data = rootparams()
+)
+
+# ╔═╡ 9f4637df-e1b6-4bfc-b66c-980be1b24f19
+md"""
+!!! note
+	Purely to demonstrate connecting with soil voxels in the next part, we start off with a long root.
+"""
+
+# ╔═╡ 23c352ec-2a37-429e-ab6c-faba029398c0
+plotstructure(root_graph)
+
 # ╔═╡ 7edd2626-a111-45bb-a62c-a526d8698f86
 md"### Environment"
 
 # ╔═╡ 868e3bb7-2c0d-41a5-83ce-82e2e955e45a
 md"""
-The environment is not considered in the `VirtualPlantLab` tutorials, but we will define it here as we require it for the simulation of water dynamics.
+As mentioned before, we will consider a soil consisting of multiple compartments. More specifically, we will discretize the soil into voxels, or cubes, of a given size. To connect each voxel to its non-diagonal neighbours, we can simply define the graph as a 3-dimensional array of soil nodes, which will get translated into our desired graph by `PlantModules.jl`. However, as Julia arrays are no typical graph format, they store no information about the `id`, and therefore it is required to manually define the `id` inside of our structural modules. Additionally, we will include the $x$, $y$ and $z$ coordinates of the voxel's centre.
 """
 
 # ╔═╡ 1ced3c28-55be-4f4e-99d0-c38f6cc79396
@@ -302,7 +306,7 @@ Base.@kwdef struct Soil <: VirtualPlantLab.Node
 end
 
 # ╔═╡ e677eb3d-460f-4a42-bffb-56286c3fc6de
-vs = 100.0 # voxel size
+vs = 100.0; # voxel size
 
 # ╔═╡ 8a1168a1-a678-4a78-a0b7-e1817ef58152
 soil_graph = [
@@ -312,6 +316,9 @@ soil_graph = [
 
 # ╔═╡ b7bdc909-bfb5-4618-9702-74c77f019b2c
 plotstructure(soil_graph)
+
+# ╔═╡ 4263fc67-f667-4e9c-93f7-bea1ab7b9579
+md"The air could be similarly divided into compartments. For simplicity, however, we will again model it as a single node."
 
 # ╔═╡ 082576ba-0932-432b-b173-c844fb57bfc0
 struct Air <: VirtualPlantLab.Node end
@@ -390,7 +397,8 @@ function run_raytracer!(tree; day_fraction = 0.5)
 	accmesh = accelerate(mesh, acceleration = BVH, rule = SAH{3}(5, 10)) 
 	sources = create_sky(day_fraction; mesh = accmesh)
 	# note we set `nx` and `ny` to 0: these are grid cloning parameters used to minimize the boundary effects of only simulating a part of a forest. however, as we simulate only a single tree, this is not applicable here.
-	settings = RTSettings(pkill = 0.9, maxiter = 4, nx = 0, ny = 0, parallel = true)
+	settings = RTSettings(pkill = 0.9, maxiter = 4, nx = 0, ny = 0,
+						  parallel = true, verbose = false)
 	raytracer = RayTracer(mesh, sources; settings)
 	trace!(raytracer)
 	
@@ -450,6 +458,10 @@ md"#### Running the ray tracer"
 # ╔═╡ 57d62420-46a3-4eb9-b49b-7ab16b48f4a0
 md"Let's run the ray tracer and visualise the incoming PAR over time for all leaves."
 
+# ╔═╡ 6848349a-51c4-4f89-98df-16784ea140b6
+# ╠═╡ show_logs = false
+precalculate_PAR!(shoot_graph)
+
 # ╔═╡ 4962391e-f21d-494b-a3ed-c2f938f25c2f
 md"""
 We can differentiate between three types of leaf based on the plot below:
@@ -458,8 +470,31 @@ We can differentiate between three types of leaf based on the plot below:
 - Leaves that get a lot of sunlight in the morning and evening, corresponding to leaves in direct sunlight that are angle mostly sideward.
 """
 
+# ╔═╡ b2fcfbb3-968c-4ace-b344-484134c72df4
+begin
+	plot(xlims = (0.0, 24.0), xlabel = "Time (h)", ylabel = "PAR (W/m²)", legend = false)
+	for node in getnodes(shoot_graph)
+		if getstructmod(node) == :Leaf
+			plot!(t -> data(node).PAR_func(t, 8.0, 20.0))
+		end
+	end
+	plot!()
+end
+
 # ╔═╡ ea169cfa-510f-4619-8e63-394ea0a44b09
 md"### Connecting the separate graphs"
+
+# ╔═╡ 845af412-656b-4b65-8d09-9f2bc58b3867
+md"""
+We finalize the structural definition by connecting all the separate graphs. The graphs are connected as follows:
+- Shoots and roots: the base of the shoots is connected to the base of the root system.
+- Roots and soil: each root segment is connected to the soil voxel they are physically inside of, which is done by comparing the coordinates of the root segments and soil voxels. Complicated connections like this can be defined by passing a function to `intergraph_connections` for the graphs in question that takes a node of each graph and returns whether they should be connected.
+- Shoots and air: each leaf node is connected to the single air node.
+- Soil and air: each node of the top soil layer is connected to the air to simulate evaporation.
+"""
+
+# ╔═╡ 3b249efd-55cb-4a65-a245-07296809c6b6
+graphs = [shoot_graph, root_graph, soil_graph, Air()];
 
 # ╔═╡ 69aa64f5-f0ed-4fa0-88bc-59141a8e42b9
 function is_connected_root_soil(root, soil)
@@ -468,8 +503,23 @@ function is_connected_root_soil(root, soil)
 		soil_center[i]-vs/2 <= data(root).coords[i] < soil_center[i]+vs/2
 		for i in eachindex(data(root).coords)
 	]
-	return all(coord_inside_voxel)
+	are_nodes_connected = all(coord_inside_voxel)
+	return are_nodes_connected
 end
+
+# ╔═╡ 6461c5f0-5860-433d-8627-53a14dd342e4
+intergraph_connections = [
+	(1, 2) => (getnodes(shoot_graph)[1], getnodes(root_graph)[1]),
+	(2, 3) => is_connected_root_soil,
+	(1, 4) => (:Leaf, :Air),
+	(3, 4) => (soil_graph[:, :, 1], :Air)
+];
+
+# ╔═╡ 52aa8d2e-16f5-49fc-86fd-0f1c3a325b3d
+plantstructure = PlantStructure(graphs, intergraph_connections);
+
+# ╔═╡ ca063cc1-cd0e-48de-b65b-0e42c0f0df65
+plotstructure(plantstructure)
 
 # ╔═╡ ac0e93c0-2662-4ea4-bcc3-3067aec41d28
 md"## Functional definition"
@@ -534,7 +584,7 @@ function get_assimilation_rate(PAR_flux, T)
 end
 
 # ╔═╡ cadcf258-862b-416a-8e5e-8fb52a0e7b2a
-plot(PAR -> get_assimilation_rate(PAR, 293.15), xlims = (0, 300), xlabel = "PAR (W / m²)", ylabel = "Assimilation rate (μmol / m² / s)", legend = false)
+plot(PAR -> get_assimilation_rate(PAR, 293.15), xlims = (0, 300), xlabel = "PAR (W / m²)", ylabel = "Assimilation rate (μmol / m² / s)", legend = false, title = "Assimilation rate in function of PAR")
 
 # ╔═╡ 4b381403-6fd3-485e-a6c8-dde6dd8ccc55
 md"""
@@ -550,6 +600,9 @@ get_assimilation_rate_interpolation = LinearInterpolation(
 	interpolation_range,
 	extrapolation = ExtrapolationType.Extension # smoothly extend interpolation for extrapolation
 );
+
+# ╔═╡ b7749f99-c0d0-489f-a0e5-05a3f29713cd
+plot(par -> get_assimilation_rate_interpolation(par), xlims = (-100, 500), label = false, xlabel = "PAR (W / m²)", ylabel = "Assimilation rate (μmol / m² / s)", legend = false, title = "Inter/extrapolation of assimilation rate")
 
 # ╔═╡ 7982a512-5f3a-4c10-bdd9-6c3d6063d544
 md"""
@@ -630,7 +683,7 @@ md"### Parameters"
 
 # ╔═╡ 3ef6e16e-10bc-45f4-878e-eef97d0d9829
 md"""
-Parameter specification follows the usual steps of assigning the correct shapes to non-cylindrical structural modules and setting the water capacity `W_max` of our soil, initial relative water content `W_r` of the air, and hydraulic conductivity `K` of the air. We also lower the hydraulic conductivity between soil and air to a more realistic value for direct evaporation from the soil.
+Parameter specification follows the usual steps of assigning the correct shapes and initial dimensions to the plant parts and setting the water capacity `W_max` of our soil, initial relative water content `W_r` of the air, and hydraulic conductivity `K` of the air. We also lower the hydraulic conductivity between soil and air to a more realistic value for direct evaporation from the soil.
 """
 
 # ╔═╡ 6452a19d-fe5a-48b6-8ec8-d8759407a4dc
@@ -642,6 +695,8 @@ default_changes = Dict(
 module_defaults = Dict(
 	:Bud => Dict(:shape => PlantModules.Sphere()),
 	:Leaf => Dict(:shape => PlantModules.Cuboid()),
+	:Node => Dict(:D => [0.5, 0.1]),
+	:BudNode => Dict(:D => [0.5, 0.1]),
 	:Soil => Dict(:W_max => 1e4),
 	:Air => Dict(:W_r => 0.6, :K => 1e-3)
 );
@@ -659,84 +714,17 @@ md"## Running the model"
 
 # ╔═╡ 10236da6-fcef-49bf-9c3c-21f75e83f554
 md"""
-Finally, we generate and run the system. We have reached pure `PlantModules.jl`/`ModelingToolkit.jl`/`DifferentialEquations.jl` nirvana and therefore all further steps are the same as in previous case studies.
+Finally, we generate and run the system.
 """
 
-# ╔═╡ 9b90ddc4-cee5-4063-9f83-ecbff8c7596c
-tspan = (0.0, 2*24.0)
-
-# ╔═╡ e242feb8-06c5-465b-a561-467f94f14e30
-md"## Results"
-
-# ╔═╡ e09c89a9-a8d9-433d-8e19-d873fd636ca8
-n_steps = 3
-
-# ╔═╡ e6bdd4a1-135d-4c1b-be8e-24d5e1a3f3b1
-shoot_graph = get_shoots(n_steps);
-
-# ╔═╡ e0ca99d2-84e1-47e3-93bc-324465f5abd3
-render(Mesh(shoot_graph))
-
-# ╔═╡ 6848349a-51c4-4f89-98df-16784ea140b6
-# ╠═╡ show_logs = false
-precalculate_PAR!(shoot_graph)
-
-# ╔═╡ b2fcfbb3-968c-4ace-b344-484134c72df4
-begin
-	plot(xlims = (0.0, 24.0), xlabel = "Time (h)", ylabel = "PAR (W/m²)", legend = false)
-	for node in getnodes(shoot_graph)
-		if getstructmod(node) == :Leaf
-			plot!(t -> data(node).PAR_func(t, 8.0, 20.0))
-		end
-	end
-	plot!()
-end
-
-# ╔═╡ 829d6e13-39da-4abc-ba42-eed11f9c9f70
-begin
-	Random.seed!(10) # for reproducability
-	root_graph = Graph(
-		axiom = Root([0.5, 10.0], [0.0, 0.0, -10.0], [0.0, 0.0, -1.0]),
-		rules = (root_rule), data = rootparams()
-	)
-	
-	for _ in 1:n_steps
-		rewrite!(root_graph)
-	end
-end;
-
-# ╔═╡ 23c352ec-2a37-429e-ab6c-faba029398c0
-plotstructure(root_graph)
-
-# ╔═╡ 5e5c75de-67a4-4578-b5c8-2537874c7043
-begin
-	coords = [data(node).coords for node in getnodes(root_graph)]
-	Plots.scatter(
-		getindex.(coords, 1), getindex.(coords, 2),
-		marker_z = getindex.(coords, 3), label = false,
-		xlabel = "x position (cm)", ylabel = "y position (cm)", colorbar_title = "Root segment depth", margins = 5*Plots.mm, size = (1000, 600)
-	)
-end
-
-# ╔═╡ 3b249efd-55cb-4a65-a245-07296809c6b6
-graphs = [shoot_graph, root_graph, soil_graph, Air()];
-
-# ╔═╡ 6461c5f0-5860-433d-8627-53a14dd342e4
-intergraph_connections = [
-	(1, 2) => (getnodes(shoot_graph)[1], getnodes(root_graph)[1]),
-	(2, 3) => is_connected_root_soil,
-	(1, 4) => (:Leaf, :Air),
-	(3, 4) => (soil_graph[:, :, 1], :Air)
-];
-
-# ╔═╡ 52aa8d2e-16f5-49fc-86fd-0f1c3a325b3d
-plantstructure = PlantStructure(graphs, intergraph_connections);
-
-# ╔═╡ ca063cc1-cd0e-48de-b65b-0e42c0f0df65
-plotstructure(plantstructure)
+# ╔═╡ adacf377-bbde-4367-b48c-6c4a4721dbfe
+md"### Initial run"
 
 # ╔═╡ 8f635abb-c9ea-45ca-81ae-e679e0ba923d
 system = generate_system(plantstructure, plantcoupling, plantparams);
+
+# ╔═╡ 9b90ddc4-cee5-4063-9f83-ecbff8c7596c
+tspan = (0.0, 24.0);
 
 # ╔═╡ 7b8bbd0f-c650-49ef-b8d9-c42cd6d8da9e
 prob = ODEProblem(system, [], tspan, sparse = true);
@@ -744,13 +732,98 @@ prob = ODEProblem(system, [], tspan, sparse = true);
 # ╔═╡ 8363c723-74e0-49bf-88ae-e164919f4681
 sol = solve(prob, FBDF());
 
-# ╔═╡ 10172f86-dc0b-45df-af00-a27931dca564
-plot(
-	plotgraph(sol, plantstructure, varname = :PF, structmod = :Leaf),
-	plotgraph(sol, plantstructure, varname = :A_V, structmod = :Leaf),
-	plotgraph(sol, plantstructure, varname = :M, structmod = :Leaf),
-	layout = (3, 1), size = (800, 800)
+# ╔═╡ 3424b05c-e792-4cb1-91ec-d27a04c8d4a2
+md"### Subsequent runs"
+
+# ╔═╡ b93903cb-24c9-4ff1-8e31-ee6cb9039c24
+function run_timestep!(sols, plantstructures, shoot_graph, root_graph)
+	# rewrite structures
+	rewrite!(shoot_graph)
+	rewrite!(root_graph)
+
+	# run ray tracer for new leaves
+	precalculate_PAR!(shoot_graph)
+
+	# connect new structures
+	graphs = [shoot_graph, root_graph, soil_graph, Air()]
+	intergraph_connections = [
+		(1, 2) => (getnodes(shoot_graph)[1], getnodes(root_graph)[1]),
+		(2, 3) => is_connected_root_soil,
+		(1, 4) => (:Leaf, :Air),
+		(3, 4) => (soil_graph[:, :, 1], :Air)
+	]
+	plantstructure_new = PlantStructure(graphs, intergraph_connections);
+
+	# add solution to parameters - changes initial values to previous solution's end values
+	plantparams_new = PlantParameters(; default_changes, module_defaults,
+									  connection_values, sol = sols[end]);
+
+	# generate system and solve
+	system_new = generate_system(plantstructure_new, plantcoupling, plantparams_new);
+	prob_new = ODEProblem(system_new, [], tspan, sparse = true);
+	sol_new = solve(prob_new, FBDF());
+
+	# store data for plotting
+	push!(sols, sol_new)
+	push!(plantstructures, plantstructure_new)
+
+	# update node data used in rewriting rules, plotting and ray tracing
+	for node in getnodes(shoot_graph)
+		if getstructmod(node) == :Bud
+			var = get_subsystem_variables(
+				system_new, shoot_graph, 1, :W, node
+			)
+			getattributes(node)[:W] = sol_new[var][end]
+		elseif getstructmod(node) in [:Leaf, :Internode]
+			var = get_subsystem_variables(
+				system_new, shoot_graph, 1, :D, node
+			)
+			getattributes(node)[:D] = sol_new[var][end]
+		end
+	end
+	
+	return nothing
+end
+
+# ╔═╡ 20c98896-8ae1-4315-a517-3ecf69ca0123
+days = 5
+
+# ╔═╡ d3a39f1d-879e-4e30-9098-6cd8cc58a5af
+sols = [sol];
+
+# ╔═╡ 7aad257a-e6b6-4249-b6b2-2834e5be86d5
+plantstructures = [plantstructure];
+
+# ╔═╡ 7771dc15-9365-4722-bffc-7ba2534afaf1
+for day in 2:days
+	@info "Simulating day $day"
+	run_timestep!(sols, plantstructures, shoot_graph, root_graph)
+end
+
+# ╔═╡ e33780b3-1e4c-40ac-a761-8877c79ac170
+render(Mesh(shoot_graph))
+
+# ╔═╡ b370d018-e6ea-4261-9db6-c4c9f3ba8faf
+getnodes(shoot_graph)[1]
+
+# ╔═╡ 720da1fc-136d-4693-ba1c-b9e7c885e33e
+plotstructure(root_graph)
+
+# ╔═╡ c8213569-f42a-49ba-bcca-34d7d5b2b04d
+plotstructure(plantstructures[5])
+
+# ╔═╡ 7dd5d141-f6a5-467a-ac59-d766254a0e0d
+md"## Results"
+
+# ╔═╡ 4ac9913e-5d2f-41b3-b782-4d31b441602e
+plotgraph(
+	sols, plantstructures, varname = :W, structmod = :Bud,
+	ylabel = "Water content (g)", xlabel = "Time (h)", label = false, lw = 2,
+	title = "Water content of buds", size = (800, 600)
 )
+
+# ╔═╡ 53ea2aff-3bcc-41ed-be7e-48b8e974f2ba
+plotgraph(sols, plantstructures, varname = :A, structmod = :Leaf, ylabel = "Carbon assimilation rate (mol / cm² / h)", xlabel = "Time (h)", title = "Carbon assimilation rate of leaves", lw = 1.5, label = false, size = (800, 600))
 
 # ╔═╡ d1469e76-1e73-42f5-afd3-90f1bbfb4dfa
 begin
@@ -767,7 +840,7 @@ begin
 			(z == soil_depths[2] ? :orange : :blue)
 	)
 
-	center_idxs = [
+	center_vars = [
 		soil_var 
 		for (soil_var, soil_node) in zip(soil_vars, soil_nodes) 
 		if getattributes(soil_node)[:x] == 0 && getattributes(soil_node)[:y] == 0
@@ -783,7 +856,7 @@ begin
 		if getattributes(soil_node)[:x] == 0 && getattributes(soil_node)[:y] == 0
 	] |> x -> reshape(x, 1, :)
 
-	border_idxs = [
+	border_vars = [
 		soil_var
 		for (soil_var, soil_node) in zip(soil_vars, soil_nodes) 
 		if getattributes(soil_node)[:x] != 0 || getattributes(soil_node)[:y] != 0
@@ -794,43 +867,35 @@ begin
 		if getattributes(soil_node)[:x] != 0 || getattributes(soil_node)[:y] != 0
 	] |> x -> reshape(x, 1, :)
 
-	p_center = plot(sol, idxs = center_idxs, label = center_labels,
-					color = center_colors, lw = 2, title = "Center slice")
-	p_border = plot(sol, idxs = border_idxs, label = false,
-					color = border_colors, lw = 2, title = "Border slices")
+	xs_vec = [sol.t for sol in sols]
+	for i in eachindex(xs_vec)[2:end]
+		xs_vec[i] = xs_vec[i] .+ xs_vec[i-1][end]
+	end
+	xs = reduce(vcat, xs_vec)
+	center_ys = vcat([permutedims(reduce(hcat, sol[center_vars])) for sol in sols]...)
+	border_ys = vcat([permutedims(reduce(hcat, sol[border_vars])) for sol in sols]...)
+
+	p_center = plot(
+		xs, center_ys,
+		label = center_labels, color = center_colors, lw = 2,
+		title = "Center slice", xticks = 0:24:xs[end], ylabel = "Water content (g)"
+	)
+	p_border = plot(
+		xs, border_ys,
+		label = false, color = border_colors, lw = 2,
+		title = "Border slices", xticks = 0:24:xs[end])
 	
-	plot(p_center, p_border)
+	plot(p_center, p_border, xlabel = "Time (h)", plot_title = "Water content of soil compartments", plot_titlevspan = 0.1, size = (800, 600))
 end
 
-# ╔═╡ c7f352e3-71d9-4ea6-a8d2-629c8f14d97a
-plotnode(sol, [node for node in getnodes(plantstructure) if getstructmod(node) == :Soil][1], varname = :W)
+# ╔═╡ 6be4758d-c3c4-4b83-b96a-0f2c26dc1ce0
+plotgraph(sols, plantstructures, structmod = :Internode, varname = :D)
 
-# ╔═╡ 8743b00d-5699-4201-9a23-0061552495a0
-plotgraph(sol, plantstructure, varname = :Ψ, structmod = [:Internode, :Bud, :Soil])
+# ╔═╡ 04947b7a-db2d-4328-85be-f34cff54faf1
+plotgraph(sols, plantstructures, varname = :Ψ, structmod = :Leaf)
 
-# ╔═╡ 6827996d-d0c6-4d00-a13a-32495b2bf6c8
-plotgraph(sol, plantstructure, varname = :P, structmod = [:Internode, :Leaf])
-
-# rewrite!(tree)
-# rewrite!(root_graph)
-graphs = [shoot_graph, root_graph, soil_graph, Air()];
-intergraph_connections = [
-	(1, 2) => (getnodes(shoot_graph)[1], getnodes(root_graph)[1]),
-	(2, 3) => is_connected_root_soil,
-	(1, 4) => (:Leaf, :Air),
-	(3, 4) => (soil_graph[:, :, 1], :Air)
-];
-plantstructure_new = PlantStructure(graphs, intergraph_connections);
-plantparams_new = PlantParameters(; default_changes, module_defaults, connection_values, sol);
-system_new = generate_system(plantstructure_new, plantcoupling, plantparams_new);
-prob_new = ODEProblem(system_new, [], tspan, sparse = true);
-sol_new = solve(prob_new, FBDF());
-
-plot(
-	plotgraph(sol, plantstructure_new, varname = :W, structmod = :Internode),
-	plotgraph(sol_new, plantstructure_new, varname = :W, structmod = :Internode),
-)
-
+# ╔═╡ 61929917-81a7-4db4-889b-91e29c5934c6
+plotgraph(sols, plantstructures, varname = :PF, structmod = :Leaf)
 
 # ╔═╡ Cell order:
 # ╟─2dfdb97f-361c-47bd-b65a-41b02bc8bc57
@@ -873,25 +938,24 @@ plot(
 # ╠═eb87190d-26e5-4e37-bb09-15b1e89da868
 # ╠═d0e32e1a-733e-4791-82ec-c4a20745a351
 # ╠═fb31e01e-efda-4e72-828c-efd5a286d673
-# ╠═1bb9f437-44fb-4a7c-9eee-2730d1487e87
-# ╠═0fda99f0-ac5e-4080-bc44-3378ef41c856
-# ╠═7e7fdcd0-e59e-471a-817a-87a8403440e4
 # ╠═e6bdd4a1-135d-4c1b-be8e-24d5e1a3f3b1
 # ╠═e0ca99d2-84e1-47e3-93bc-324465f5abd3
 # ╟─dd6debaf-62d4-43da-88a9-bebbb303d095
+# ╟─432215ea-eea5-4edb-a21f-4d9909b2c4c4
 # ╠═27305ba4-1921-46b6-b088-b8e8f061e55a
 # ╠═3ff77fe1-7d7a-46e7-9875-633927826472
 # ╠═6598fa4f-cee1-4476-b1f7-bb5e05efceea
 # ╠═809baa85-b47c-49c7-af79-1d9e126706da
 # ╠═829d6e13-39da-4abc-ba42-eed11f9c9f70
+# ╟─9f4637df-e1b6-4bfc-b66c-980be1b24f19
 # ╠═23c352ec-2a37-429e-ab6c-faba029398c0
-# ╟─5e5c75de-67a4-4578-b5c8-2537874c7043
 # ╟─7edd2626-a111-45bb-a62c-a526d8698f86
 # ╟─868e3bb7-2c0d-41a5-83ce-82e2e955e45a
 # ╠═1ced3c28-55be-4f4e-99d0-c38f6cc79396
 # ╠═e677eb3d-460f-4a42-bffb-56286c3fc6de
 # ╠═8a1168a1-a678-4a78-a0b7-e1817ef58152
 # ╠═b7bdc909-bfb5-4618-9702-74c77f019b2c
+# ╟─4263fc67-f667-4e9c-93f7-bea1ab7b9579
 # ╠═082576ba-0932-432b-b173-c844fb57bfc0
 # ╟─8c376ccb-1a52-4698-8b0f-7cb77911e8f0
 # ╟─23e2b273-3a58-49d3-b12e-1f96c6a497cd
@@ -911,6 +975,7 @@ plot(
 # ╟─4962391e-f21d-494b-a3ed-c2f938f25c2f
 # ╠═b2fcfbb3-968c-4ace-b344-484134c72df4
 # ╟─ea169cfa-510f-4619-8e63-394ea0a44b09
+# ╟─845af412-656b-4b65-8d09-9f2bc58b3867
 # ╠═3b249efd-55cb-4a65-a245-07296809c6b6
 # ╠═69aa64f5-f0ed-4fa0-88bc-59141a8e42b9
 # ╠═6461c5f0-5860-433d-8627-53a14dd342e4
@@ -929,6 +994,7 @@ plot(
 # ╟─4b381403-6fd3-485e-a6c8-dde6dd8ccc55
 # ╠═f4ddafdc-75e8-47ad-9250-8c8d83f58394
 # ╠═9b8b866a-b44a-4915-bce5-92cc79c70818
+# ╟─b7749f99-c0d0-489f-a0e5-05a3f29713cd
 # ╟─7982a512-5f3a-4c10-bdd9-6c3d6063d544
 # ╠═4b89326d-1896-4aa5-b46d-65f2e1281255
 # ╟─62257b82-ac54-4360-951c-9192edb619a3
@@ -944,14 +1010,26 @@ plot(
 # ╠═2f54285c-50cf-49e4-b2b0-cf9aa5fdf585
 # ╟─25c85fd1-1921-4707-8185-735751c0d914
 # ╟─10236da6-fcef-49bf-9c3c-21f75e83f554
+# ╟─adacf377-bbde-4367-b48c-6c4a4721dbfe
 # ╠═8f635abb-c9ea-45ca-81ae-e679e0ba923d
 # ╠═9b90ddc4-cee5-4063-9f83-ecbff8c7596c
 # ╠═7b8bbd0f-c650-49ef-b8d9-c42cd6d8da9e
 # ╠═8363c723-74e0-49bf-88ae-e164919f4681
-# ╟─e242feb8-06c5-465b-a561-467f94f14e30
-# ╠═e09c89a9-a8d9-433d-8e19-d873fd636ca8
-# ╟─10172f86-dc0b-45df-af00-a27931dca564
+# ╟─3424b05c-e792-4cb1-91ec-d27a04c8d4a2
+# ╠═b93903cb-24c9-4ff1-8e31-ee6cb9039c24
+# ╠═20c98896-8ae1-4315-a517-3ecf69ca0123
+# ╠═d3a39f1d-879e-4e30-9098-6cd8cc58a5af
+# ╠═7aad257a-e6b6-4249-b6b2-2834e5be86d5
+# ╠═7771dc15-9365-4722-bffc-7ba2534afaf1
+# ╠═e33780b3-1e4c-40ac-a761-8877c79ac170
+# ╠═b370d018-e6ea-4261-9db6-c4c9f3ba8faf
+# ╠═720da1fc-136d-4693-ba1c-b9e7c885e33e
+# ╠═c8213569-f42a-49ba-bcca-34d7d5b2b04d
+# ╟─7dd5d141-f6a5-467a-ac59-d766254a0e0d
+# ╠═5a5ed972-138a-471a-b36d-2001b7f28944
+# ╟─4ac9913e-5d2f-41b3-b782-4d31b441602e
+# ╟─53ea2aff-3bcc-41ed-be7e-48b8e974f2ba
 # ╟─d1469e76-1e73-42f5-afd3-90f1bbfb4dfa
-# ╠═c7f352e3-71d9-4ea6-a8d2-629c8f14d97a
-# ╠═8743b00d-5699-4201-9a23-0061552495a0
-# ╠═6827996d-d0c6-4d00-a13a-32495b2bf6c8
+# ╠═6be4758d-c3c4-4b83-b96a-0f2c26dc1ce0
+# ╠═04947b7a-db2d-4328-85be-f34cff54faf1
+# ╠═61929917-81a7-4db4-889b-91e29c5934c6
