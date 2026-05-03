@@ -803,9 +803,6 @@ end
 # ╔═╡ e33780b3-1e4c-40ac-a761-8877c79ac170
 render(Mesh(shoot_graph))
 
-# ╔═╡ b370d018-e6ea-4261-9db6-c4c9f3ba8faf
-getnodes(shoot_graph)[1]
-
 # ╔═╡ 720da1fc-136d-4693-ba1c-b9e7c885e33e
 plotstructure(root_graph)
 
@@ -816,14 +813,34 @@ plotstructure(plantstructures[5])
 md"## Results"
 
 # ╔═╡ 4ac9913e-5d2f-41b3-b782-4d31b441602e
-plotgraph(
-	sols, plantstructures, varname = :W, structmod = :Bud,
-	ylabel = "Water content (g)", xlabel = "Time (h)", label = false, lw = 2,
-	title = "Water content of buds", size = (800, 600)
-)
+begin
+	plotgraph(
+		sols, plantstructures, varname = :W, structmod = :Bud,
+		ylabel = "Water content (g)", xlabel = "Time (h)", label = false, lw = 2,
+		title = "Water content of buds", size = (800, 600), color = palette[1]
+	)
+	# savefig(homedir() * "/Downloads/fig_plantmodules_ex3_buds.pdf")
+end
 
 # ╔═╡ 53ea2aff-3bcc-41ed-be7e-48b8e974f2ba
-plotgraph(sols, plantstructures, varname = :A, structmod = :Leaf, ylabel = "Carbon assimilation rate (mol / cm² / h)", xlabel = "Time (h)", title = "Carbon assimilation rate of leaves", lw = 1.5, label = false, size = (800, 600))
+begin
+	plotgraph(sols, plantstructures, varname = :A, structmod = :Leaf,
+		  ylabel = "Carbon assimilation rate (mol / cm² / h)", xlabel = "Time (h)",
+		  title = "Carbon assimilation rate of leaves", lw = 1.5, 
+		  label = false, size = (800, 600), color = palette[1], xlims = (72, 96), xticks = 0:6:96)
+		# savefig(homedir() * "\\Downloads\\fig_plantmodules_ex3_leaves.pdf")
+end
+
+# ╔═╡ 12245488-ff44-45c9-bb24-5bf19a5ecc7b
+let
+	xs, ys, groups = getplotdata(sols[4], plantstructures[4], varname = :A, structmod = :Leaf)
+	nan_idxs = findall(isnan, xs)
+	
+	colors = [fill(palette[i], diff(nan_idxs)[1]) for i in eachindex(nan_idxs)] |>
+		x -> reduce(vcat, x)
+	plot(xs, ys; color = colors, ylabel = "Carbon assimilation rate (mol / cm² / h)", xlabel = "Time (h)", title = "Carbon assimilation rate of leaves", lw = 1.5, label = false, size = (800, 600))
+	# savefig(homedir() * "\\Downloads\\fig_plantmodules_ex3_leaves_colorful.pdf")
+end
 
 # ╔═╡ d1469e76-1e73-42f5-afd3-90f1bbfb4dfa
 begin
@@ -836,8 +853,8 @@ begin
 			(z == soil_depths[2] ? "Middle layer" : "Top layer")
 	)
 	get_color(z) = (
-		z == soil_depths[1] ? :red :
-			(z == soil_depths[2] ? :orange : :blue)
+		z == soil_depths[1] ? palette[3] :
+			(z == soil_depths[2] ? palette[2] : palette[1])
 	)
 
 	center_vars = [
@@ -1022,13 +1039,13 @@ plotgraph(sols, plantstructures, varname = :PF, structmod = :Leaf)
 # ╠═7aad257a-e6b6-4249-b6b2-2834e5be86d5
 # ╠═7771dc15-9365-4722-bffc-7ba2534afaf1
 # ╠═e33780b3-1e4c-40ac-a761-8877c79ac170
-# ╠═b370d018-e6ea-4261-9db6-c4c9f3ba8faf
 # ╠═720da1fc-136d-4693-ba1c-b9e7c885e33e
 # ╠═c8213569-f42a-49ba-bcca-34d7d5b2b04d
 # ╟─7dd5d141-f6a5-467a-ac59-d766254a0e0d
 # ╠═5a5ed972-138a-471a-b36d-2001b7f28944
-# ╟─4ac9913e-5d2f-41b3-b782-4d31b441602e
+# ╠═4ac9913e-5d2f-41b3-b782-4d31b441602e
 # ╟─53ea2aff-3bcc-41ed-be7e-48b8e974f2ba
+# ╟─12245488-ff44-45c9-bb24-5bf19a5ecc7b
 # ╟─d1469e76-1e73-42f5-afd3-90f1bbfb4dfa
 # ╠═6be4758d-c3c4-4b83-b96a-0f2c26dc1ce0
 # ╠═04947b7a-db2d-4328-85be-f34cff54faf1
