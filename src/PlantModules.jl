@@ -26,7 +26,7 @@ export hydraulic_module, environmental_module, constant_carbon_module, simple_ph
 export hydraulic_connection, constant_hydraulic_connection, daynight_hydraulic_connection # edge modules
 export readXEG, convert_to_MTG, convert_to_PG # graph reading and converting
 export remake_graphsystem, remake_graphsystem!, get_subsystem_variables # system remaking
-export plotstructure, plotgraph, plotnode # plotting
+export plotstructure, plotgraph, getplotdata # plotting
 
 # ## Re-exports
 export graphplot
