@@ -1,20 +1,11 @@
 ### A Pluto.jl notebook ###
-# v0.20.24
+# v0.20.21
 
 using Markdown
 using InteractiveUtils
 
 # ╔═╡ 16e51c70-fe21-40c1-98f0-404254a71b1f
-using Pkg
-
-# ╔═╡ ee4fa627-a613-4128-9fb5-5b336a78f18d
-begin
-	Pkg.activate()
-	using Revise
-end
-
-# ╔═╡ 6dae54ca-aa7f-4504-b985-195099162109
-Pkg.activate("../..")
+using Pkg; Pkg.activate("../..")
 
 # ╔═╡ 813b229f-c17e-4a10-9945-dc9ad9066724
 using PlutoUI; TableOfContents()
@@ -35,12 +26,6 @@ using SkyDomes, PlantBiophysics,
 # ╔═╡ 6b1b3872-8dec-45fa-99d9-9a6903e2170a
 using DataInterpolations
 
-# ╔═╡ 5a5ed972-138a-471a-b36d-2001b7f28944
-begin #!
-	include(homedir() * raw"\Documents\GitHub\Caverns_of_code\Julia\Lifehacks\catpuccin\get_palette.jl") 
-	palette = get_palette("prettycolors")
-end
-
 # ╔═╡ 2dfdb97f-361c-47bd-b65a-41b02bc8bc57
 md"# Tutorial 3: 3D geometry"
 
@@ -60,9 +45,6 @@ import VirtualPlantLab: Mesh
 
 # ╔═╡ d40434c5-4fda-4f2b-a37b-28137924a236
 import VirtualPlantLab.PlantGeomPrimitives: Vec
-
-# ╔═╡ 65428692-5312-4728-9365-73933cf39bde
-import Random
 
 # ╔═╡ a36a2a5b-de0b-46a5-a97c-d0c6b1f2f9f4
 md"## Context"
@@ -456,19 +438,11 @@ end
 md"#### Running the ray tracer"
 
 # ╔═╡ 57d62420-46a3-4eb9-b49b-7ab16b48f4a0
-md"Let's run the ray tracer and visualise the incoming PAR over time for all leaves."
+md"Let's run the ray tracer and visualise the incoming PAR over time for our leaf."
 
 # ╔═╡ 6848349a-51c4-4f89-98df-16784ea140b6
 # ╠═╡ show_logs = false
 precalculate_PAR!(shoot_graph)
-
-# ╔═╡ 4962391e-f21d-494b-a3ed-c2f938f25c2f
-md"""
-We can differentiate between three types of leaf based on the plot below:
-- Leaves that don't get hit by direct sunlight and only receive a small amount of PAR from diffuse sunlight.
-- Leaves that get a lot of sunlight around noon, corresponding to leaves in direct sunlight that are angled mostly up.
-- Leaves that get a lot of sunlight in the morning and evening, corresponding to leaves in direct sunlight that are angle mostly sideward.
-"""
 
 # ╔═╡ b2fcfbb3-968c-4ace-b344-484134c72df4
 begin
@@ -714,7 +688,14 @@ md"## Running the model"
 
 # ╔═╡ 10236da6-fcef-49bf-9c3c-21f75e83f554
 md"""
-Finally, we generate and run the system.
+Finally, we generate and run the system. We will start with an initial run to generate our solution for the first day as in our previous two tutorials. For the following days, we define a function that performs the following steps:
+- Update the structures of the shoot and root graphs, the former of which depends on the functional status of the plant evaluated at the end of the previous day.
+- Run our ray tracer again to recalculate the incoming PAR for our updated shoot structure.
+- Create an updated `PlantStructure` using the updated shoot and root graphs.
+- Add the solution of the previous day's simulation to `PlantParameters`. This makes it use the final values of all variables as the initial values for the simulation of the next day.
+- Generate and solve the system.
+- Store our solution and plantstructure for visualisation of the results.
+- Based on the day's simulation, update the water contents of bud nodes and the dimensions of the internodes and leaves in our shoot graph. These are no longer used directly by our package, as the initial values they specify are now overwritten by the final variable values specified in the previous day's solution. However, they are used in the next day's rewriting steps and ray tracing, so it is important to update them.
 """
 
 # ╔═╡ adacf377-bbde-4367-b48c-6c4a4721dbfe
@@ -800,6 +781,9 @@ for day in 2:days
 	run_timestep!(sols, plantstructures, shoot_graph, root_graph)
 end
 
+# ╔═╡ dba10e9c-1ff0-41fa-af37-86f02cd47ce2
+md"Let's quickly inspect the structure of our plant at the end of the simulation period."
+
 # ╔═╡ e33780b3-1e4c-40ac-a761-8877c79ac170
 render(Mesh(shoot_graph))
 
@@ -807,40 +791,27 @@ render(Mesh(shoot_graph))
 plotstructure(root_graph)
 
 # ╔═╡ c8213569-f42a-49ba-bcca-34d7d5b2b04d
-plotstructure(plantstructures[5])
+plotstructure(plantstructures[end])
 
 # ╔═╡ 7dd5d141-f6a5-467a-ac59-d766254a0e0d
 md"## Results"
 
+# ╔═╡ e27b5cce-ce85-4e21-85fe-a8757283282f
+md"""
+Finally, we can visualize the results of our simulation over the entire time period. We will make the following plots to show the effects of the new functionalities discussed in this tutorial
+- Bud water content over time, illustrating the structural growth of our plant as new buds grow and old buds grow into branches.
+- Soil water content over time, illustrating the effect of discretizing the soil into multiple compartments.
+- The leaf assimilation rate over time, illustrating the different trends of incoming PAR for different leaves.
+
+Plotting has become technically more complex now that we have multiple plantstructures and corresponding solutions, but we can simply pass them to `plotgraph` as vectors and use the plotting function as per usual. Plotting soil water content over time is more complicated, however, because we want to categorize them based on whether they are directly below the plant.
+"""
+
 # ╔═╡ 4ac9913e-5d2f-41b3-b782-4d31b441602e
-begin
-	plotgraph(
-		sols, plantstructures, varname = :W, structmod = :Bud,
-		ylabel = "Water content (g)", xlabel = "Time (h)", label = false, lw = 2,
-		title = "Water content of buds", size = (800, 600), color = palette[1]
-	)
-	# savefig(homedir() * "/Downloads/fig_plantmodules_ex3_buds.pdf")
-end
-
-# ╔═╡ 53ea2aff-3bcc-41ed-be7e-48b8e974f2ba
-begin
-	plotgraph(sols, plantstructures, varname = :A, structmod = :Leaf,
-		  ylabel = "Carbon assimilation rate (mol / cm² / h)", xlabel = "Time (h)",
-		  title = "Carbon assimilation rate of leaves", lw = 1.5, 
-		  label = false, size = (800, 600), color = palette[1], xlims = (72, 96), xticks = 0:6:96)
-		# savefig(homedir() * "\\Downloads\\fig_plantmodules_ex3_leaves.pdf")
-end
-
-# ╔═╡ 12245488-ff44-45c9-bb24-5bf19a5ecc7b
-let
-	xs, ys, groups = getplotdata(sols[4], plantstructures[4], varname = :A, structmod = :Leaf)
-	nan_idxs = findall(isnan, xs)
-	
-	colors = [fill(palette[i], diff(nan_idxs)[1]) for i in eachindex(nan_idxs)] |>
-		x -> reduce(vcat, x)
-	plot(xs, ys; color = colors, ylabel = "Carbon assimilation rate (mol / cm² / h)", xlabel = "Time (h)", title = "Carbon assimilation rate of leaves", lw = 1.5, label = false, size = (800, 600))
-	# savefig(homedir() * "\\Downloads\\fig_plantmodules_ex3_leaves_colorful.pdf")
-end
+plotgraph(
+	sols, plantstructures, varname = :W, structmod = :Bud,
+	ylabel = "Water content (g)", xlabel = "Time (h)", label = false, lw = 2,
+	title = "Water content of buds", size = (800, 600), margins = 5*Plots.mm
+)
 
 # ╔═╡ d1469e76-1e73-42f5-afd3-90f1bbfb4dfa
 begin
@@ -853,8 +824,8 @@ begin
 			(z == soil_depths[2] ? "Middle layer" : "Top layer")
 	)
 	get_color(z) = (
-		z == soil_depths[1] ? palette[3] :
-			(z == soil_depths[2] ? palette[2] : palette[1])
+		z == soil_depths[1] ? :red :
+			(z == soil_depths[2] ? :orange : :blue)
 	)
 
 	center_vars = [
@@ -902,25 +873,26 @@ begin
 		label = false, color = border_colors, lw = 2,
 		title = "Border slices", xticks = 0:24:xs[end])
 	
-	plot(p_center, p_border, xlabel = "Time (h)", plot_title = "Water content of soil compartments", plot_titlevspan = 0.1, size = (800, 600))
+	plot(
+		p_center, p_border, xlabel = "Time (h)", 
+		plot_title = "Water content of soil compartments", 
+		plot_titlevspan = 0.1, size = (800, 600),  margins = 5*Plots.mm
+	)
 end
 
-# ╔═╡ 6be4758d-c3c4-4b83-b96a-0f2c26dc1ce0
-plotgraph(sols, plantstructures, structmod = :Internode, varname = :D)
-
-# ╔═╡ 04947b7a-db2d-4328-85be-f34cff54faf1
-plotgraph(sols, plantstructures, varname = :Ψ, structmod = :Leaf)
-
-# ╔═╡ 61929917-81a7-4db4-889b-91e29c5934c6
-plotgraph(sols, plantstructures, varname = :PF, structmod = :Leaf)
+# ╔═╡ 53ea2aff-3bcc-41ed-be7e-48b8e974f2ba
+plotgraph(
+	sols, plantstructures, varname = :A, structmod = :Leaf,
+	ylabel = "Carbon assimilation rate (mol / cm² / h)", xlabel = "Time (h)",
+	title = "Carbon assimilation rate of leaves", lw = 1.5, label = false, 
+	size = (800, 600), xlims = (72, 96), xticks = 0:6:96,  margins = 5*Plots.mm
+)
 
 # ╔═╡ Cell order:
 # ╟─2dfdb97f-361c-47bd-b65a-41b02bc8bc57
 # ╟─87a39d4c-6f22-447e-bd45-1f133b5bb7b3
 # ╟─e52a8761-f703-4dec-b02b-62d3cc831b4f
 # ╠═16e51c70-fe21-40c1-98f0-404254a71b1f
-# ╠═ee4fa627-a613-4128-9fb5-5b336a78f18d
-# ╠═6dae54ca-aa7f-4504-b985-195099162109
 # ╠═813b229f-c17e-4a10-9945-dc9ad9066724
 # ╠═b1f03d85-2fa4-4746-a5d8-606671d8375e
 # ╠═2ea18a37-041a-48a4-9af0-d3e2bc109c63
@@ -930,7 +902,6 @@ plotgraph(sols, plantstructures, varname = :PF, structmod = :Leaf)
 # ╠═d40434c5-4fda-4f2b-a37b-28137924a236
 # ╠═986648b3-6c8a-465a-87a0-e0ce5fbbefa8
 # ╠═6b1b3872-8dec-45fa-99d9-9a6903e2170a
-# ╠═65428692-5312-4728-9365-73933cf39bde
 # ╟─a36a2a5b-de0b-46a5-a97c-d0c6b1f2f9f4
 # ╟─25160d35-aa6b-4ed5-9199-a54d882dbfc9
 # ╟─d3fdc6b7-e69d-425e-ae3b-99e9497b8cb5
@@ -989,7 +960,6 @@ plotgraph(sols, plantstructures, varname = :PF, structmod = :Leaf)
 # ╟─d03ea181-c1ed-436c-af2c-4546d58287e5
 # ╟─57d62420-46a3-4eb9-b49b-7ab16b48f4a0
 # ╠═6848349a-51c4-4f89-98df-16784ea140b6
-# ╟─4962391e-f21d-494b-a3ed-c2f938f25c2f
 # ╠═b2fcfbb3-968c-4ace-b344-484134c72df4
 # ╟─ea169cfa-510f-4619-8e63-394ea0a44b09
 # ╟─845af412-656b-4b65-8d09-9f2bc58b3867
@@ -1038,15 +1008,12 @@ plotgraph(sols, plantstructures, varname = :PF, structmod = :Leaf)
 # ╠═d3a39f1d-879e-4e30-9098-6cd8cc58a5af
 # ╠═7aad257a-e6b6-4249-b6b2-2834e5be86d5
 # ╠═7771dc15-9365-4722-bffc-7ba2534afaf1
+# ╟─dba10e9c-1ff0-41fa-af37-86f02cd47ce2
 # ╠═e33780b3-1e4c-40ac-a761-8877c79ac170
 # ╠═720da1fc-136d-4693-ba1c-b9e7c885e33e
 # ╠═c8213569-f42a-49ba-bcca-34d7d5b2b04d
 # ╟─7dd5d141-f6a5-467a-ac59-d766254a0e0d
-# ╠═5a5ed972-138a-471a-b36d-2001b7f28944
-# ╠═4ac9913e-5d2f-41b3-b782-4d31b441602e
-# ╟─53ea2aff-3bcc-41ed-be7e-48b8e974f2ba
-# ╟─12245488-ff44-45c9-bb24-5bf19a5ecc7b
+# ╟─e27b5cce-ce85-4e21-85fe-a8757283282f
+# ╟─4ac9913e-5d2f-41b3-b782-4d31b441602e
 # ╟─d1469e76-1e73-42f5-afd3-90f1bbfb4dfa
-# ╠═6be4758d-c3c4-4b83-b96a-0f2c26dc1ce0
-# ╠═04947b7a-db2d-4328-85be-f34cff54faf1
-# ╠═61929917-81a7-4db4-889b-91e29c5934c6
+# ╟─53ea2aff-3bcc-41ed-be7e-48b8e974f2ba
