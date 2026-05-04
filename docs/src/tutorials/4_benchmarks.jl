@@ -31,9 +31,6 @@ In this notebook, we will benchmark the speed of the package. Considering our fr
 # ╔═╡ 02479490-ddee-4f5c-b34a-c6225c449a9e
 md"## Setup"
 
-# ╔═╡ 5f51b5e9-ee98-48b6-b7ee-23cd8d438829
-Pkg.status()
-
 # ╔═╡ 92d46933-9ba5-4e10-89ef-2cfa1e88ed6a
 md"## System definition"
 
@@ -281,7 +278,7 @@ md"## Benchmarking"
 
 # ╔═╡ db53873c-5213-4b66-bcf1-0213b522cab8
 md"""
-Now let's get to the actual benchmarking. We will start off by timing the system generation, problem generation and problem solving for differing numbers of rewrite steps to evaluate how computation time scales with system size. Afterwards, we will compare the solving time in function of the smoothing parameter α, which controls the steepness of the transition between growth and no growth at the yield threshold.
+Now let's get to the actual benchmarking. We will time the system generation, problem generation and problem solving for differing numbers of rewrite steps to evaluate how computation time scales with system size.
 """
 
 # ╔═╡ d491c24e-46e8-40ca-9f5f-2f76e7e95c06
@@ -302,13 +299,10 @@ function get_stats(plantstructure; tspan = (0.0, 7*24.0))
 	return num_nodes, num_variables, system_stats, prob_stats, sol_stats
 end
 
-# ╔═╡ 9aac7a47-36ab-48de-b7f0-dd686bde4458
-md"### Per-step breakdown"
-
 # ╔═╡ 49b41f29-0b19-483d-b903-70a254b1f19e
 md"""
 !!! warning
-	Note that all  benchmarks for the per-step breakdown are based on only a single run, which makes them somewhat inconsistent compared to taking the median of a sample of runs. The reason for this is that we also benchmark function compilation time, which only triggers the first time a function method is used, making it non-trivial to get a sample of.
+	Note that all  benchmarks are based on only a single run, which makes them somewhat inconsistent compared to taking the median of a sample of runs. The reason for this is that we also benchmark function compilation time, which only triggers the first time a function method is used, making it non-trivial to get a sample of.
 """
 
 # ╔═╡ 45de608d-9bd1-49c8-8dd3-1d97b47ad2bc
@@ -382,7 +376,7 @@ end
 rewrite_steps_set = [2, 4, 6] # note not to include `rewrite_steps_test`, as the functions have already compiled for this system size
 
 # ╔═╡ f4d4311a-066e-4111-b134-0e465a41970d
-md"#### Linear structure"
+md"### Linear structure"
 
 # ╔═╡ 1e339ee4-7b19-4bb2-b2f1-7f82d9cd1762
 stats_linear = [benchmark_linear(rewrite_steps) for rewrite_steps in rewrite_steps_set];
@@ -394,7 +388,7 @@ p_size_linear = plot_size(rewrite_steps_set, stats_linear)
 p_time_linear = plot_time(rewrite_steps_set, stats_linear)
 
 # ╔═╡ 27431fdd-8159-4048-aaf7-084489cd9d29
-md"#### Branching structure"
+md"### Branching structure"
 
 # ╔═╡ 7d3047b5-c8ff-4c07-8b27-e76b18534c29
 stats_branching = [benchmark_branching(rewrite_steps) for rewrite_steps in rewrite_steps_set];
@@ -405,60 +399,6 @@ p_size_branching = plot_size(rewrite_steps_set, stats_branching)
 # ╔═╡ c0cedaa5-5ca2-4479-bead-7ee289cc5fcf
 p_time_branching = plot_time(rewrite_steps_set, stats_branching)
 
-# ╔═╡ 467eb700-d7c4-4be7-895b-d8fb81503368
-md"### Influence of the smoothing parameter α"
-
-# ╔═╡ 41d7e92a-57a2-40e0-9f7b-21150f751a91
-mean(xs::AbstractArray) = sum(xs)/length(xs)
-
-# ╔═╡ 4b3d2bcf-e64d-4850-abde-2029cdc70da7
-std(xs::AbstractArray) = sqrt( sum( (xs .- mean(xs)).^2 ) / (length(xs)-1) )
-
-# ╔═╡ dbfbe7ef-dafe-470a-9374-23e24fdf131f
-plant_smoothing, plantstructure_smoothing = get_structure_branching(4);
-
-# ╔═╡ e186373c-fe99-40b9-9ce3-e10befb7f1b2
-function benchmark_solving(plantstructure, default_changes; 
-		n_samples = 10, tspan = (0.0, 7*24.0))
-	
-	plantparams = get_params(plantstructure; default_changes)
-
-	system = generate_system(plantstructure, plantcoupling, plantparams)
-	prob = ODEProblem(system, [], tspan, sparse = true)
-	sol_times = [@elapsed solve(prob, FBDF()) for _ in 1:n_samples]
-
-	return sol_times
-end
-
-# ╔═╡ c17e3656-eb2a-4590-99ba-0e094ae7a8e2
-α_set = [4, 40, 400]
-
-# ╔═╡ 283810bf-9bc5-49d8-8120-35c32a857076
-begin
-	plot(xlims = (-0.5, 0.5), ylims = (0.0, 0.5), title = "Influence of α on thresholding behaviour", xlabel = "x")
-	for α in α_set
-		plot!(x -> logsumexp(x; α), label = "α = $α", linewidth = 3, linestyle = :dashdotdot)
-	end
-	plot!()
-end
-
-# ╔═╡ 9b73b712-0db2-43e2-b595-7cc989959f20
-sol_times_set = [
-	benchmark_solving(plantstructure_smoothing, Dict(:α => α))
-	for α in α_set
-];
-
-# ╔═╡ b568ad1e-b874-44f1-9155-0a0057ae01c4
-begin
-	scatter(
-		α_set, mean.(sol_times_set), yerr = std.(sol_times_set),
-		legend = false, xscale = :log, xticks = [4, 40, 400],
-		xlabel = "Smoothing parameter α", ylabel = "Solving time (s)", 
-		title = "Solving time in function of α",
-		ylims = (0, ceil(maximum(reduce(vcat, sol_times_set)) + 1))
-	)
-end
-
 # ╔═╡ Cell order:
 # ╟─3c306ef3-2546-435e-b1b6-c5325499590e
 # ╟─1b98b39f-c3b9-49f2-9f34-ee854b2da83c
@@ -468,7 +408,6 @@ end
 # ╠═792edd4e-aec4-48d6-801f-8a48de61e11b
 # ╠═f6ebbd49-68d2-4ae6-92c3-aebe38e5f4ac
 # ╠═1966353a-462a-4784-91fa-8a6929dc81a9
-# ╠═5f51b5e9-ee98-48b6-b7ee-23cd8d438829
 # ╟─92d46933-9ba5-4e10-89ef-2cfa1e88ed6a
 # ╟─bb2dc233-c5cc-49c6-aef1-d46e2f0cff0c
 # ╟─7e67ea9b-2e78-462f-93a4-5bbc3a50e1e8
@@ -509,7 +448,6 @@ end
 # ╟─4d43634f-b03a-4988-997e-d133e74dca2c
 # ╟─db53873c-5213-4b66-bcf1-0213b522cab8
 # ╠═d491c24e-46e8-40ca-9f5f-2f76e7e95c06
-# ╟─9aac7a47-36ab-48de-b7f0-dd686bde4458
 # ╟─49b41f29-0b19-483d-b903-70a254b1f19e
 # ╟─45de608d-9bd1-49c8-8dd3-1d97b47ad2bc
 # ╟─c484bbd7-6171-4976-8d0a-a92e2bf7980a
@@ -525,12 +463,3 @@ end
 # ╠═7d3047b5-c8ff-4c07-8b27-e76b18534c29
 # ╟─347160b8-368a-420a-8f65-8b50e4449c2d
 # ╟─c0cedaa5-5ca2-4479-bead-7ee289cc5fcf
-# ╟─467eb700-d7c4-4be7-895b-d8fb81503368
-# ╟─41d7e92a-57a2-40e0-9f7b-21150f751a91
-# ╟─4b3d2bcf-e64d-4850-abde-2029cdc70da7
-# ╠═dbfbe7ef-dafe-470a-9374-23e24fdf131f
-# ╠═e186373c-fe99-40b9-9ce3-e10befb7f1b2
-# ╠═c17e3656-eb2a-4590-99ba-0e094ae7a8e2
-# ╟─283810bf-9bc5-49d8-8120-35c32a857076
-# ╠═9b73b712-0db2-43e2-b595-7cc989959f20
-# ╠═b568ad1e-b874-44f1-9155-0a0057ae01c4
