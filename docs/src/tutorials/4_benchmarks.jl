@@ -155,24 +155,22 @@ md"### Parameters"
 
 # ╔═╡ 0f946322-28ac-4924-bb8f-f0c7eebb4c15
 md"""
-The parameter values are defined in function of the size of the plant in order to scale the amount of water in the soil to the amount of transpiration taking place. This is to ensure all simulations have a similar profile for soil water potential through time, as this can have a significant effect on solving time. All other parameters are set to their default values, with two exceptions:
+We change the following parameter values from their default values:
 - The specific hydraulic conductivity `K_s` of the plant segments is increased to prevent larger systems from having unrealistically small hydraulic conductivities, considering the cross area of their segments is not increased in our model.
+- The maximum water content `W_max` of the soil is reduced to match our relatively small plant structures.
 - The hydraulic conductivity `K` of the air is set to a smaller, more realistic value, as the default value is intended to represent a well-conducting node.
 - The relative water content `W_r` of the air is set to a smaller value for similar reasons.
 """
 
-# ╔═╡ 51003cf2-0d80-4a40-bb52-cfec7920c798
-function get_params(plantstructure; default_changes = Dict{Symbol, Float64}())
-	num_evaporating_segments = length(getneighbors(getnodes(plantstructure)[end], plantstructure))
-	module_defaults = Dict(
-		:Segment => Dict(:K_s => 500.0),
-		:Soil => Dict(:W_max => num_evaporating_segments * 1e2),
-		:Air => Dict(:K => 1e-2, :W_r => 0.7)
+# ╔═╡ 8fabb2fa-f114-43f6-8c74-e2197f88320d
+module_defaults = Dict(
+	:Segment => Dict(:K_s => 500.0),
+	:Soil => Dict(:W_max => 1e4),
+	:Air => Dict(:K => 1e-2, :W_r => 0.7)
 	)
-	plantparams = PlantParameters(; default_changes, module_defaults)
 
-	return plantparams
-end
+# ╔═╡ 2a369b5a-8d57-4987-90f5-2b8787784657
+plantparams = PlantParameters(; module_defaults);
 
 # ╔═╡ 3fea0aca-d6c2-43b8-b852-25bf8276f33a
 md"## Sanity check"
@@ -184,7 +182,6 @@ Before getting to the actual benchmarks, we'll do a quick sanity check to verify
 
 # ╔═╡ 4cf1bd36-5742-41f6-916f-c7a173793920
 function test_simulation(plantstructure; tspan = (0.0, 7*24.0))
-	plantparams = get_params(plantstructure)
 	system = generate_system(plantstructure, plantcoupling, plantparams)
 	prob = ODEProblem(system, [], tspan, sparse = true)
 	sol = solve(prob, FBDF())
@@ -283,8 +280,6 @@ Now let's get to the actual benchmarking. We will time the system generation, pr
 
 # ╔═╡ d491c24e-46e8-40ca-9f5f-2f76e7e95c06
 function get_stats(plantstructure; tspan = (0.0, 7*24.0))
-	plantparams = get_params(plantstructure)
-	
 	system_stats = @timed generate_system(
 		plantstructure, plantcoupling, plantparams
 	)
@@ -428,7 +423,8 @@ p_time_branching = plot_time(rewrite_steps_set, stats_branching)
 # ╠═74ad2d32-27b4-4c99-8132-37d208869a98
 # ╟─b1b8a817-b2e5-4aa3-93f1-62dcc48a8787
 # ╟─0f946322-28ac-4924-bb8f-f0c7eebb4c15
-# ╠═51003cf2-0d80-4a40-bb52-cfec7920c798
+# ╠═8fabb2fa-f114-43f6-8c74-e2197f88320d
+# ╠═2a369b5a-8d57-4987-90f5-2b8787784657
 # ╟─3fea0aca-d6c2-43b8-b852-25bf8276f33a
 # ╟─bb0a5076-6f08-4eab-a762-e9231ad03949
 # ╠═4cf1bd36-5742-41f6-916f-c7a173793920
@@ -443,7 +439,7 @@ p_time_branching = plot_time(rewrite_steps_set, stats_branching)
 # ╠═53d77b90-49cb-44c0-8ef6-24157fa5abe8
 # ╟─8fb7f517-e071-4c0d-b739-a4825708426a
 # ╠═cea4d360-f9f6-4b48-96fd-7c2cc82a0d77
-# ╟─01be5dc8-8c1f-497b-8f8f-a92ac3c5b29d
+# ╠═01be5dc8-8c1f-497b-8f8f-a92ac3c5b29d
 # ╟─61e5f480-bfc8-470d-bc0f-50853b2c08ca
 # ╟─4d43634f-b03a-4988-997e-d133e74dca2c
 # ╟─db53873c-5213-4b66-bcf1-0213b522cab8
@@ -462,4 +458,4 @@ p_time_branching = plot_time(rewrite_steps_set, stats_branching)
 # ╟─27431fdd-8159-4048-aaf7-084489cd9d29
 # ╠═7d3047b5-c8ff-4c07-8b27-e76b18534c29
 # ╟─347160b8-368a-420a-8f65-8b50e4449c2d
-# ╟─c0cedaa5-5ca2-4479-bead-7ee289cc5fcf
+# ╠═c0cedaa5-5ca2-4479-bead-7ee289cc5fcf
