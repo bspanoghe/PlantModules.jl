@@ -1,6 +1,7 @@
 # # Setup
 @independent_variables t, [description = "Time"] #, unit = u"hr"]; # independent variable
 d = Differential(t); # differential operator
+°C_to_K(T::Number) = T + 273.15 # temperature unit conversion
 
 # # Modules
 
@@ -18,7 +19,7 @@ This module still requires a module describing the osmotically active metabolite
 - `ϕ_D`: The dimensional extensibility [1 / MPa / h], must be a vector with a value for every dimension of the compartment's shape.
 - `E_D`: The dimensional elastic modulus [MPa], must be a vector with a value for every dimension of the compartment's shape.
 - `Γ`: The yield turgor pressure [MPa].
-- `T`: The temperature [K].
+- `T`: The temperature [°C].
 - `h`: The node's height above a reference point of choice [cm].
 - `α`: The LogSumExp smoothing parameter [N/A].
 
@@ -33,12 +34,12 @@ function hydraulic_module(; name, shape::ModuleShape, ϕ_D, E_D, Γ, T, D, Ψ, M
     # turns scalar values into vectors of correct length
 
     num_D = getdimensionality(shape)
-
+    
     R = 8.314 # MPa * cm^3 / K / mol
     ρ_w = 1.0 # g / cm^3
     g = 9.8 * 1.0e-5 # hN / g
     Pₕ = ρ_w * g * h # MPa
-    P = Ψ + R * T * M - Pₕ # MPa
+    P = Ψ + R * °C_to_K(T) * M - Pₕ # MPa
 
     @constants (
         R = R, [description = "Ideal gas constant"], #, unit = u"MPa * cm^3 / K / mol"], # Pa = J/m^3 => J = Pa * m^3 = MPa * cm^3
@@ -46,7 +47,7 @@ function hydraulic_module(; name, shape::ModuleShape, ϕ_D, E_D, Γ, T, D, Ψ, M
         ρ_w = ρ_w, [description = "Density of water"], #, unit = u"g / cm^3"],
     )
     @parameters (
-        T = T, [description = "Temperature"], #, unit = u"K"],
+        T = T, [description = "Temperature"], #, unit = u"°C"],
         ϕ_D[1:num_D] = ϕ_D, [description = "Dimensional extensibility"], #, unit = u"MPa^-1 * hr^-1"],
         E_D[1:num_D] = E_D, [description = "Dimensional elastic modulus"], #, unit = u"MPa"],
         Γ = Γ, [description = "Yield turgor pressure"], #, unit = u"MPa"],
@@ -66,7 +67,7 @@ function hydraulic_module(; name, shape::ModuleShape, ϕ_D, E_D, Γ, T, D, Ψ, M
     )
     eqs = [
         Ψ ~ P + Π + Pₕ, # Water potential consists of a solute- and a pressure component
-        Π ~ -R * T * M, # Solute component is determined by concentration of dissolved metabolites
+        Π ~ -R * °C_to_K(T) * M, # Solute component is determined by concentration of dissolved metabolites
         d(W) ~ ΣF, # Water content changes due to flux (depending on water potentials as defined in connections)
         V ~ W / ρ_w, # Volume is directly related to water content
         V ~ volume(shape, D), # Volume is also directly related to compartment dimensions
@@ -85,7 +86,7 @@ This module still requires a module describing the total water potential Ψ.
 
 # Inputs
 ## Parameters
-- `T`: The temperature [K].
+- `T`: The temperature [°C].
 - `W_max`: The water capacity of the compartment [g].
 
 ## Initial values
@@ -93,7 +94,7 @@ This module still requires a module describing the total water potential Ψ.
 """
 function environmental_module(; name, T, W_max, W_r)
     @parameters (
-        T = T, [description = "Temperature"], #, unit = u"K"],
+        T = T, [description = "Temperature"], #, unit = u"°C"],
         W_max = W_max, [description = "Water capacity of compartment"], #, unit = u"g"],
     )
     @variables (
@@ -129,9 +130,6 @@ Return a ModelingToolkit System describing a concentration of osmotically active
 - `M`: The osmotically active metabolite concentration [mol/cm^3].
 """
 function simple_photosynthesis_module(; name, shape, t_sunrise, t_sunset, A_max, M_c, M)
-    @constants (
-        t_unit = 1, [description = "Dummy constant for correcting units"], #, unit = u"hr"],
-    )
     @parameters (
         t_sunrise = t_sunrise, [description = "Time of sunrise (hours past midnight)"], #, unit = u"hr"],
         t_sunset = t_sunset, [description = "Time of sunset (hours past midnight)"], #, unit = u"hr"],
@@ -145,7 +143,7 @@ function simple_photosynthesis_module(; name, shape, t_sunrise, t_sunset, A_max,
     )
 
     eqs = [
-        A ~ smooth_daynight(t / t_unit, t_sunrise / t_unit, t_sunset / t_unit, zero(A_max), A_max, smoothing = 1.0)
+        A ~ smooth_daynight(t, t_sunrise, t_sunset, zero(A_max), A_max, smoothing = 1.0)
         d(M) ~ A * surface_area(shape, D) / 2 / volume(shape, D) - M_c * M
     ]
     return System(eqs, t; name)
@@ -184,20 +182,20 @@ Return a ModelingToolkit System describing the relationship between the total wa
 
 # Inputs
 ## Parameters
-- `T`: The temperature [K].
+- `T`: The temperature [°C].
 """
 function Ψ_air_module(; name, T)
     @variables (
         Ψ(t), [description = "Total water potential"], #, unit = u"MPa"],
         W_r(t), [description = "Relative water content"], #, unit = u"g / g"],
     )
-    @parameters T = T [description = "Temperature"] #, unit = u"K"]
+    @parameters T = T [description = "Temperature"] #, unit = u"°C"]
     @constants (
         R = 8.314, [description = "Ideal gas constant"], #, unit = u"MPa * cm^3 / K / mol"],
         V_w = 18, [description = "Molar volume of water"], #, unit = u"cm^3/mol"]
     )
 
-    eqs = [Ψ ~ R * T / V_w * log(W_r)] # Spanner equation (see e.g. https://academic.oup.com/insilicoplants/article/4/1/diab038/6510844)
+    eqs = [Ψ ~ R * °C_to_K(T) / V_w * log(W_r)] # Spanner equation (see e.g. https://academic.oup.com/insilicoplants/article/4/1/diab038/6510844)
 
     return System(eqs, t; name)
 end
@@ -411,7 +409,7 @@ multi_connection_eqs(node_MTK, connection_MTKs) = [
 # # Default values
 
 default_values = Dict(
-    :shape => Cylinder(), :ϕ_D => 0.02, :E_D => 50.0, :Γ => 0.3, :T => 298.15, :D => [0.5, 5.0],
+    :shape => Cylinder(), :ϕ_D => 0.02, :E_D => 50.0, :Γ => 0.3, :T => 25.0, :D => [0.5, 5.0],
     :Ψ => 0.0, :M => 300.0e-6, :α => 40.0, :h => 0.0, :W_max => 1.0e6, :W_r => 0.8, :K_s => 10.0, :K => 1.0e3,
     :t_sunrise => 8, :t_sunset => 20, :η_night => 0.1, :A_max => 2.0e-6, :M_c => 0.05
 )

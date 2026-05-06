@@ -5,6 +5,7 @@ using Markdown
 using InteractiveUtils
 
 # ╔═╡ 16e51c70-fe21-40c1-98f0-404254a71b1f
+# ╠═╡ show_logs = false
 using Pkg; Pkg.activate("../..")
 
 # ╔═╡ 813b229f-c17e-4a10-9945-dc9ad9066724
@@ -542,9 +543,8 @@ Based on our ray tracer, we can calculate the incoming PAR for every leaf at any
 
 # ╔═╡ 67223c01-0a1a-43cf-995b-429f72353536
 function get_assimilation_rate(PAR_flux, T)
-	Kelvin_to_C = -273.15
 	meteo = Atmosphere(
-		T = T + Kelvin_to_C, Wind = 1.0, P = 101.3, Rh = 0.65
+		T = T, Wind = 1.0, P = 101.3, Rh = 0.65
 	)
 	m = ModelList(
 		Fvcb(), # calculate CO2 assimilation rate
@@ -558,11 +558,11 @@ function get_assimilation_rate(PAR_flux, T)
 end
 
 # ╔═╡ cadcf258-862b-416a-8e5e-8fb52a0e7b2a
-plot(PAR -> get_assimilation_rate(PAR, 293.15), xlims = (0, 300), xlabel = "PAR (W / m²)", ylabel = "Assimilation rate (μmol / m² / s)", legend = false, title = "Assimilation rate in function of PAR")
+plot(PAR -> get_assimilation_rate(PAR, 25.0), xlims = (0, 300), xlabel = "PAR (W / m²)", ylabel = "Assimilation rate (μmol / m² / s)", legend = false, title = "Assimilation rate in function of PAR")
 
 # ╔═╡ 4b381403-6fd3-485e-a6c8-dde6dd8ccc55
 md"""
-When we want to use more complex functions such as this inside of our functional modules, it's often a good idea to reduce their computational cost if possible. For this example, we can simply replace the function with another linear interpolation.
+When we want to use more complex functions such as this inside of our functional modules, it's often a good idea to reduce their computational cost if possible. For this example, we can simply replace the function with another linear interpolation, where we set the temperature to the value we will use in our simulations.
 """
 
 # ╔═╡ f4ddafdc-75e8-47ad-9250-8c8d83f58394
@@ -570,7 +570,7 @@ interpolation_range = 0:1000
 
 # ╔═╡ 9b8b866a-b44a-4915-bce5-92cc79c70818
 get_assimilation_rate_interpolation = LinearInterpolation(
-	get_assimilation_rate.(interpolation_range, 293.15),
+	get_assimilation_rate.(interpolation_range, 25.0),
 	interpolation_range,
 	extrapolation = ExtrapolationType.Extension # smoothly extend interpolation for extrapolation
 );
@@ -702,6 +702,7 @@ Finally, we generate and run the system. We will start with an initial run to ge
 md"### Initial run"
 
 # ╔═╡ 8f635abb-c9ea-45ca-81ae-e679e0ba923d
+# ╠═╡ show_logs = false
 system = generate_system(plantstructure, plantcoupling, plantparams);
 
 # ╔═╡ 9b90ddc4-cee5-4063-9f83-ecbff8c7596c
