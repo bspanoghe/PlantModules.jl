@@ -89,8 +89,8 @@ nb_node = cave_node
 
 ## getMTKsystem
 
-sys1 = PlantModules.getMTKsystem(forest_node_1, plantparams, plantcoupling)
-@test get_name(sys1) == Symbol(string(PlantModules.getstructmod(forest_node_1)) * string(PlantModules.getid(forest_node_1)))
+sys1 = PlantModules.getMTKsystem(forest_node_1, plantstructure, plantparams, plantcoupling)
+@test get_name(sys1) == PlantModules.getsysname(forest_node_1, plantstructure)
 
 ## get_MTK_system_dict
 MTK_system_dict = PlantModules.get_MTK_system_dict(plantstructure, plantparams, plantcoupling)
@@ -105,7 +105,7 @@ connecting_module, original_order = PlantModules.get_connecting_module(node, nb_
 ## get_connection_info
 connection_MTK, connection_equations = PlantModules.get_connection_info(
     node, nb_node, connecting_module,
-    original_order, plantparams, MTK_system_dict
+    original_order, plantstructure, plantparams, MTK_system_dict
 )
 
 initial_conditions(connection_MTK)
@@ -117,12 +117,12 @@ initial_conditions(connection_MTK)
 ## getnodevalues
 structmodule = :Forest
 func_module = lotka_volterra
-nodevalues = PlantModules.getnodevalues(node, structmodule, func_module, plantparams)
+nodevalues = PlantModules.getnodevalues(node, structmodule, func_module, plantstructure, plantparams)
 @test issetequal(nodevalues, [:α => 1.5, :β => 1.9, :γ => 0.8, :δ => 1.8, :N => 20, :P => 10])
 
 structmodule = :Cave
 func_module = fountain_of_rabbits
-nodeu0s = PlantModules.getnodevalues(nb_node, structmodule, func_module, plantparams)
+nodeu0s = PlantModules.getnodevalues(nb_node, structmodule, func_module, plantstructure, plantparams)
 @test issetequal(nodeu0s, [:η => 10, :P => 0, :N => 1])
 
 ## generate_system
