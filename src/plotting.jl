@@ -111,7 +111,28 @@ Alternatively, the data for the plot can be acquired directly with the function 
 function plotgraph(sol::ODESolution, plantstructure::PlantStructure, nodes::Vector = getnodes(plantstructure);
     varname::Symbol, structmod::Union{Symbol, Vector{Symbol}, Missing} = missing, kwargs...)
     
-    xs, ys, groups = getplotdata(sol, plantstructure, varname, filter_nodes(nodes, structmod))
+    xs, ys, groups = getplotdata(sol, plantstructure, filter_nodes(nodes, structmod); varname)
+    return plantplot(xs, ys; groups, title = "$varname", kwargs...)
+end
+
+"""
+    plotgraph(sols::Vector{<:ODESolution}, plantstructures::Vector{<:PlantStructure}, nodes_vec::Vector{<:Vector} = [getnodes(plantstructure) for plantstructure in plantstructures];
+        varname = missing, structmod = missing, kwargs...)
+
+Plot solutions for a collection of plantstructures and solutions, intended for sequential runs of a growing plant structure.
+
+Note that if you want to plot specific nodes, you must pass a vector where each element is this set of nodes for every plantstructure in `plantstructures`.
+"""
+function plotgraph(sols::Vector{<:ODESolution}, plantstructures::Vector{<:PlantStructure}, nodes_vec::Vector{<:Vector} = [getnodes(plantstructure) for plantstructure in plantstructures];
+    varname::Symbol, structmod::Union{Symbol, Vector{Symbol}, Missing} = missing, kwargs...)
+        
+    data = [getplotdata(sol, plantstructure, filter_nodes(nodes, structmod); varname) for (sol, plantstructure, nodes) in zip(sols, plantstructures, nodes_vec)]
+    xs_vec, ys_vec, groups_vec = [getindex.(data, i) for i in 1:3]
+    for i in eachindex(xs_vec)[2:end]
+        xs_vec[i] = xs_vec[i] .+ sum(sols[j].prob.tspan[2] for j in 1:i-1) # add ending time of previous solutions to times of current solution
+    end
+    xs, ys, groups = [reduce(vcat, i) for i in [xs_vec, ys_vec, groups_vec]]
+
     return plantplot(xs, ys; groups, title = "$varname", kwargs...)
 end
 
