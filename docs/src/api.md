@@ -82,5 +82,5 @@ get_subsystem_variables
 ```@docs
 plotstructure
 plotgraph
-plotnode
+getplotdata
 ```
