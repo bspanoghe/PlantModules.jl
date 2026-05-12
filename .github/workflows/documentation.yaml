@@ -31,5 +31,7 @@ jobs:
           Pkg.instantiate()
       - name: Build and deploy
         run: julia --color=yes --project=docs docs/make.jl
+        with:
+          prefix: xvfb-run -s '-screen 0 1024x768x24'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -9,7 +9,7 @@ Only variables of given names and subsystem types are changed.
 - `sys::System`: The ModelingToolkit.jl system corresponding to the given problem.
 - `structure`: A graph representing the subsystem structure of the system. PlantModules' graph functions must be extended for the graph type. See also [`PlantStructure`](@ref).
 - `varnames`: The name(s) of the desired variable.
-- `subsystem_types`: The desired type(s) of subsystem. For node modules, this corresponds to a node or a structural module. For edge modules (or connection modules), this corresponds to a connection, being a 2-tuple of node(s) and structural module(s).
+- `subsystem_types`: The desired type(s) of subsystem. For node modules, this corresponds to a node or a structural module type. For edge modules (or connection modules), this corresponds to a connection, being a 2-tuple of node(s) and structural module(s).
 - `value`: The new variable value.
 """
 function remake_graphsystem(prob::AbstractSciMLProblem, sys::System, structure, varnames, subsystem_types, value)
@@ -33,70 +33,4 @@ function remake_graphsystem!(prob::AbstractSciMLProblem, sys::System, structure,
     setter = setp(prob, remakevars)
     setter(ps, fill(value, length(remakevars)))
     return remake(prob, p = ps)
-end
-
-"""
-    get_subsystem_variables(sys::System, structure, varname::Symbol, subsystem_type)
-
-Get the Symbolics representation of all variables (unknowns or parameters) of a system with a given subsystem structure, filtered by variable name and type of subsystem.
-See [`remake_graphsystem`](@ref) for more information about the inputs.
-"""
-function get_subsystem_variables(sys::System, structure, varnames::Vector{Symbol}, subsystem_types::Vector)
-    nodes = getnodes(structure)
-    sysnames = [getsysnames(nodes, subsystem_type, structure) for subsystem_type in subsystem_types] |>
-        x -> reduce(vcat, x)
-
-    subsystems = [getsubsystem(sys, sysname) for sysname in sysnames]
-    subsys_vars = [getproperty(subsys, varname) for subsys in subsystems for varname in varnames]
-    return subsys_vars
-end
-
-get_subsystem_variables(sys, structure, varnames::Vector, subsystem_type) = get_subsystem_variables(sys, structure, varnames, [subsystem_type])
-get_subsystem_variables(sys, structure, varname, subsystem_types::Vector) = get_subsystem_variables(sys, structure, [varname], subsystem_types)
-get_subsystem_variables(sys, structure, varname, subsystem_type) = get_subsystem_variables(sys, structure, [varname], [subsystem_type])
-
-function getsysnames(nodes, node, _)
-    (node in nodes) || error("Node $node not found.")
-    sysnames = [string(getstructmod(node)) * string(getid(node))]
-    return sysnames
-end
-
-function getsysnames(nodes, structmod::Symbol, _)
-    node_structmods = getstructmod.(nodes)
-    is_valid_node = [node_structmod == structmod for node_structmod in node_structmods]
-    if !any(is_valid_node)
-        error("None of the structural module \"$(structmod)\" were found in the graph.")
-    end
-    sysnames = [string(getstructmod(node)) * string(getid(node)) for node in nodes[is_valid_node]]
-    return sysnames
-end
-
-function getsysnames(nodes, connection::Tuple, structure)
-    is_valid_node = [
-        [connection_check(node, connection[i]) for node in nodes] # see `plantstructure.jl` for `connection_check`
-            for i in eachindex(connection)
-    ]
-    if !any(Iterators.flatten(is_valid_node))
-        error("No nodes found in the graph that correspond to connection $connection.")
-    end
-
-    sysnames = [
-        string(getstructmod(node1)) * string(getid(node1)) * "_" *
-            string(getstructmod(node2)) * string(getid(node2))
-            for node1 in nodes[is_valid_node[1]]
-            for node2 in nodes[is_valid_node[2]]
-            if node2 in getneighbors(node1, structure)
-    ]
-    isempty(sysnames) && error("No nodes found in the graph that correspond to connection $connection.")
-    return sysnames
-end
-
-function getsubsystem(sys::System, sysname)
-    parentsystem = get_parent(sys) # system before simplification
-    if !isnothing(get_parent(parentsystem))
-        parentsystem = get_parent(parentsystem) #! you have to do this twice since MTKv11
-    end
-    subsystem = [subsys for subsys in get_systems(parentsystem) if get_name(subsys) == Symbol(sysname)][1]
-
-    return subsystem
 end

@@ -26,7 +26,7 @@ export hydraulic_module, environmental_module, constant_carbon_module, simple_ph
 export hydraulic_connection, constant_hydraulic_connection, daynight_hydraulic_connection # edge modules
 export readXEG, convert_to_MTG, convert_to_PG # graph reading and converting
 export remake_graphsystem, remake_graphsystem!, get_subsystem_variables # system remaking
-export plotstructure, plotgraph, plotnode # plotting
+export plotstructure, plotgraph, getplotdata # plotting
 
 # ## Re-exports
 export graphplot
@@ -36,6 +36,7 @@ include("plantstructure.jl")
 include("graph_functions.jl")
 include("graph_reading.jl")
 include("graph_conversion.jl")
+include("sciML_integration.jl")
 include("generate_system.jl")
 include("shapes.jl")
 include("smoothfuncs.jl")

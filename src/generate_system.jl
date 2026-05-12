@@ -25,11 +25,13 @@ A container for functional parameters. Used in [`generate_system`](@ref).
 - `default_values::Dict{Symbol, <:Any}`: The model-wide default values of parameters and initial values.
 - `module_defaults::Dict{Symbol, Dict}`: Module-specific default values of parameters and initial values.
 - `connection_values::Dict{Tuple{Symbol, Symbol}, Dict}`: Connection-specific values of parameters and initial values.
-"""
+- `sol::Union{Missing, ODESolution}`: Optionally, an ODESolution. The final values of all variables will be used as the new initial values.
+""" 
 struct PlantParameters
     default_values::Dict{Symbol, <:Any}
     module_defaults::Dict{Symbol, Dict}
     connection_values::Dict{Tuple{Symbol, Symbol}, Dict}
+    sol::Union{Missing, ODESolution}
 end
 
 # # Constructors
@@ -66,12 +68,13 @@ Constructor function for `PlantParameters` variables.
 """
 function PlantParameters(;
         default_values::Dict = PlantModules.default_values, module_defaults::Dict = Dict(),
-        connection_values::Dict = Dict(), default_changes::Dict = typeof(default_values)()
+        connection_values::Dict = Dict(), default_changes::Dict = typeof(default_values)(),
+        sol = missing
     )
 
     changed_defaults = merge(default_values, default_changes)
 
-    return PlantParameters(changed_defaults, module_defaults, connection_values)
+    return PlantParameters(changed_defaults, module_defaults, connection_values, sol)
 end
 
 # # Functions
@@ -88,7 +91,7 @@ Create a [`ModelingToolkit.System`](@extref) that describes the functional behav
 - `plantcoupling`: Coupling between functional and structural modules. See [`PlantCoupling`](@ref).
 """
 function generate_system(
-        plantstructure, plantcoupling::PlantCoupling, plantparams::PlantParameters
+        plantstructure::PlantStructure, plantcoupling::PlantCoupling, plantparams::PlantParameters
     )
 
     MTK_system_dict = get_MTK_system_dict(plantstructure, plantparams, plantcoupling)
@@ -105,7 +108,7 @@ function generate_system(
         for (nb_idx, nb_node) in enumerate(nb_nodes) # go over all neighbours of the node
             connecting_module, original_order = get_connecting_module(node, nb_node, plantcoupling)
             connection_MTK, connection_eqset = get_connection_info(
-                node, nb_node, connecting_module, original_order, plantparams, MTK_system_dict
+                node, nb_node, connecting_module, original_order, plantstructure, plantparams, MTK_system_dict
             )
             current_connection_MTKs[nb_idx] = connection_MTK
             append!(connection_eqsets, connection_eqset)
@@ -124,17 +127,21 @@ function generate_system(
     return system
 end
 
+generate_system(plantstructure, plantcoupling::PlantCoupling, plantparams::PlantParameters) = (
+    generate_system(PlantStructure(plantstructure), plantcoupling, plantparams)
+) 
+
 # get node idx => node MTK system
 function get_MTK_system_dict(plantstructure, plantparams, plantcoupling)
     return [
-        PlantModules.getid(node) => getMTKsystem(node, plantparams, plantcoupling)
+        PlantModules.getid(node) => getMTKsystem(node, plantstructure, plantparams, plantcoupling)
             for node in PlantModules.getnodes(plantstructure)
     ] |> Dict
 end
 
 # Get MTK system corresponding with node
-function getMTKsystem(node, plantparams, plantcoupling)
-    structmodule = PlantModules.getstructmod(node)
+function getMTKsystem(node, plantstructure, plantparams, plantcoupling)
+    structmodule = getstructmod(node)
     (!haskey(plantcoupling.module_coupling, structmodule) || isempty(plantcoupling.module_coupling[structmodule])) &&
         error("No functional module defined for structural module `$structmodule`.")
     func_modules = plantcoupling.module_coupling[structmodule]
@@ -142,10 +149,10 @@ function getMTKsystem(node, plantparams, plantcoupling)
     component_systems = Vector{System}(undef, length(func_modules))
 
     for (modulenum, func_module) in enumerate(func_modules)
-        nodevalues = getnodevalues(node, structmodule, func_module, plantparams)
+        nodevalues = getnodevalues(node, structmodule, func_module, plantstructure, plantparams)
 
         component_systems[modulenum] = func_module(;
-            :name => Symbol(string(structmodule) * string(PlantModules.getid(node))),
+            :name => getsysname(node, plantstructure),
             Pair.(keys(nodevalues), values(nodevalues))...
         )
     end
@@ -160,12 +167,17 @@ function getMTKsystem(node, plantparams, plantcoupling)
 end
 
 # get correct parameter/initial values for node between those defined in the model defaults, module defaults and node values
-function getnodevalues(node, structmodule, func_module, plantparams)
+# if ODE solution is present in plantparams, overwrite all initial values with final values from that solution
+function getnodevalues(node, structmodule, func_module, plantstructure, plantparams)
     node_defaults = get_func_defaults(plantparams.default_values, func_module)
     node_module_defaults = get(plantparams.module_defaults, structmodule, Dict())
     node_attributes = PlantModules.getattributes(node)
 
     nodevalues = overwrite!(deepcopy(node_defaults), node_module_defaults, node_attributes)
+    if !ismissing(plantparams.sol) && hassubsystem(plantparams.sol.prob.f.sys, getsysname(node, plantstructure))
+        sol_overwrite!(nodevalues, plantparams.sol, node, plantstructure)
+    end
+    
     return nodevalues
 end
 
@@ -191,6 +203,21 @@ function overwrite!(dicts::Dict...)
     return maindict
 end
 
+# overwrites values of Dict with final values of the variables in a solution corresponding to a given node
+function sol_overwrite!(dict::Dict, sol::ODESolution, node, plantstructure)
+    nodesystem = getsubsystem(sol.prob.f.sys, getsysname(node, plantstructure))
+    nodesystem_parameters = Symbol.(parameters(nodesystem))
+
+    for key in keys(dict)
+        if !(key in nodesystem_parameters) && hasproperty(nodesystem, key) # only overwrite initial values of existing variables
+            final_value = sol[getproperty(nodesystem, key)][end]
+            dict[key] = final_value
+        end
+    end
+
+    return nothing
+end
+
 # Get the MTK system of the edge between the two nodes, and whether it exists in correct order
 function get_connecting_module(node, nb_node, plantcoupling)
     structmodule = PlantModules.getstructmod(node)
@@ -212,7 +239,7 @@ end
 # get MTK system of connection between a node and its neighbour node AND the equations connecting the edge with the nodes
 function get_connection_info(
         node, nb_node, connecting_module,
-        original_order, plantparams, MTK_system_dict
+        original_order, plantstructure, plantparams, MTK_system_dict
     )
 
     structmodule = PlantModules.getstructmod(node)
@@ -230,8 +257,7 @@ function get_connection_info(
 
     connection_MTK, get_connection_eqset = connecting_module(;
         name = Symbol(
-            string(structmodule) * string(PlantModules.getid(node)) * "_" *
-                string(nb_structmodule) * string(PlantModules.getid(nb_node))
+            string(getsysname(node, plantstructure)) * "-" * string(getsysname(nb_node, plantstructure))
         ),
         Pair.(keys(conn_info), values(conn_info))...
     )
