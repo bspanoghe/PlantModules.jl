@@ -9,7 +9,7 @@ rebuild_notebooks = true
 
 if rebuild_notebooks
     cd("./src/tutorials")
-    bopts = BuildOptions(".", output_format = documenter_output)
+    bopts = BuildOptions(".", output_format = documenter_output, use_distributed = false)
     build_notebooks(bopts)
     cd(@__DIR__)
 end
