@@ -25,7 +25,7 @@ jobs:
       - name: Develop local package
         run: julia -e 'using Pkg; Pkg.develop(path="."); Pkg.instantiate()'
       - name: Install docs dependencies
-        shell: >
+        run: >
           DISPLAY=:0 xvfb-run -s '-screen 0 1024x768x24' julia --color=yes --project=docs {0}
         run: |
           using Pkg
