@@ -25,7 +25,6 @@ getstructmod
 getid
 
 getroot
-getvariables
 getchildren
 getparent
 ```

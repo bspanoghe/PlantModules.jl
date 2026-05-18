@@ -140,7 +140,7 @@ end
     getplotdata(sol::ODESolution, plantstructure::PlantStructure, nodes::Vector = getnodes(plantstructure); 
     varname::Symbol, structmod::Union{Symbol, Vector{Symbol}, Missing} = missing)
 
-Get the x-values, y-values and groups required to plot the given solution. See [`graphplot`](@ref) for more information. 
+Get the x-values, y-values and groups required to plot the given solution. See [`plotgraph`](@ref) for more information. 
 """
 function getplotdata(sol::ODESolution, plantstructure::PlantStructure, nodes::Vector = getnodes(plantstructure); 
     varname::Symbol, structmod::Union{Symbol, Vector{Symbol}, Missing} = missing)
