@@ -19,7 +19,7 @@ using RecipesBase, NetworkLayout # visualisation
 export generate_system, PlantStructure, PlantCoupling, PlantParameters # generate system
 export ModuleShape, Sphere, Cylinder, Cuboid # shapes
 export getnodes, getneighbors, getattributes, getstructmod, getid # graph functions
-export getroot, getvariables, getchildren, getparent # directed graph functions
+export getroot, getchildren, getparent # directed graph functions
 export getdimensionality, correctdimensionality, volume, cross_area, surface_area # shape functions
 export logsumexp, smooth_daynight # smooth functions
 export hydraulic_module, environmental_module, constant_carbon_module, simple_photosynthesis_module, Ψ_soil_module, Ψ_air_module, K_module, constant_K_module # node modules
@@ -27,9 +27,6 @@ export hydraulic_connection, constant_hydraulic_connection, daynight_hydraulic_c
 export readXEG, convert_to_MTG, convert_to_PG # graph reading and converting
 export remake_graphsystem, remake_graphsystem!, get_subsystem_variables # system remaking
 export plotstructure, plotgraph, getplotdata # plotting
-
-# ## Re-exports
-export graphplot
 
 # # Include src files
 include("plantstructure.jl")

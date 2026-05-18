@@ -6,6 +6,7 @@ on:
       - main
     tags: '*'
   pull_request:
+    types: [opened, synchronize]
 
 jobs:
   build:
@@ -30,8 +31,7 @@ jobs:
           Pkg.develop(PackageSpec(path=pwd()))
           Pkg.instantiate()
       - name: Build and deploy
-        run: julia --color=yes --project=docs docs/make.jl
-        with:
-          prefix: xvfb-run -s '-screen 0 1024x768x24'
+        run: >
+          julia --color=yes --project=docs docs/make.jl
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

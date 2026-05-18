@@ -18,7 +18,7 @@ using PlantModules
 using ModelingToolkit, OrdinaryDiffEq, Plots
 
 # ╔═╡ 5f494ba3-8c68-4728-9627-3dac9fe7fcd6
-using VirtualPlantLab, GLMakie
+using VirtualPlantLab, CairoMakie
 
 # ╔═╡ 986648b3-6c8a-465a-87a0-e0ce5fbbefa8
 using SkyDomes, PlantBiophysics, 
