@@ -18,3 +18,4 @@ VirtualPlantLab = "b977ecfa-1b9a-418d-909d-4ebe565736ce"
 [compat]
 Documenter = "1.16"
 ModelingToolkit = "11"
+SkyDomes = "0.1.10 - 0.2"
