@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.20.21
+# v1.0.1
 
 using Markdown
 using InteractiveUtils
@@ -312,9 +312,6 @@ md"### Ray tracing"
 # ╔═╡ 23e2b273-3a58-49d3-b12e-1f96c6a497cd
 md"We create the light sources corresponding to a realistic sky, using the functionality from `SkyDomes.jl` (from the from `VirtualPlantLab.jl` ecosystem). The ray tracing tutorial we base ourselves on defines an average sky for an entire day, which is possible because they model carbon dynamics on the day scale. We deviate here and create a sky corresponding with a single point in time, as we simulate plant growth continuously throughout the day."
 
-# ╔═╡ b83835d2-9ace-4275-90b8-d1e70be8f598
-waveband_conversion(Itype = :diffuse, waveband = :PAR, mode = :power)
-
 # ╔═╡ 8e7fa801-719e-4860-abfe-39b7e4ff47a6
 function create_sky(day_fraction; mesh, lat = 52.0*π/180.0, DOY = 182)
     # Compute solar irradiance
@@ -403,13 +400,22 @@ function precalculate_PAR!(tree; Δf = 0.05)
 
 	# generate new PAR samples and divide by surface area
 	for day_fraction in 0.0:Δf:1.0
-		run_raytracer!(tree; day_fraction)
-		for node in getnodes(tree)
-			if getstructmod(node) == :Leaf
-				PAR = data(node).mat |> power |> only
-				PAR_flux = PAR / 
-					(surface_area(Cuboid(), data(node).D) * 1e-4) # cm^2 to m^2
-				push!(data(node).PAR_samples, PAR_flux)
+		if day_fraction ∈ [0.0, 1.0] # no light at sunrise / sunset
+			for node in getnodes(tree)
+				if getstructmod(node) == :Leaf
+					PAR_flux = 0.0
+					push!(data(node).PAR_samples, PAR_flux)
+				end
+			end
+		else
+			run_raytracer!(tree; day_fraction)
+			for node in getnodes(tree)
+				if getstructmod(node) == :Leaf
+					PAR = data(node).mat |> power |> only
+					PAR_flux = PAR / 
+						(surface_area(Cuboid(), data(node).D) * 1e-4) # cm^2 to m^2
+					push!(data(node).PAR_samples, PAR_flux)
+				end
 			end
 		end
 	end
@@ -948,7 +954,6 @@ plotgraph(
 # ╠═082576ba-0932-432b-b173-c844fb57bfc0
 # ╟─8c376ccb-1a52-4698-8b0f-7cb77911e8f0
 # ╟─23e2b273-3a58-49d3-b12e-1f96c6a497cd
-# ╠═b83835d2-9ace-4275-90b8-d1e70be8f598
 # ╠═8e7fa801-719e-4860-abfe-39b7e4ff47a6
 # ╟─c57ecaee-62bb-4ce0-b7e8-cfad1328bdb0
 # ╠═bc88b630-43d2-4a02-a709-a80799abb837
