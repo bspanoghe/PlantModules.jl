@@ -1,6 +1,6 @@
 name = "PlantModules"
 uuid = "c420d4a8-207b-40ca-9fc4-c574d258dc7a"
-version = "0.2.0"
+version = "0.2.1"
 authors = ["Bram Spanoghe", "Michiel Stock", "Tom De Swaef"]
 
 [deps]
