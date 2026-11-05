@@ -352,7 +352,7 @@ time_span = (0.0, 48.0);
 prob = ODEProblem(system, [], time_span, sparse = true);
 
 # ╔═╡ c38b1a71-c5e9-4bfa-a210-bcbf9068f7ed
-sol = solve(prob);
+sol = solve(prob, FBDF());
 
 # ╔═╡ a399ea81-5392-4a54-8a40-953faf5b234a
 md"""
@@ -366,7 +366,7 @@ air_W_r = get_subsystem_variables(system, plantstructure, :W_r, :Air)[1]
 prob2 = remake(prob, u0 = [air_W_r => 0.5]);
 
 # ╔═╡ cb530432-97c8-4c1b-b6ef-905c1e1b5c81
-sol2 = solve(prob2);
+sol2 = solve(prob2, FBDF());
 
 # ╔═╡ a6608eff-9399-443c-a33a-c62341f7b14c
 md"""

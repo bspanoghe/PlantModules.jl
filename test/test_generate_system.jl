@@ -7,8 +7,8 @@ function lotka_volterra(; name, α, β, δ, γ, N, P)
     @parameters α = α β = β δ = δ γ = γ
     @variables N(t) = N P(t) = P ΣF_N(t) ΣF_P(t)
     eqs = [
-        d(N) ~ α*N - β*N*P + ΣF_N,
-        d(P) ~ δ*N*P - γ*P + ΣF_P
+        d(N) ~ α * N - β * N * P + ΣF_N,
+        d(P) ~ δ * N * P - γ * P + ΣF_P,
     ]
     return System(eqs, t; name)
 end
@@ -17,7 +17,7 @@ function fountain_of_rabbits(; name, η, N, P)
     @variables N(t) = N P(t) = P ΣF_N(t) ΣF_P(t)
     eqs = [
         d(N) ~ η + ΣF_N,
-        d(P) ~ ΣF_P
+        d(P) ~ ΣF_P,
     ]
     return System(eqs, t; name)
 end
@@ -28,7 +28,7 @@ function wandering_animals(; name, κ)
 
     eqs = [
         F_N ~ κ * (N_2 - N_1),
-        F_P ~ κ * (P_2 - P_1)
+        F_P ~ κ * (P_2 - P_1),
     ]
 
     wandering_eqs(node_MTK, nb_node_MTK, connection_MTK) = [
@@ -57,7 +57,7 @@ connecting_modules = Dict(
 
 connecting_eqs(node_MTK, connection_MTKs) = [
     node_MTK.ΣF_N ~ sum([connection_MTK.F_N for connection_MTK in connection_MTKs]),
-    node_MTK.ΣF_P ~ sum([connection_MTK.F_P for connection_MTK in connection_MTKs])
+    node_MTK.ΣF_P ~ sum([connection_MTK.F_P for connection_MTK in connection_MTKs]),
 ]
 
 plantcoupling = PlantCoupling(; module_coupling, connecting_modules, connecting_eqs)
@@ -89,12 +89,11 @@ nb_node = cave_node
 
 ## getMTKsystem
 
-checkunits = false
-sys1 = PlantModules.getMTKsystem(forest_node_1, plantparams, plantcoupling, checkunits)
-@test get_name(sys1) == Symbol(string(PlantModules.getstructmod(forest_node_1)) * string(PlantModules.getid(forest_node_1)))
+sys1 = PlantModules.getMTKsystem(forest_node_1, plantstructure, plantparams, plantcoupling)
+@test get_name(sys1) == PlantModules.getsysname(forest_node_1, plantstructure)
 
 ## get_MTK_system_dict
-MTK_system_dict = PlantModules.get_MTK_system_dict(plantstructure, plantparams, plantcoupling, checkunits)
+MTK_system_dict = PlantModules.get_MTK_system_dict(plantstructure, plantparams, plantcoupling)
 @test length(MTK_system_dict) == 7
 @test MTK_system_dict[1] isa ModelingToolkit.System
 
@@ -104,22 +103,26 @@ connecting_module, original_order = PlantModules.get_connecting_module(node, nb_
 @test original_order == true
 
 ## get_connection_info
-connection_MTK, connection_equations = PlantModules.get_connection_info(node, nb_node, connecting_module,
-	original_order, plantparams, MTK_system_dict)
+connection_MTK, connection_equations = PlantModules.get_connection_info(
+    node, nb_node, connecting_module,
+    original_order, plantstructure, plantparams, MTK_system_dict
+)
+
+initial_conditions(connection_MTK)
 
 @test connection_MTK isa ModelingToolkit.System
-@test only(values(get_defaults(connection_MTK))) == 0.05
+@test getfield(only(values(initial_conditions(connection_MTK))), :data).val == 0.05 #! update to avoid MTK internals
 @test connection_equations isa Vector{Equation}
 
 ## getnodevalues
 structmodule = :Forest
 func_module = lotka_volterra
-nodevalues = PlantModules.getnodevalues(node, structmodule, func_module, plantparams)
-@test issetequal(nodevalues, [:α => 1.5, :β => 1.9, :γ => 0.8,  :δ => 1.8, :N => 20, :P => 10])
+nodevalues = PlantModules.getnodevalues(node, structmodule, func_module, plantstructure, plantparams)
+@test issetequal(nodevalues, [:α => 1.5, :β => 1.9, :γ => 0.8, :δ => 1.8, :N => 20, :P => 10])
 
 structmodule = :Cave
 func_module = fountain_of_rabbits
-nodeu0s = PlantModules.getnodevalues(nb_node, structmodule, func_module, plantparams)
+nodeu0s = PlantModules.getnodevalues(nb_node, structmodule, func_module, plantstructure, plantparams)
 @test issetequal(nodeu0s, [:η => 10, :P => 0, :N => 1])
 
 ## generate_system

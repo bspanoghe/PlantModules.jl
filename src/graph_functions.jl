@@ -51,25 +51,54 @@ getattributes(node::Dict) = node[:attributes]
 getstructmod(node::Dict) = node[:type]
 getid(node::Dict) = node[:id]
 
+# ## Implementation for Base Julia representation as an `Array` of any other implementation type
+
+getnodes(graph::Array) = reshape(graph, :)
+function getneighbors(node, graph::Array)
+    idx = findfirst(n -> getid(n) == getid(node), graph).I
+
+    n = length(idx)
+	nb_offsets = [zeros(Int64, n) for _ in 1:2*n]
+	for i in 1:n
+		nb_offsets[2*i-1][i] = 1
+		nb_offsets[2*i][i] = -1
+	end
+
+	nb_indices = [idx .+ nb_offset for nb_offset in nb_offsets]
+
+    neighbors = [
+        graph[nb_index...]
+        for nb_index in nb_indices
+        if checkbounds(Bool, graph, nb_index...)
+    ]
+
+    return neighbors
+end
+# getattributes
+# getstructmod
+# getid
+
 # ## Implementation for PlantGraphs.jl
 
 # ### GraphNode / StaticGraph (nodes combined into graph)
 
 getnodes(graph::PlantGraphs.StaticGraph) = values(graph.nodes) |> collect
-getneighbors(node::PlantGraphs.GraphNode, graph::PlantGraphs.StaticGraph) = 
-	[
-		graph[nb_id]
-	for nb_id in (ismissing(node.parent_id) ? node.children_id :
-		vcat(collect(node.children_id), node.parent_id))
+getneighbors(node::PlantGraphs.GraphNode, graph::PlantGraphs.StaticGraph) =
+    [
+    graph[nb_id]
+        for nb_id in (
+            ismissing(node.parent_id) ? node.children_id :
+            vcat(collect(node.children_id), node.parent_id)
+        )
 ]
 function getattributes(node::PlantGraphs.GraphNode)
-	fields = fieldnames(typeof(node.data))
-	
-	if isempty(fields)
-		return Dict([])
-	end
+    fields = fieldnames(typeof(node.data))
 
-	return Dict([field => getfield(node.data, field) for field in fields])
+    if isempty(fields)
+        return Dict([])
+    end
+
+    return Dict([field => getfield(node.data, field) for field in fields])
 end
 getstructmod(node::PlantGraphs.GraphNode) = typeof(node.data).name.name
 getid(node::PlantGraphs.GraphNode) = node.self_id
@@ -84,16 +113,19 @@ getneighbors(node::PlantGraphs.GraphNode, graph::PlantGraphs.Graph) = getneighbo
 getnodes(node::PlantGraphs.Node) = [node]
 getneighbors(::PlantGraphs.Node, ::PlantGraphs.Node) = [] # node in a graph consisting of one node has no neighbours
 function getattributes(node::PlantGraphs.Node)
-	fields = fieldnames(typeof(node))
-	
-	if isempty(fields)
-		return Dict([])
-	end
+    fields = fieldnames(typeof(node))
 
-	return Dict([field => getfield(node, field) for field in fields])
+    if isempty(fields)
+        return Dict([])
+    end
+
+    non_id_fields = filter(f -> f != :id, fields) # :id is reserved for the id of the node, not a normal attribute
+
+    return Dict([field => getfield(node, field) for field in non_id_fields])
 end
 getstructmod(node::PlantGraphs.Node) = typeof(node).name.name
-getid(node::PlantGraphs.Node) = 1 # The entire graph only consists of one node if the input type is Node
+getid(node::PlantGraphs.Node) = :id in fieldnames(typeof(node)) ? getfield(node, :id) : 1 
+    # The entire graph only consists of one node if the input type is Node, unless an id field is specified (for use in Arrays)
 
 # ## MyPGNode (own implementation acquired by graph conversion)
 
@@ -108,7 +140,7 @@ getid(node::MyPGNode) = 1
 
 getnodes(graph::MultiScaleTreeGraph.Node) = MultiScaleTreeGraph.descendants(graph, self = true)
 getneighbors(node::MultiScaleTreeGraph.Node, _) = isnothing(MultiScaleTreeGraph.parent(node)) ?
-	MultiScaleTreeGraph.children(node) : vcat(MultiScaleTreeGraph.parent(node), MultiScaleTreeGraph.children(node))
+    MultiScaleTreeGraph.children(node) : vcat(MultiScaleTreeGraph.parent(node), MultiScaleTreeGraph.children(node))
 getattributes(node::MultiScaleTreeGraph.Node) = MultiScaleTreeGraph.node_attributes(node)
 getstructmod(node::MultiScaleTreeGraph.Node) = MultiScaleTreeGraph.node_mtg(node).symbol |> Symbol
 getid(node::MultiScaleTreeGraph.Node) = MultiScaleTreeGraph.node_id(node)

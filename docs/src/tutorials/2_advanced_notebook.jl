@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.20.21
+# v0.20.23
 
 using Markdown
 using InteractiveUtils
@@ -13,6 +13,7 @@ using Pkg; Pkg.activate("../..")
 using PlantModules
 
 # ╔═╡ 45991fe2-1dae-4633-b3c2-81b3e076c1eb
+# ╠═╡ show_logs = false
 using PlantGraphs, ModelingToolkit, OrdinaryDiffEq, Plots
 
 # ╔═╡ 8adf74c7-7fe0-42fd-bde5-9942f30fea36
@@ -311,7 +312,7 @@ md"### Connecting to the environment"
 
 # ╔═╡ a5cbaceb-3387-4431-b4bd-b26867406721
 md"""
-We will again be using a single soil and air compartment, so there is little new in connecting the plant graph to the environment. However, for the visualisation of the resulting structure, removing the names of the structural modules with `names = ""` can give a clearer visualisation.
+We will again be using a single soil and air compartment, so there is little new in connecting the plant graph to the environment.
 """
 
 # ╔═╡ 58001eea-6986-495d-8278-88080bf09a18
@@ -330,7 +331,7 @@ intergraph_connections = [(1, 2) => (getnodes(plant)[1], :Soil), (1, 3) => (:Bra
 plantstructure = PlantStructure(graphs, intergraph_connections);
 
 # ╔═╡ ad16819d-1b9e-45c3-8aa7-cca15f63ced7
-plotstructure(plantstructure, names = "")
+plotstructure(plantstructure)
 
 # ╔═╡ 6741bdad-518a-45e9-b127-863c6e9a36c5
 md"## Function definition"
@@ -532,10 +533,14 @@ system = generate_system(plantstructure, plantcoupling, plantparams);
 # ╔═╡ b810c5c6-97c7-4293-ae77-0c399d6f56b2
 tspan = (0.0, 24.0);
 
+# ╔═╡ 7f99ec81-41c9-45bf-9e7d-2ab7dada677d
+prob = ODEProblem(system, [], tspan, sparse = true);
+
 # ╔═╡ eab82d37-dc14-4afb-8791-cf6b08e31307
 md"""
-!!! warning
-	Problem construction of DAEs uses `SciMLBase.SCCNonlinearProblem` by default to solve the initialization problem. For the functional modules provided by `PlantModules.jl`, this currently takes much longer than the alternative option `SciMLBase.NonlinearProblem` for large systems. We can specify we want the alternative method for problem initialization using `use_scc = false`.
+!!! warning "Note for ModelingToolkit versions <11"
+
+	Problem construction of DAEs uses `SciMLBase.SCCNonlinearProblem` by default to solve the initialization problem. For the functional modules provided by `PlantModules.jl`, this takes much longer than the alternative option `SciMLBase.NonlinearProblem` for large systems. We can specify we want the alternative method for problem initialization using `use_scc = false`.
 """
 
 # ╔═╡ 7f99ec81-41c9-45bf-9e7d-2ab7dada677d
@@ -853,8 +858,8 @@ The plot shows that an increase in hydraulic conductivity will have a positive i
 # ╟─5025d163-dfc3-4a3f-b1eb-3d902f1d2c98
 # ╠═4ee50611-6032-476d-ad2f-9393ad0b2200
 # ╠═b810c5c6-97c7-4293-ae77-0c399d6f56b2
-# ╟─eab82d37-dc14-4afb-8791-cf6b08e31307
 # ╠═7f99ec81-41c9-45bf-9e7d-2ab7dada677d
+# ╟─eab82d37-dc14-4afb-8791-cf6b08e31307
 # ╠═b24016d3-cd1d-4ba8-b7a6-2ee8b41db1f1
 # ╟─087fa5db-83a0-4a47-b52a-7ddc6259a281
 # ╟─81aff1dd-ba69-498e-aa9c-775b76b42d2f

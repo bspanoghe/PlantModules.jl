@@ -52,9 +52,12 @@ struct PlantStructure{T} <: AbstractGraph{T}
     edges::Vector{PMEdge{T}}
     pmvertexdict::Dict{T, PMVertex{T}}
     neighbordict::Dict{T, Vector{T}}
+    og_id_dict::Dict{T, Tuple{T, T}}
 end
 
-function PlantStructure(vertices::Vector{T}, edges::Vector{PMEdge{T}}, pmvertexdict::Dict{T, PMVertex{T}}) where {T}
+function PlantStructure(vertices::Vector{T}, edges::Vector{PMEdge{T}}, pmvertexdict::Dict{T, PMVertex{T}},
+    og_id_dict::Dict{T, Tuple{T, T}} = Dict([vertex => (1, vertex) for vertex in vertices])) where {T}
+
     neighbordict = Dict{T, Vector{T}}()
     for e in edges
         v1, v2 = src(e), dst(e)
@@ -63,14 +66,17 @@ function PlantStructure(vertices::Vector{T}, edges::Vector{PMEdge{T}}, pmvertexd
         v2 in v1_nbs || (neighbordict[v1] = [v1_nbs; v2])
         v1 in v2_nbs || (neighbordict[v2] = [v2_nbs; v1])
     end
-    PlantStructure(vertices, edges, pmvertexdict, neighbordict)
+    return PlantStructure(vertices, edges, pmvertexdict, neighbordict, og_id_dict)
 end
 
 vertices(g::PlantStructure) = g.vertices
 edges(g::PlantStructure) = g.edges
 pmvertex(g::PlantStructure{T}, v::T) where {T} = g.pmvertexdict[v]
-neighbors(g::PlantStructure{T}, v::T) where {T} = g.neighbordict[v]
-neighbors(g::PlantStructure{T}, v::T) where {T <: Integer} = g.neighbordict[v]
+_neighbors(g::PlantStructure{T}, v::T) where {T} = haskey(g.neighbordict, v) ? g.neighbordict[v] : T[]
+neighbors(g::PlantStructure{T}, v::T) where {T} = _neighbors(g, v)
+neighbors(g::PlantStructure{T}, v::T) where {T<:Integer} = _neighbors(g, v) # for ambiguity issue with Graphs.neighbors
+og_id(g::PlantStructure{T}, v::T) where {T} = g.og_id_dict[v]
+og_id(g::PlantStructure{T}, v::PMVertex{T}) where {T} = og_id(g, id(v))
 
 edgetype(g::PlantStructure) = eltype(edges(g))
 inneighbors(g::PlantStructure{T}, v::T) where {T} = neighbors(g, v)
@@ -84,97 +90,102 @@ is_directed(::Type{<:PlantStructure}) = false
 
 # ## Construct from other graphs
 
-function PlantStructure(graphs::Vector, intergraph_connections::Vector; return_id_conversions::Bool = false)
-	T = graphs[1] |> getnodes |> x -> getid(x[1]) |> typeof
-	vertices = T[]
-	edges = PMEdge{T}[]
-	pmvertexdict = Dict{T, PMVertex{T}}()
+function PlantStructure(graphs::Vector, intergraph_connections::Vector)
+    T = graphs[1] |> getnodes |> x -> getid(x[1]) |> typeof
+    vertices = T[]
+    edges = PMEdge{T}[]
+    pmvertexdict = Dict{T, PMVertex{T}}()
 
-	allnodes = [node for graph in graphs for node in getnodes(graph)]
-	id_dict = Pair.(allnodes, eachindex(allnodes)) |> Dict
-	
-	# connect nodes to single graph
-	for (graphnr, graph) in enumerate(graphs)
-		for node in getnodes(graph)
-			node_id = id_dict[node]
-			push!(vertices, node_id)
-			pmvertexdict[node_id] = PMVertex(node_id, getstructmod(node), getattributes(node))
+    allnodes = [node for graph in graphs for node in getnodes(graph)]
+    new_id_dict = Pair.(allnodes, eachindex(allnodes)) |> Dict
 
-			nb_nodes = get_nb_nodes(node, graphnr, graphs, intergraph_connections)
-			append!(edges, [PMEdge(node_id, id_dict[nb_node]) for nb_node in nb_nodes])
-		end
-	end
+    # connect nodes to single graph
+    for (graphnr, graph) in enumerate(graphs)
+        @assert allunique(getid.(getnodes(graph))) "Graph $graphnr: ids of nodes are not unique"
 
-	return_id_conversions && return PlantStructure(vertices, edges, pmvertexdict), id_dict
-	return PlantStructure(vertices, edges, pmvertexdict)
+        for node in getnodes(graph)
+            node_id = new_id_dict[node]
+            push!(vertices, node_id)
+            pmvertexdict[node_id] = PMVertex(node_id, getstructmod(node), getattributes(node))
+
+            nb_nodes = get_nb_nodes(node, graphnr, graphs, intergraph_connections)
+            append!(edges, [PMEdge(node_id, new_id_dict[nb_node]) for nb_node in nb_nodes])
+        end
+    end
+
+    og_id_dict = [
+        new_id_dict[node] => (graphnr, getid(node))
+        for (graphnr, graph) in enumerate(graphs)
+        for node in getnodes(graph)
+    ] |> Dict
+
+    return PlantStructure(vertices, edges, pmvertexdict, og_id_dict)
 end
 
-PlantStructure(graph; return_id_conversions::Bool = false) = PlantStructure([graph], []; return_id_conversions)
+PlantStructure(graph) = PlantStructure([graph], [])
 
 # get neighbouring nodes of a node both from the same graph and all connected graphs
 function get_nb_nodes(node, graphnr, graphs, intergraph_connections)
-	graph = graphs[graphnr]
-	
-	intra_nb_nodes = getneighbors(node, graph)
-	inter_nb_nodes = get_intergraph_neighbours(node, graphnr, graphs, intergraph_connections)
+    graph = graphs[graphnr]
 
-	nb_nodes = vcat(intra_nb_nodes, inter_nb_nodes)
-	# isempty(nb_nodes) && error("No neighbours found for node $node.") #!
+    intra_nb_nodes = getneighbors(node, graph)
+    inter_nb_nodes = get_intergraph_neighbours(node, graphnr, graphs, intergraph_connections)
 
-	return nb_nodes
+    nb_nodes = vcat(intra_nb_nodes, inter_nb_nodes)
+
+    return nb_nodes
 end
 
 # get neighbouring nodes from different graphs
 ## go over all intergraph connections
 function get_intergraph_neighbours(node, node_graphnr, graphs, intergraph_connections)
-	nb_nodes = []
-	
-	# Go over all graphs and add nodes to neighbouring nodes if the graphs are connected
-	for intergraph_connection in intergraph_connections
-		if node_graphnr in first(intergraph_connection)
-			node_idx, nb_idx = first(intergraph_connection)[1] == node_graphnr ? (1, 2) : (2, 1)
-			nb_graphnr = first(intergraph_connection)[nb_idx]
-			nb_graph = graphs[nb_graphnr]
-			connection = intergraph_connection[2]
-			if connection isa Tuple
-				_nb_nodes = _get_intergraph_neighbours(node, nb_graph, connection[node_idx], connection[nb_idx])
-			else
-				nb_first = nb_idx == 1
-				_nb_nodes = _get_intergraph_neighbours(node, nb_graph, connection, nb_first)
-			end
-			
-			append!(nb_nodes, _nb_nodes)
-		end
-	end
+    nb_nodes = []
 
-	return nb_nodes
+    # Go over all graphs and add nodes to neighbouring nodes if the graphs are connected
+    for intergraph_connection in intergraph_connections
+        if node_graphnr in first(intergraph_connection)
+            node_idx, nb_idx = first(intergraph_connection)[1] == node_graphnr ? (1, 2) : (2, 1)
+            nb_graphnr = first(intergraph_connection)[nb_idx]
+            nb_graph = graphs[nb_graphnr]
+            connection = intergraph_connection[2]
+            if connection isa Tuple
+                _nb_nodes = _get_intergraph_neighbours(node, nb_graph, connection[node_idx], connection[nb_idx])
+            else
+                nb_first = nb_idx == 1
+                _nb_nodes = _get_intergraph_neighbours(node, nb_graph, connection, nb_first)
+            end
+
+            append!(nb_nodes, _nb_nodes)
+        end
+    end
+
+    return nb_nodes
 end
 
 ## For a connection where the structural module or specific nodes are specified
 function _get_intergraph_neighbours(node, nb_graph, node_connection, nb_connection)
-	if connection_check(node, node_connection)
-		nb_nodes = [nb_node for nb_node in getnodes(nb_graph) if connection_check(nb_node, nb_connection)]
-	else
-		nb_nodes = []
-	end
+    if connection_check(node, node_connection)
+        nb_nodes = [nb_node for nb_node in getnodes(nb_graph) if connection_check(nb_node, nb_connection)]
+    else
+        nb_nodes = []
+    end
 
-	return nb_nodes
+    return nb_nodes
 end
 
 connection_check(node, connection) = (node == connection) # connection is a node
 connection_check(node, connection::Symbol) = (getstructmod(node) == connection) # connection is a structural module
-connection_check(node, connection::Vector) = node in connection # connection is a collection of nodes
+connection_check(node, connection::AbstractArray) = node in connection # connection is a collection of nodes
 
 ## For a connection with a user-defined filter function
 function _get_intergraph_neighbours(node, nb_graph, connection_func::Function, nb_first::Bool)
-	# Main.@infiltrate getstructmod(node) == :Air
-	if nb_first
-		nb_nodes = [nb_node for nb_node in getnodes(nb_graph) if connection_func(nb_node, node)]
-	else
-		nb_nodes = [nb_node for nb_node in getnodes(nb_graph) if connection_func(node, nb_node)]
-	end
+    if nb_first
+        nb_nodes = [nb_node for nb_node in getnodes(nb_graph) if connection_func(nb_node, node)]
+    else
+        nb_nodes = [nb_node for nb_node in getnodes(nb_graph) if connection_func(node, nb_node)]
+    end
 
-	return nb_nodes
+    return nb_nodes
 end
 
 # # PlantGraphs.jl `Node` implementation for graph conversion

@@ -24,11 +24,15 @@ getattributes
 getstructmod
 getid
 
+getroot
+getchildren
+getparent
 ```
 
 # Shape functions
 ```@docs
 getdimensionality
+correctdimensionality
 volume
 cross_area
 surface_area
@@ -77,5 +81,5 @@ get_subsystem_variables
 ```@docs
 plotstructure
 plotgraph
-plotnode
+getplotdata
 ```
